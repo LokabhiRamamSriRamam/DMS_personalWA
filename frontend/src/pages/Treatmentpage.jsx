@@ -5,8 +5,8 @@ import {
 } from 'lucide-react';
 
 // --- IMPORTS ---
-import TreatmentTabs from '../Components/TreatmentTabs'; 
-import TreatmentPlanBoard from '../Components/TreatmentPlanBoard'; 
+import TreatmentTabs from '../components/TreatmentTabs'; 
+import TreatmentPlanBoard from '../components/TreatmentPlanBoard'; 
 
 // --- Sub-Components (Header & Info) ---
 

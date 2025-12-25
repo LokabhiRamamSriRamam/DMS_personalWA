@@ -1,29 +1,46 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
-const SidebarItem = ({ icon, label, href = "#", active = false }) => {
+const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
   return (
-    <a 
-      href={href} 
-      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors group ${
+    <Link 
+      to={to}
+      onClick={onClick}
+      className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative ${
         active 
           ? 'bg-blue-600/10 text-blue-600' 
-          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+          : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400'
       }`}
     >
+      {/* Active Indicator Bar */}
+      {active && (
+        <div className="absolute left-0 w-1 h-6 bg-blue-600 rounded-r-full" />
+      )}
+
       <span 
-        className="material-symbols-outlined flex-shrink-0" 
+        className="material-symbols-outlined flex-shrink-0 transition-transform duration-200 group-hover:scale-110" 
         style={active ? { fontVariationSettings: "'FILL' 1" } : {}}
       >
         {icon}
       </span>
+      
       <span className="text-sm font-medium opacity-0 w-0 group-hover/sidebar:w-auto group-hover/sidebar:opacity-100 transition-all duration-300 whitespace-nowrap overflow-hidden delay-75">
         {label}
       </span>
-    </a>
+    </Link>
   );
 };
 
 const NavigationLayout = ({ children }) => {
+  const location = useLocation();
+
+  // Helper to check if the path matches the current location
+  // You can change 'startsWith' to '===' if you want exact matching only
+  const isActive = (path) => {
+    if (path === '/') return location.pathname === '/';
+    return location.pathname.startsWith(path);
+  };
+
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f7f8] dark:bg-[#101922] font-sans text-slate-900 dark:text-white">
       {/* Sidebar */}
@@ -43,12 +60,54 @@ const NavigationLayout = ({ children }) => {
 
             {/* Navigation */}
             <nav className="flex flex-col gap-2">
-              <SidebarItem icon="dashboard" label="Dashboard" active={true} />
-              <SidebarItem icon="calendar_month" label="Appointments" />
-              <SidebarItem icon="person" label="Patients" />
-              <SidebarItem icon="credit_card" label="Billing" />
-              <SidebarItem icon="lab_profile" label="Lab Results" />
-              <SidebarItem icon="settings" label="Settings" />
+              <SidebarItem 
+                icon="calendar_month" 
+                label="Appointments" 
+                to="/" 
+                active={isActive('/appointments')} 
+              />
+              <SidebarItem 
+                icon="person" 
+                label="Patients" 
+                to="/patients" 
+                active={isActive('/patients')} 
+              />
+              <SidebarItem 
+                icon="credit_card" 
+                label="Transactions" 
+                to="/transactions" 
+                active={isActive('/transactions')} 
+              />
+              <SidebarItem 
+                icon="receipt_long" 
+                label="Invoices" 
+                to="/invoices" 
+                active={isActive('/invoices')} 
+              />
+              <SidebarItem 
+                icon="science" 
+                label="Lab" 
+                to="/lab" 
+                active={isActive('/lab')} 
+              />
+              <SidebarItem 
+                icon="inventory" 
+                label="Inventory" 
+                to="/inventory" 
+                active={isActive('/inventory')} 
+              />
+              <SidebarItem 
+                icon="dashboard" 
+                label="Reports" 
+                to="/reports" 
+                active={isActive('/reports')} 
+              />
+              <SidebarItem 
+                icon="settings" 
+                label="Settings" 
+                to="/settings" 
+                active={isActive('/settings')} 
+              />
             </nav>
           </div>
 
@@ -56,7 +115,7 @@ const NavigationLayout = ({ children }) => {
           <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 mt-auto overflow-hidden">
             <div 
               className="flex-shrink-0 bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-slate-200 dark:border-slate-700" 
-              style={{ backgroundImage: 'url("https://randomuser.me/api/portraits/women/44.jpg")' }} // Placeholder image
+              style={{ backgroundImage: 'url("https://randomuser.me/api/portraits/women/44.jpg")' }}
             ></div>
             <div className="flex flex-col overflow-hidden opacity-0 w-0 group-hover/sidebar:w-auto group-hover/sidebar:opacity-100 transition-all duration-300 whitespace-nowrap">
               <p className="text-slate-900 dark:text-white text-sm font-medium truncate">Dr. Sarah Smith</p>
