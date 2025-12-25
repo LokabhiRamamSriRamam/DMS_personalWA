@@ -72,7 +72,7 @@ const DashboardPage = () => {
     return map[color] || 'bg-slate-400';
   };
 
-  return (
+  return (<div className="min-h-screen bg-[#EBF2F7] font-sans">
     <NavigationLayout>
       <div className="max-w-[1200px] mx-auto flex flex-col gap-8 pb-10 font-display">
         
@@ -309,6 +309,7 @@ const DashboardPage = () => {
         </div>
       </div>
     </NavigationLayout>
+    </div>
   );
 };
 

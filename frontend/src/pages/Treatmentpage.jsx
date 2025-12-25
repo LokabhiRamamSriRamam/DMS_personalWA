@@ -209,7 +209,7 @@ const AdvicesRecall = () => {
 
 export default function TreatmentPage() {
   return (
-    <div className="min-h-screen bg-[#f6f7f8] p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-[#EBF2F7] p-4 md:p-8 font-sans">
       <div className="max-w-7xl mx-auto">
         <PatientHeader />
         <PatientInfoCard />
