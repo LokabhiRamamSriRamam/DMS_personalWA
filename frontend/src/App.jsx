@@ -8,6 +8,9 @@ import TreatmentPage from './pages/Treatmentpage';
 import InvoicesPage from './pages/InvoicePage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import PatientsPage from './pages/PatientsPage';
+import TransactionsPage from './pages/TransactionsPage';
+import LabPage from './pages/LabPage';
+import InventoryPage from './pages/InventoryPage';
 
 // 2. Define the Router with a "Parent" layout
 const router = createBrowserRouter([
@@ -25,10 +28,11 @@ const router = createBrowserRouter([
       {path: "treatment", element: <TreatmentPage />},
       {path: "invoices", element: <InvoicesPage />},
       { path: "patients", element: <PatientsPage/>},
-      { path: "transactions", element: <div>Transactions Page</div> },
-      { path: "lab", element: <div>Lab Page</div> },
-      { path: "inventory", element: <div>Inventory Page</div> },
-      { path: "reports", element: <div>Reports Page</div> },
+      { path: "transactions", element: <TransactionsPage /> },
+      { path: "lab", element: <LabPage /> },
+      { path: "inventory", element: <InventoryPage /> },
+      { path: "insights", element: <div>Insights Page</div> },
+      { path: "promotions", element: <div>Promotions Page</div> },
       { path: "settings", element: <div>Settings Page</div> },
     ],
   },

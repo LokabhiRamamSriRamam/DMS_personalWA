@@ -98,9 +98,15 @@ const NavigationLayout = ({ children }) => {
               />
               <SidebarItem 
                 icon="dashboard" 
-                label="Reports" 
-                to="/reports" 
-                active={isActive('/reports')} 
+                label="Insights" 
+                to="/insights" 
+                active={isActive('/insights')} 
+              />
+              <SidebarItem 
+                icon="campaign" 
+                label="Promotions" 
+                to="/promotions" 
+                active={isActive('/promotions')} 
               />
               <SidebarItem 
                 icon="settings" 

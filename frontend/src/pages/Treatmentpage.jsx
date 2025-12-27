@@ -45,7 +45,7 @@ const PatientInfoCard = () => (
         <h2 className="font-semibold text-2xl text-gray-800 capitalize">Avtansh</h2>
         <div className="flex flex-wrap gap-5 items-center text-gray-600">
           <div className="flex gap-2 items-center">
-            <MapPin size={18} /> <span>Gawar</span>
+            <MapPin size={18} /> <span>Bihari</span>
           </div>
           <div className="flex gap-2 items-center">
             <Phone size={18} /> <span>+91 9999999990</span>
@@ -209,7 +209,7 @@ const AdvicesRecall = () => {
 
 export default function TreatmentPage() {
   return (
-    <div className="min-h-screen bg-[#EBF2F7] p-4 md:p-8 font-sans">
+    <div className="min-h-screen bg-[#EBF2F7] px-4 font-sans">
       <div className="max-w-7xl mx-auto">
         <PatientHeader />
         <PatientInfoCard />
