@@ -8,6 +8,11 @@ import visitRoutes from "./routes/visit.routes.js";
 import appointmentRoutes from "./routes/appointment.routes.js";
 import inventoryRoutes from "./routes/inventory.routes.js";
 import invoiceRoutes from "./routes/invoice.routes.js";
+import labRoutes from './routes/lab.routes.js';
+import userRoutes from './routes/user.routes.js';
+import vendorRoutes from './routes/vendor.routes.js';
+import serviceRoutes from './routes/services.routes.js';
+import cors from "cors";  
 
 dotenv.config();
 
@@ -17,6 +22,7 @@ connectDB();
 const app = express();
 
 // Middleware
+app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -30,7 +36,11 @@ app.use("/api/patients", patientRoutes);
 app.use("/api/visits", visitRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/inventory", inventoryRoutes);
-app.use("/api/invoices", invoiceRoutes);
+app.use("/api", invoiceRoutes);
+app.use('/api/labs', labRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/services', serviceRoutes);
 
 // Global error handler (optional but recommended)
 app.use((err, req, res, next) => {

@@ -1,14 +1,10 @@
-import express from "express";
-import {
-  createAppointment,
-  getAppointments,
-  updateAppointmentStatus
-} from "../controllers/appointment.controller.js";
+import { getAppointments, createAppointment, updateStatus } from '../controllers/appointment.controller.js';
+import express from 'express';
 
 const router = express.Router();
 
-router.post("/", createAppointment);
-router.get("/", getAppointments);
-router.patch("/:id/status", updateAppointmentStatus);
+router.get('/', getAppointments);
+router.post('/', createAppointment);
+router.patch('/:id/status', updateStatus);
 
 export default router;

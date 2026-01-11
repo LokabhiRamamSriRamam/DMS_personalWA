@@ -1,42 +1,48 @@
-import mongoose from "mongoose";
+// models/Patient.js
+import mongoose from 'mongoose';
 
-const conditionSchema = new mongoose.Schema(
-  {
+const PatientSchema = new mongoose.Schema({
+  // --- IDENTIFIERS ---
+  patientId: { type: String, required: true, unique: true, index: true }, // e.g. "PID-2025-001"
+  
+  // --- DEMOGRAPHICS ---
+  first_name: { type: String, required: true },
+  last_name: { type: String },
+  dob: { type: Date }, // Virtual 'age' is calculated from this
+  gender: { type: String, enum: ['Male', 'Female', 'Other'] },
+  blood_group: { type: String },
+  
+  contact: {
+    mobile: { type: String, required: true },
+    email: { type: String },
+    address: { type: String },
+    city: { type: String }
+  },
+  
+  emergency_contact: {
     name: String,
-    diagnosed_date: String,
-    status: String,
-    severity: String
+    phone: String,
+    relation: String
   },
-  { _id: false }
-);
 
-const patientSchema = new mongoose.Schema(
-  {
-    demographics: {
-      first_name: String,
-      last_name: String,
-      dob: Date,
-      gender: String,
-      contact: {
-        phone: String,
-        email: String,
-        address: String
-      },
-      emergency_contact: Object
-    },
+  // --- MEDICAL PROFILE ---
+  // Matches the "Medical History" tags in Profile Modal
+  medical_history: [{ type: String }], // e.g. ["Diabetes", "BP High"]
+  allergies: [{ type: String }],       // e.g. ["Penicillin", "Latex"]
+  
+  // --- META ---
+  reference_source: { type: String }, // Who referred them?
+  general_notes: { type: String },    // Private clinic notes
+  
+  // --- AGGREGATES (Updated by Triggers/Controllers for fast UI loading) ---
+  last_visit_date: { type: Date },
+  total_due: { type: Number, default: 0.00 } 
 
-    medical_profile: {
-      conditions: [conditionSchema],
-      alerts: [String]
-    },
+}, { timestamps: true });
 
-    last_visit_date: Date,
-    outstanding_balance: {
-      type: Number,
-      default: 0
-    }
-  },
-  { timestamps: true }
-);
+// Virtual for Full Name
+PatientSchema.virtual('full_name').get(function() {
+  return `${this.first_name} ${this.last_name || ''}`.trim();
+});
 
-export default mongoose.model("Patient", patientSchema);
+export default mongoose.model('Patient', PatientSchema);

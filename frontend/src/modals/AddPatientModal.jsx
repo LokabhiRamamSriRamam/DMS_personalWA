@@ -1,8 +1,81 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { X, ChevronDown } from 'lucide-react';
+import API from '../services/api';
 
-const AddPatientModal = ({ isOpen, onClose }) => {
+const AddPatientModal = ({ isOpen, onClose, onSave }) => {
+  const [loading, setLoading] = useState(false);
+  
+  // Initial State matching UI fields
+  const [formData, setFormData] = useState({
+    name: '',
+    mobile: '',
+    gender: '',
+    age: '',
+    location: '',
+    reference: '',
+    history: '', // Comma separated string
+    notes: ''
+  });
+
   if (!isOpen) return null;
+
+  // Handle Input Changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Submit Handler
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      // 1. Split Name into First & Last (Backend requirement)
+      const nameParts = formData.name.trim().split(' ');
+      const firstName = nameParts[0];
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      // 2. Convert Age to Approximate DOB (Backend requirement)
+      const dobDate = new Date();
+      dobDate.setFullYear(dobDate.getFullYear() - parseInt(formData.age || 0));
+
+      // 3. Prepare Payload matching Mongoose Schema
+      const payload = {
+        first_name: firstName,
+        last_name: lastName,
+        dob: dobDate, 
+        gender: formData.gender,
+        contact: {
+          mobile: formData.mobile,
+          city: formData.location
+        },
+        reference_source: formData.reference,
+        general_notes: formData.notes,
+        // Split history string by comma into array
+        medical_history: formData.history ? formData.history.split(',').map(s => s.trim()) : []
+      };
+
+      // 4. API Call
+      const res = await API.post('/patients', payload);
+
+      // 5. Success Callback
+      if (onSave) onSave(res.data);
+      
+      // Reset & Close
+      setFormData({
+        name: '', mobile: '', gender: '', age: '', 
+        location: '', reference: '', history: '', notes: ''
+      });
+      onClose();
+
+    } catch (err) {
+      console.error("Failed to add patient", err);
+      alert("Error adding patient: " + (err.response?.data?.error || err.message));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     // Overlay
@@ -27,7 +100,7 @@ const AddPatientModal = ({ isOpen, onClose }) => {
 
         {/* --- Form Content --- */}
         <div className="flex-1 overflow-y-auto p-6 md:p-8">
-          <form className="w-full flex flex-col gap-6">
+          <form id="add-patient-form" onSubmit={handleSubmit} className="w-full flex flex-col gap-6">
             
             {/* Row 1: Mobile & Name */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 xl:gap-6">
@@ -36,6 +109,10 @@ const AddPatientModal = ({ isOpen, onClose }) => {
                   Mobile Number <span className="text-red-500">*</span>
                 </label>
                 <input 
+                  name="mobile"
+                  value={formData.mobile}
+                  onChange={handleChange}
+                  required
                   type="text" 
                   placeholder="Enter mobile number" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
@@ -46,6 +123,10 @@ const AddPatientModal = ({ isOpen, onClose }) => {
                   Patient Name <span className="text-red-500">*</span>
                 </label>
                 <input 
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
                   type="text" 
                   placeholder="Enter patient name" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
@@ -58,11 +139,16 @@ const AddPatientModal = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
                 <div className="relative">
-                  <select className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-500 dark:text-slate-400 appearance-none focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all cursor-pointer">
-                    <option value="" disabled selected>Select gender</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
+                  <select 
+                    name="gender"
+                    value={formData.gender}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-500 dark:text-slate-400 appearance-none focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all cursor-pointer"
+                  >
+                    <option value="" disabled>Select gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
                 </div>
@@ -70,6 +156,9 @@ const AddPatientModal = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Age</label>
                 <input 
+                  name="age"
+                  value={formData.age}
+                  onChange={handleChange}
                   type="number" 
                   placeholder="Enter patient age" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
@@ -82,31 +171,39 @@ const AddPatientModal = ({ isOpen, onClose }) => {
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Patient Location</label>
                 <input 
+                  name="location"
+                  value={formData.location}
+                  onChange={handleChange}
                   type="text" 
                   placeholder="Enter location" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Reference Number</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Reference Source</label>
                 <input 
+                  name="reference"
+                  value={formData.reference}
+                  onChange={handleChange}
                   type="text" 
-                  placeholder="Enter reference number (Optional)" 
+                  placeholder="Who referred them?" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                 />
               </div>
             </div>
 
-            {/* Patient History (Select Placeholder) */}
+            {/* Patient History */}
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Patient History</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Medical History</label>
               <div className="relative">
                  <input 
-                    type="text" 
-                    placeholder="Search & Select" 
-                    className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
+                   name="history"
+                   value={formData.history}
+                   onChange={handleChange}
+                   type="text" 
+                   placeholder="e.g. Diabetes, BP High (Separate by comma)" 
+                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                  />
-                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
               </div>
             </div>
 
@@ -114,7 +211,10 @@ const AddPatientModal = ({ isOpen, onClose }) => {
             <div className="flex flex-col gap-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Notes/Remarks</label>
               <textarea 
-                placeholder="Enter notes (Optional)" 
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Enter private clinical notes..." 
                 className="w-full px-4 py-3 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all min-h-[120px] resize-none"
               ></textarea>
             </div>
@@ -126,14 +226,18 @@ const AddPatientModal = ({ isOpen, onClose }) => {
         <footer className="flex-initial px-6 py-5 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-[#1a2634] flex justify-end gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
           <button 
             onClick={onClose}
+            type="button"
             className="px-6 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors w-32 md:w-40"
           >
             Cancel
           </button>
           <button 
-            className="px-6 py-2.5 rounded-lg bg-[#137fec] hover:bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 transition-all w-32 md:w-40"
+            type="submit"
+            form="add-patient-form"
+            disabled={loading}
+            className={`px-6 py-2.5 rounded-lg bg-[#137fec] hover:bg-blue-600 text-white font-semibold shadow-lg shadow-blue-500/30 transition-all w-32 md:w-40 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
-            Create
+            {loading ? 'Saving...' : 'Create'}
           </button>
         </footer>
 

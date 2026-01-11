@@ -4,9 +4,13 @@
   "scripts": {
     "dev": "nodemon index.js"
   },
+  "license": "ISC",
   "dependencies": {
-    "express": "^4.19.2",
-    "mongoose": "^8.0.0",
-    "dotenv": "^16.4.0"
+    "@faker-js/faker": "^10.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1",
+    "mongodb": "^7.0.0",
+    "mongoose": "^8.20.4"
   }
 }

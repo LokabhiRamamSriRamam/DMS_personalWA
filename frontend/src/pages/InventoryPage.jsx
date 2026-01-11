@@ -3,10 +3,10 @@ import { Search, Plus, Filter } from 'lucide-react';
 
 // --- IMPORT SUB-COMPONENTS ---
 import InventoryStock from '../components/InventoryStocks';
-import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders'; // Assuming named export for Modal
-import InventoryItemList, { AddItemModal } from '../components/InventoryItems';   // Assuming named export for Modal
-import InventoryLogs, { AddLogModal } from '../components/InventoryLogs';         // Assuming named export for Modal
-import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors'; // Assuming named export for Modal
+import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders'; 
+import InventoryItemList, { AddItemModal } from '../components/InventoryItems';   
+import InventoryLogs, { AddLogModal } from '../components/InventoryLogs';         
+import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors'; 
 
 // --- SHARED COMPONENTS DEFINED HERE ---
 
@@ -43,14 +43,22 @@ const SectionHeader = ({ title, icon: Icon, colorClass, count }) => (
 const InventoryPage = () => {
   const [activeTab, setActiveTab] = useState('Stock');
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // 1. REFRESH TRIGGER STATE
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // --- NEW: MODAL STATE MANAGEMENT ---
-  // Tracks which modal is currently active: 'order' | 'item' | 'log' | 'vendor' | null
+  // Tracks which modal is currently active
   const [activeModal, setActiveModal] = useState(null);
 
   const closeModal = () => setActiveModal(null);
 
-  // Logic to decide which modal to open based on the current tab
+  // 2. HANDLE SAVE & REFRESH
+  // Passed to Modals. When called, it closes modal AND increments key to reload lists
+  const handleSave = () => {
+    setRefreshKey(prev => prev + 1);
+    closeModal();
+  };
+
   const handleAddNew = () => {
     if (activeTab === 'Purchase Orders') setActiveModal('order');
     else if (activeTab === 'ItemList') setActiveModal('item');
@@ -58,7 +66,6 @@ const InventoryPage = () => {
     else if (activeTab === 'Vendors') setActiveModal('vendor');
   };
 
-  // We pass the shared components (Badge, Header) as props to the tabs
   const sharedProps = { StockBadge, SectionHeader };
 
   const TABS = [
@@ -121,10 +128,10 @@ const InventoryPage = () => {
             </button>
           )}
 
-          {/* Dynamic Add Button - HIDDEN when tab is 'Stock' */}
+          {/* Dynamic Add Button */}
           {activeTab !== 'Stock' && (
             <button 
-              onClick={handleAddNew} // <--- ATTACHED HANDLER HERE
+              onClick={handleAddNew}
               className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#137fec] text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
             >
               <Plus size={18} />
@@ -139,40 +146,50 @@ const InventoryPage = () => {
 
       {/* CONTENT AREA */}
       <div className="flex-1 min-h-0">
-        <ActiveComponent {...sharedProps} searchQuery={searchQuery} />
+        {/* 3. PASS REFRESH KEY 
+           Changing the key forces the component to unmount/remount, 
+           triggering its internal useEffect to re-fetch data.
+        */}
+        <ActiveComponent 
+            key={activeTab + refreshKey} 
+            {...sharedProps} 
+            searchQuery={searchQuery} 
+        />
       </div>
 
       {/* --- MOUNT MODALS HERE --- */}
-      {/* 1. Create Purchase Order Modal */}
+      
+      {/* 4. PASS handleSave TO MODALS */}
+
       {CreateOrderModal && (
         <CreateOrderModal 
           isOpen={activeModal === 'order'} 
           onClose={closeModal} 
+          onSave={handleSave} 
         />
       )}
 
-      {/* 2. Add Item Modal */}
       {AddItemModal && (
         <AddItemModal 
           isOpen={activeModal === 'item'} 
           onClose={closeModal} 
+          onSave={handleSave} // <--- FIX: Passing the function here
         />
       )}
 
-      {/* 3. Add Vendor Modal */}
       {AddVendorModal && (
         <AddVendorModal 
           isOpen={activeModal === 'vendor'} 
           onClose={closeModal} 
+          onSave={handleSave}
         />
       )}
 
-      {/* 4. Add Log/Adjustment Modal */}
-      {/* (Assuming you have this component, if not, you can remove this block) */}
       {AddLogModal && (
         <AddLogModal 
           isOpen={activeModal === 'log'} 
           onClose={closeModal} 
+          onSave={handleSave}
         />
       )}
 

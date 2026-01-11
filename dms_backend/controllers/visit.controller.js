@@ -1,16 +1,49 @@
-import Visit from "../models/Visit.model.js";
+import Visit from '../models/Visit.model.js';
+import Patient from '../models/Patient.model.js';
 
-export const createVisit = async (req, res) => {
-  const visit = await Visit.create(req.body);
-  res.status(201).json(visit);
-};
+// POST /api/visits
+export async function createVisit(req, res) {
+  try {
+    // Note: ensure req.body includes patient_id
+    const { patient_id } = req.body;
 
-export const getVisits = async (req, res) => {
-  const visits = await Visit.find().populate("patient_id");
-  res.json(visits);
-};
+    const visit = new Visit(req.body);
+    await visit.save();
 
-export const getVisitById = async (req, res) => {
-  const visit = await Visit.findById(req.params.id);
-  res.json(visit);
-};
+    // Update Patient's last visit date
+    if(patient_id) {
+        await Patient.findByIdAndUpdate(patient_id, { 
+          last_visit_date: new Date() 
+        });
+    }
+
+    res.status(201).json(visit);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+}
+
+// GET /api/visits (Generic getter if needed)
+export async function getVisits(req, res) {
+    try {
+        const visits = await Visit.find().populate('patient_id').populate('doctor_id');
+        res.json(visits);
+    } catch(err) { res.status(500).json({ error: err.message }); }
+}
+
+// GET /api/visits/:id 
+export async function getVisitById(req, res) {
+    try {
+        const visit = await Visit.findById(req.params.id).populate('patient_id').populate('doctor_id');
+        if(!visit) return res.status(404).json({error: "Visit not found"});
+        res.json(visit);
+    } catch(err) { res.status(500).json({ error: err.message }); }
+}
+
+// GET /api/visits/patient/:id
+export async function getPatientHistory(req, res) {
+  try {
+    const visits = await Visit.find({ patient_id: req.params.id })
+      .populate('appointment_id')
+      .sort({ date: -1 });
+    res.json(visits);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}

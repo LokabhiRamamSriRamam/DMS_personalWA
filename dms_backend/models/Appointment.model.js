@@ -1,22 +1,24 @@
-import mongoose from "mongoose";
+// models/Appointment.js
+import mongoose from 'mongoose';
 
-const appointmentSchema = new mongoose.Schema(
-  {
-    start_time: Date,
-    end_time: Date,
-    doctor_id: mongoose.Schema.Types.ObjectId,
-    patient_id: mongoose.Schema.Types.ObjectId,
-    patient_name: String,
-
-    status: {
-      type: String,
-      enum: ["Scheduled", "Confirmed", "Cancelled", "Completed"],
-      default: "Scheduled"
-    },
-
-    type: String
+const AppointmentSchema = new mongoose.Schema({
+  patient_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
+  doctor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  
+  start_time: { type: Date, required: true },
+  end_time: { type: Date, required: true },
+  
+  title: String, // "Root Canal - John Doe"
+  type: { type: String, default: 'Consultation' },
+  
+  status: { 
+    type: String, 
+    enum: ['Scheduled', 'Confirmed', 'Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'],
+    default: 'Scheduled'
   },
-  { timestamps: true }
-);
+  
+  room_number: String,
+  token_number: Number
+}, { timestamps: true });
 
-export default mongoose.model("Appointment", appointmentSchema);
+export default mongoose.model('Appointment', AppointmentSchema);

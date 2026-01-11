@@ -4,6 +4,8 @@ import {
   Clock, CheckCircle, AlertCircle, XCircle, DollarSign // Added DollarSign icon
 } from 'lucide-react';
 import NavigationLayout from '../components/NavigationLayout';
+import NewAppointmentModal from '../modals/NewAppointmentModal'; // Adjust path as needed
+
 
 // --- Sub-Component: Stat Card ---
 const StatCard = ({ icon, colorClass, title, value, trend, trendUp, subtext }) => (
@@ -73,6 +75,17 @@ const AppointmentsPage = () => {
     return map[color] || 'bg-slate-400';
   };
 
+  // ... existing state
+const [isNewApptOpen, setIsNewApptOpen] = useState(false);
+
+const handleSaveAppointment = (apptData) => {
+  console.log("Saving to DB:", apptData);
+  // Here you will eventually make your API call:
+  // axios.post('/api/appointments', apptData);
+  
+  // For now, you can manually update the 'appointments' list state locally to see it appear
+};
+
   return (
       <div className="max-w-[1200px] mx-auto flex flex-col gap-8 pb-10">
         
@@ -89,7 +102,7 @@ const AppointmentsPage = () => {
             </button>
 
             {/* NEW APPOINTMENT BUTTON */}
-            <button className="px-4 py-2.5 rounded-lg bg-[#137fec] text-white text-sm font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all flex items-center gap-2">
+            <button onClick={() => setIsNewApptOpen(true)} className="px-4 py-2.5 rounded-lg bg-[#137fec] text-white text-sm font-semibold shadow-lg shadow-blue-500/30 hover:bg-blue-600 transition-all flex items-center gap-2">
               <Plus size={18} />
               New Appointment
             </button>
@@ -324,6 +337,12 @@ const AppointmentsPage = () => {
           </div>
 
         </div>
+        {/* NEW APPOINTMENT MODAL */}
+        <NewAppointmentModal 
+          isOpen={isNewApptOpen}
+          onClose={() => setIsNewApptOpen(false)}
+          onSave={handleSaveAppointment}
+        />
       </div>
   );
 };

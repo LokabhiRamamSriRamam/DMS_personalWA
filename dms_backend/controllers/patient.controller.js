@@ -1,30 +1,51 @@
-import Patient from "../models/Patient.model.js";
+import Patient from '../models/Patient.model.js';
 
-export const createPatient = async (req, res) => {
+// GET /api/patients
+export async function getPatients(req, res) {
   try {
-    const patient = await Patient.create(req.body);
-    res.status(201).json(patient);
-  } catch (err) {
-    res.status(400).json({ message: err.message });
-  }
-};
+    const { search } = req.query;
+    let query = {};
+    
+    if (search) {
+      query = {
+        $or: [
+          { first_name: { $regex: search, $options: 'i' } },
+          { 'contact.mobile': { $regex: search, $options: 'i' } },
+          { patientId: { $regex: search, $options: 'i' } }
+        ]
+      };
+    }
+    
+    const patients = await Patient.find(query).sort({ updatedAt: -1 });
+    res.json(patients);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
 
-export const getPatients = async (req, res) => {
-  const patients = await Patient.find();
-  res.json(patients);
-};
+// POST /api/patients
+export async function createPatient(req, res) {
+  try {
+    const count = await Patient.countDocuments();
+    const patientId = `PID-${String(count + 1).padStart(3, '0')}`;
+    
+    const newPatient = new Patient({ ...req.body, patientId });
+    await newPatient.save();
+    res.status(201).json(newPatient);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+}
 
-export const getPatientById = async (req, res) => {
-  const patient = await Patient.findById(req.params.id);
-  if (!patient) return res.status(404).json({ message: "Not found" });
-  res.json(patient);
-};
+// GET /api/patients/:id
+export async function getPatientById(req, res) {
+  try {
+    const patient = await Patient.findById(req.params.id);
+    if (!patient) return res.status(404).json({ msg: 'Not found' });
+    res.json(patient);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
 
-export const updatePatient = async (req, res) => {
-  const patient = await Patient.findByIdAndUpdate(
-    req.params.id,
-    req.body,
-    { new: true }
-  );
-  res.json(patient);
-};
+export async function deletePatient(req, res) {
+  try {
+    const patient = await Patient.findByIdAndDelete(req.params.id);
+    if (!patient) return res.status(404).json({ msg: 'Patient not found' });
+    res.json({ msg: 'Patient deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
