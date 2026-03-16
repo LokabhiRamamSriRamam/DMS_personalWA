@@ -1,55 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom'; // 1. Added Routing Hooks
+import { useParams } from 'react-router-dom'; 
 import { 
-  ChevronLeft, Printer, FileText, Monitor, Phone, 
-  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2 
+  Printer, FileText, Monitor, Phone, 
+  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2, Save
 } from 'lucide-react';
 
 // --- IMPORTS ---
-import API from '../services/api'; // 2. Added API Service
+import API from '../services/api'; 
+import PatientProfileModal from '../modals/PatientProfileModal';
 import TreatmentTabs from '../components/TreatmentTabs'; 
-import TreatmentPlanBoard from '../components/TreatmentPlanBoard'; 
+import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
+import ReportsNotesSection from '../components/ReportNotesSection';
 
-// --- Sub-Components (Header & Info) ---
+// --- Sub-Components ---
 
-const PatientHeader = () => {
-  const navigate = useNavigate(); // Navigation Hook
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-3 lg:w-full lg:items-center lg:justify-between mb-7">
-      <div 
-        onClick={() => navigate('/patients')} // Added Back Logic
-        className="flex gap-2 items-center text-gray-600 hover:text-[#137fec] cursor-pointer transition-colors"
-      >
-        <ChevronLeft size={20} />
-        <span className="font-semibold text-lg">Back</span>
-      </div>
-      
-      <div className="flex flex-wrap gap-3 justify-end">
-        <button className="rounded-md border border-gray-800 px-3 py-2 text-gray-800 font-medium hover:bg-gray-50 transition-colors">
-          View Treatment Plans
-        </button>
-        <button className="rounded-md border border-gray-800 px-3 py-2 hover:bg-gray-50 text-gray-800 transition-colors">
-          <Printer size={18} />
-        </button>
-        <button className="rounded-md border border-gray-800 px-3 py-2 hover:bg-gray-50 text-gray-800 transition-colors">
-          <FileText size={18} />
-        </button>
-        <button className="rounded-md border border-gray-800 px-3 py-2 hover:bg-gray-50 text-gray-800 transition-colors">
-          <Monitor size={18} />
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const PatientInfoCard = ({ patient }) => { // Added 'patient' prop
-  // Handle Loading/Empty State inside card to preserve layout
+// Updated to accept onViewProfile prop
+const PatientInfoCard = ({ patient, onViewProfile }) => { 
+  // Handle Loading/Empty State
   if (!patient) {
       return <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 h-48 animate-pulse"></div>;
   }
 
-  // Calculate Age dynamically
   const age = patient.dob ? new Date().getFullYear() - new Date(patient.dob).getFullYear() : '-';
   const fullName = `${patient.first_name} ${patient.last_name || ''}`.trim();
 
@@ -72,7 +43,12 @@ const PatientInfoCard = ({ patient }) => { // Added 'patient' prop
             <div className="flex gap-2 items-center">
               <User size={18} /> <span>{patient.gender}</span>
             </div>
-            <button className="px-3 py-1.5 border border-[#137fec] text-[#137fec] rounded-md text-sm font-medium hover:bg-[#137fec] hover:text-white transition-colors">
+            
+            {/* ACTION BUTTON LINKED TO MODAL */}
+            <button 
+              onClick={onViewProfile}
+              className="px-3 py-1.5 border border-[#137fec] text-[#137fec] rounded-md text-sm font-medium hover:bg-[#137fec] hover:text-white transition-colors"
+            >
               View Profile
             </button>
           </div>
@@ -84,7 +60,7 @@ const PatientInfoCard = ({ patient }) => { // Added 'patient' prop
           {[
             { label: "Gender", value: patient.gender },
             { label: "Age", value: `${age} Yrs` },
-            { label: "Patient ID", value: patient.patientId },
+            { label: "Patient ID", value: patient.patientId || patient._id?.slice(-6).toUpperCase() },
             { label: "Blood Group", value: patient.blood_group || '-' },
             { label: "Reg Date", value: new Date(patient.createdAt).toLocaleDateString() },
           ].map((item, idx) => (
@@ -97,7 +73,7 @@ const PatientInfoCard = ({ patient }) => { // Added 'patient' prop
               <p className="text-sm text-gray-400">Alerts</p>
               <div className="flex items-center gap-2">
                  {patient.medical_history?.slice(0, 2).map((tag, i) => (
-                    <span key={i} className="text-[10px] bg-red-50 text-red-600 px-1 rounded border border-red-100">{tag}</span>
+                   <span key={i} className="text-[10px] bg-red-50 text-red-600 px-1 rounded border border-red-100">{tag}</span>
                  ))}
                  {(!patient.medical_history || patient.medical_history.length === 0) && <span>-</span>}
               </div>
@@ -108,30 +84,128 @@ const PatientInfoCard = ({ patient }) => { // Added 'patient' prop
   );
 };
 
-const ClinicalHistory = () => {
-  const inputs = ["Chief Complaints", "Medical History", "Dental History"];
+const ClinicalHistory = ({ patient, onSaveHistory }) => {
+  // Local state for editing fields
+  const [formData, setFormData] = useState({
+    chief_complaint: '',
+    medical_history: [], // Array of strings
+    dental_history: ''
+  });
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Initialize data from patient prop
+  useEffect(() => {
+    if (patient) {
+      setFormData({
+        chief_complaint: patient.chief_complaint || '',
+        medical_history: patient.medical_history || [],
+        dental_history: patient.dental_history || ''
+      });
+    }
+  }, [patient]);
+
+  const handleSave = () => {
+    onSaveHistory(formData);
+    setIsEditing(false);
+  };
+
+  const handleMedicalHistoryChange = (e) => {
+      // Split comma-separated string into array for backend
+      const val = e.target.value;
+      setFormData({...formData, medical_history: val ? val.split(',').map(s => s.trim()) : []});
+  };
+
   return (
-    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 relative group">
+      {/* Edit/Save Controls */}
+      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+         {isEditing ? (
+             <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-600 rounded-md text-xs font-bold border border-green-200 hover:bg-green-100">
+                 <Save size={14} /> Save Changes
+             </button>
+         ) : (
+             <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 text-slate-500 rounded-md text-xs font-bold border border-slate-200 hover:bg-slate-100">
+                 <NotebookPen size={14} /> Edit History
+             </button>
+         )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="flex flex-col gap-5">
-          {inputs.map((label) => (
-            <div key={label} className="flex flex-col gap-2">
-              <label className="font-semibold text-gray-700">{label}</label>
-              <div className="relative">
-                <input 
-                    type="text" 
-                    placeholder="Search & Select" 
-                    className="w-full border border-gray-300 rounded-md p-2 pl-3 focus:outline-none focus:border-[#137fec] transition-colors"
+          
+          {/* 1. Chief Complaint */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Chief Complaints</label>
+            {isEditing ? (
+                <textarea 
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec] resize-none"
+                    rows={2}
+                    value={formData.chief_complaint}
+                    onChange={(e) => setFormData({...formData, chief_complaint: e.target.value})}
+                    placeholder="e.g. Pain in upper right tooth"
                 />
-                <ChevronDown className="absolute right-3 top-3 text-gray-400" size={16} />
-              </div>
-            </div>
-          ))}
+            ) : (
+                <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                    {formData.chief_complaint || <span className="text-gray-400 italic">No record</span>}
+                </div>
+            )}
+          </div>
+
+          {/* 2. Medical History */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Medical History</label>
+            {isEditing ? (
+                <input 
+                    type="text"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec]"
+                    value={formData.medical_history.join(', ')}
+                    onChange={handleMedicalHistoryChange}
+                    placeholder="e.g. Diabetes, Hypertension (comma separated)"
+                />
+            ) : (
+                <div className="flex flex-wrap gap-2 min-h-[40px] items-center">
+                    {formData.medical_history.length > 0 ? (
+                        formData.medical_history.map((tag, i) => (
+                            <span key={i} className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs border border-red-100 font-medium">
+                                {tag}
+                            </span>
+                        ))
+                    ) : <span className="text-gray-400 italic text-sm">None</span>}
+                </div>
+            )}
+          </div>
+
+          {/* 3. Dental History */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Dental History</label>
+            {isEditing ? (
+                <textarea 
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec] resize-none"
+                    rows={2}
+                    value={formData.dental_history}
+                    onChange={(e) => setFormData({...formData, dental_history: e.target.value})}
+                    placeholder="e.g. Previous extraction 2 years ago"
+                />
+            ) : (
+                <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                    {formData.dental_history || <span className="text-gray-400 italic">No record</span>}
+                </div>
+            )}
+          </div>
+
         </div>
+
+        {/* 4. On Examination (Static for now, usually linked to Visits) */}
         <div className="flex flex-col gap-2">
           <label className="font-semibold text-gray-700">On Examination</label>
-          <div className="h-full min-h-[150px] bg-gray-50 rounded-lg border border-transparent hover:border-[#137fec] transition-colors p-4 flex items-start">
-            <span className="text-gray-400 text-sm">Add on-examination details from the dental chart</span>
+          <div className="h-full min-h-[150px] bg-gray-50 rounded-lg border border-transparent hover:border-[#137fec] transition-colors p-4 flex flex-col gap-2">
+             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Latest Findings</span>
+             {/* We can map recent visit findings here later */}
+             <div className="text-sm text-gray-600 italic">
+                From Dental Chart: <br/>
+                - 18: Decay<br/>
+                - 21: Missing
+             </div>
           </div>
         </div>
       </div>
@@ -139,35 +213,28 @@ const ClinicalHistory = () => {
   );
 };
 
-// --- NEW SECTIONS WITH CIRCLE ICONS (Blue Theme) ---
+// --- NEW SECTIONS ---
 
 const ConsultationNotes = () => (
-  <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+  <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
     <div className="flex justify-between items-center mb-4">
        <div className="flex items-center gap-3">
-         {/* Icon in Circle */}
          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
             <NotebookPen size={20} />
          </div>
-         <h3 className="font-heading font-semibold text-lg text-[#322A2A]">
-           Consultation Notes
-         </h3>
+         <h3 className="font-heading font-semibold text-lg text-[#322A2A]">Consultation Notes</h3>
        </div>
        <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
          <Plus size={18} /> New Note
        </button>
     </div>
-    <div className="flex flex-col gap-3">
-        {/* Empty state or list of notes */}
-    </div>
   </div>
 );
 
 const Medications = () => (
-   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
      <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-           {/* Icon in Circle */}
            <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
              <Pill size={20} />
            </div>
@@ -181,10 +248,9 @@ const Medications = () => (
 );
 
 const LabOrders = () => (
-   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
      <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-3">
-           {/* Icon in Circle */}
            <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
              <TestTube size={20} />
            </div>
@@ -194,37 +260,24 @@ const LabOrders = () => (
           <Plus size={18} /> Add Lab Order
         </button>
      </div>
-     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-       {/* Empty Grid */}
-     </div>
    </div>
 );
 
 const AdvicesRecall = () => {
   const [activeTab, setActiveTab] = useState('Advices');
   return (
-    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
        <div className="flex justify-between items-center mb-6">
           <div className="flex gap-6">
-             <button
-               onClick={() => setActiveTab('Advices')}
-               className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Advices' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}
-             >
-               Advices
-             </button>
-             <button
-               onClick={() => setActiveTab('Recall')}
-               className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Recall' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}
-             >
-               Recall
-             </button>
+             <button onClick={() => setActiveTab('Advices')} className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Advices' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}>Advices</button>
+             <button onClick={() => setActiveTab('Recall')} className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Recall' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}>Recall</button>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
             <Plus size={18} /> Add {activeTab === 'Advices' ? 'Advice' : 'Recall'}
           </button>
        </div>
        <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
-          No {activeTab.toLowerCase()} yet. Click "Add {activeTab === 'Advices' ? 'Advice' : 'Recall'}" to create one.
+          No {activeTab.toLowerCase()} yet.
        </div>
     </div>
   )
@@ -232,32 +285,52 @@ const AdvicesRecall = () => {
 
 // --- MAIN PAGE COMPONENT ---
 
-export default function TreatmentPage() {
-  const { id } = useParams(); // Get ID from URL
+export default function TreatmentPage({ patientIdProp, isOverlay }) {
+  const { id: paramId } = useParams(); // Get ID from URL if available
+  // PRIORITY: Prop (from Overlay) > Param (from URL)
+  const id = patientIdProp || paramId; 
+  
   const [patient, setPatient] = useState(null);
   const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false); // Modal State
 
-  // Fetch Patient & Visits on Load
+  // Central Data Fetch Function
+  const fetchPageData = async () => {
+    try {
+      // Note: We don't set loading(true) here to prevent full page flicker on refreshes
+      const [patientRes, visitsRes] = await Promise.all([
+          API.get(`/patients/${id}`),
+          API.get(`/visits/patient/${id}`)
+      ]);
+      setPatient(patientRes.data);
+      setVisits(visitsRes.data);
+    } catch (err) {
+      console.error("Failed to fetch treatment data", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial Load
   useEffect(() => {
-    const fetchData = async () => {
-      try {
+    if (id) {
         setLoading(true);
-        const [patientRes, visitsRes] = await Promise.all([
-            API.get(`/patients/${id}`),
-            API.get(`/visits/patient/${id}`)
-        ]);
-        setPatient(patientRes.data);
-        setVisits(visitsRes.data);
-      } catch (err) {
-        console.error("Failed to fetch treatment data", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) fetchData();
+        fetchPageData();
+    }
   }, [id]);
+
+  const handleSaveHistory = async (updatedData) => {
+      try {
+          await API.put(`/patients/${id}`, updatedData);
+          // Optimistic update or refresh
+          setPatient(prev => ({ ...prev, ...updatedData }));
+          alert("Clinical History Updated");
+      } catch (err) {
+          console.error("Failed to update history", err);
+          alert("Update failed");
+      }
+  };
 
   if (loading) {
       return (
@@ -268,33 +341,42 @@ export default function TreatmentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#EBF2F7] px-4 font-sans">
+    <div className="min-h-screen bg-[#EBF2F7] px-4 font-sans pb-20">
       <div className="max-w-7xl mx-auto pt-6">
-        <PatientHeader />
         
-        {/* Pass fetched data to components */}
-        <PatientInfoCard patient={patient} />
+        {/* Note: PatientHeader removed as requested */}
         
-        <ClinicalHistory />
+        {/* Pass 'onViewProfile' to open the modal */}
+        <PatientInfoCard 
+            patient={patient} 
+            onViewProfile={() => setIsProfileOpen(true)}
+        />
         
-        {/* RVG Reports */}
-        <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-            <h3 className="font-semibold text-lg text-gray-800 mb-4">RVG Reports & Notes</h3>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 flex justify-center items-center text-gray-500 mb-4 hover:border-[#137fec] transition-colors cursor-pointer">
-                Add Report & Note
-            </div>
-            <button className="w-full py-3 bg-blue-50 text-blue-500 font-medium rounded-lg flex items-center justify-center gap-2 hover:bg-blue-100 transition-colors">
-                <Plus size={18} /> Add More Report
-            </button>
-        </div>
+        <ClinicalHistory 
+            patient={patient} 
+            onSaveHistory={handleSaveHistory}
+        />
+        
+        <ReportsNotesSection 
+            patientId={id} 
+            visits={visits} 
+            onRefresh={fetchPageData} 
+        />
 
-        {/* 1. Dental Chart Tabs */}
-        <TreatmentTabs />
+        {/* 1. Dental Chart Tabs - Pass callback to refresh data when treatment added */}
+        <TreatmentTabs 
+          onTreatmentAdded={fetchPageData}
+          visits={visits}
+          patientId={id}
+          initialDentition={patient?.dentition_type || 'Adult'} />
 
-        {/* 2. Treatment Plan Board - Pass real visits data */}
-        <TreatmentPlanBoard visits={visits} />
+        {/* 2. Treatment Plan Board - Pass callback to refresh data when status changes */}
+        <TreatmentPlanBoard 
+            visits={visits} 
+            onRefresh={fetchPageData} 
+        />
 
-        {/* 3. New Sections Added Here */}
+        {/* 3. Other Sections */}
         <ConsultationNotes />
         <Medications />
         <LabOrders />
@@ -310,6 +392,13 @@ export default function TreatmentPage() {
              </button>
         </div>
       </div>
+
+      {/* Patient Profile Modal */}
+      <PatientProfileModal 
+        isOpen={isProfileOpen} 
+        onClose={() => setIsProfileOpen(false)} 
+        patient={patient} 
+      />
     </div>
   );
 }

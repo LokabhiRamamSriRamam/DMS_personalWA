@@ -42,6 +42,20 @@ export async function getPatientById(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
+// PUT /api/patients/:id
+export const updatePatient = async (req, res) => {
+  try {
+    const patient = await Patient.findByIdAndUpdate(
+      req.params.id, 
+      { $set: req.body }, 
+      { new: true }
+    );
+    res.status(200).json(patient);
+  } catch (err) {
+    res.status(500).json(err);
+  }
+};
+
 export async function deletePatient(req, res) {
   try {
     const patient = await Patient.findByIdAndDelete(req.params.id);

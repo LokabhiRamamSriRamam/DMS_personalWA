@@ -1,17 +1,128 @@
-import React, { useMemo } from 'react';
-import { Trash2, Check, ArrowRight, FileText, Plus, Minus, Calendar } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { Trash2, Check, ArrowRight, X, Clock, FileText, AlertCircle, DollarSign, Calendar } from 'lucide-react';
+import API from '../services/api';
 
-// Keep your existing ToothSurfaceGraphic component here...
-// const ToothSurfaceGraphic = ... 
+// --- SUB-COMPONENT: DETAILED TREATMENT MODAL ---
+const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate }) => {
+  if (!isOpen || !treatment) return null;
 
-// --- Treatment Card Component ---
-const TreatmentCard = ({ data, status }) => {
   return (
-    <div className="p-3 sm:p-4 bg-white border border-[#DCE5EE] rounded-xl shadow-sm flex flex-col gap-4 relative animate-in fade-in slide-in-from-bottom-4 duration-300">
-      
-      {/* Date Header */}
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-lg text-slate-800">Treatment Details</h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 text-slate-500 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 overflow-y-auto">
+          
+          {/* Main Title & Status */}
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <h4 className="text-2xl font-bold text-slate-900">{treatment.treatmentName}</h4>
+              <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
+                <Calendar size={14} /> Created on {treatment.date}
+              </p>
+            </div>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
+              treatment.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200' :
+              treatment.status === 'In Progress' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+              'bg-yellow-50 text-yellow-700 border-yellow-200'
+            }`}>
+              {treatment.status}
+            </span>
+          </div>
+
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <span className="text-xs font-bold text-slate-400 uppercase block mb-1">Teeth Involved</span>
+              <span className="text-lg font-bold text-slate-800">
+                {treatment.teeth && treatment.teeth.length > 0 ? treatment.teeth.join(', ') : 'General'}
+              </span>
+            </div>
+            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+              <span className="text-xs font-bold text-slate-400 uppercase block mb-1">Cost Est.</span>
+              <span className="text-lg font-bold text-slate-800 flex items-center">
+                <DollarSign size={16} className="text-slate-400 mr-1"/> {treatment.cost}
+              </span>
+            </div>
+          </div>
+
+          {/* Clinical Info Section */}
+          <div className="space-y-4 mb-8">
+            <div className="flex gap-3 items-start">
+              <div className="mt-1 p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                <AlertCircle size={18} />
+              </div>
+              <div>
+                <h5 className="text-sm font-bold text-slate-700">Diagnosis / Findings</h5>
+                <p className="text-sm text-slate-600 mt-1">
+                  {treatment.diagnosis || "No specific diagnosis recorded."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 items-start">
+              <div className="mt-1 p-1.5 bg-purple-50 text-purple-600 rounded-lg">
+                <FileText size={18} />
+              </div>
+              <div>
+                <h5 className="text-sm font-bold text-slate-700">Clinical Notes</h5>
+                <p className="text-sm text-slate-600 mt-1">
+                  {treatment.notes || "No additional notes provided."}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
+            {treatment.status === 'Planned' && (
+              <button 
+                onClick={() => onUpdate(treatment.visitId, treatment.id, 'In Progress')}
+                className="w-full py-3.5 flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+              >
+                <Clock size={20} /> Start Treatment (In Progress)
+              </button>
+            )}
+
+            {treatment.status === 'In Progress' && (
+              <button 
+                onClick={() => onUpdate(treatment.visitId, treatment.id, 'Completed')}
+                className="w-full py-3.5 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-[0.98]"
+              >
+                <Check size={20} /> Mark as Completed
+              </button>
+            )}
+
+            {treatment.status === 'Completed' && (
+               <div className="py-3 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 justify-center font-bold border border-green-100">
+                  <Check size={20} /> Treatment Completed
+               </div>
+            )}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- TREATMENT CARD (Small View) ---
+const TreatmentCard = ({ data, status, onClick }) => {
+  return (
+    <div 
+      onClick={() => onClick(data)}
+      className="p-4 bg-white border border-[#DCE5EE] rounded-xl shadow-sm flex flex-col gap-3 relative cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
+    >
       <div className="flex justify-between items-start">
-        <p className="text-xs sm:text-sm text-gray-500">{data.date}</p>
+        <p className="text-xs font-medium text-slate-400">{data.date}</p>
         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
             status === 'Completed' ? 'bg-green-50 text-green-600 border-green-100' : 
             status === 'In Progress' ? 'bg-blue-50 text-blue-600 border-blue-100' :
@@ -21,121 +132,129 @@ const TreatmentCard = ({ data, status }) => {
         </span>
       </div>
 
-      {/* Teeth & Details */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="flex flex-col gap-2 sm:col-span-2">
-          <p className="font-[Montserrat] text-xs text-gray-400 capitalize">Teeth</p>
-          <div className="flex items-center gap-2">
+      <div>
+        <h4 className="font-bold text-slate-800 text-sm leading-tight mb-1">{data.treatmentName}</h4>
+        <div className="flex items-center gap-2">
+           <span className="text-xs text-slate-500">Teeth:</span>
+           <div className="flex gap-1">
              {data.teeth && data.teeth.length > 0 ? (
                  data.teeth.map((t, i) => (
-                    <span key={i} className="font-[Montserrat] font-medium text-lg text-[#1D2D39] bg-gray-100 px-2 rounded">
+                    <span key={i} className="text-xs font-bold text-slate-700 bg-slate-100 px-1.5 rounded">
                         {t}
                     </span>
                  ))
-             ) : (
-                <span className="text-sm text-gray-400">General</span>
-             )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <p className="font-[Montserrat] text-xs text-gray-400 capitalize">Treatment</p>
-          <p className="font-[Montserrat] font-medium text-sm text-[#1D2D39] leading-tight">
-            {data.treatmentName}
-          </p>
+             ) : <span className="text-xs text-slate-400">Gen</span>}
+           </div>
         </div>
       </div>
-
-      {/* Pricing */}
-      <div className="grid grid-cols-2 gap-4 pb-4 border-b border-gray-200">
-        <div className="flex flex-col gap-1">
-           <p className="font-[Montserrat] text-xs text-gray-400 capitalize">Cost</p>
-           <p className="font-[Montserrat] text-sm text-[#1D2D39]">₹{data.cost}</p>
-        </div>
-      </div>
-      
-      {/* Actions (Only show for Planned/Progress) */}
-      {status !== 'Completed' && (
-          <div className="flex gap-2">
-             <button className="flex-1 py-2 flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 hover:border-emerald-500 hover:text-emerald-700 transition-colors">
-                <Check size={14} /> Complete
-             </button>
-             {status === 'Planned' && (
-                 <button className="flex-1 py-2 flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 font-semibold text-xs rounded-lg hover:bg-blue-50 hover:border-blue-500 hover:text-blue-700 transition-colors">
-                    <ArrowRight size={14} /> Start
-                 </button>
-             )}
-          </div>
-      )}
     </div>
   );
 };
 
-const TreatmentPlanBoard = ({ visits = [] }) => {
-  
-  // --- Transform Data: Flatten Visits into Treatments ---
+// --- MAIN BOARD ---
+const TreatmentPlanBoard = ({ visits = [], onRefresh }) => {
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
+  // Parse visits into lists
   const { planned, inProgress, completed } = useMemo(() => {
     const p = [], i = [], c = [];
 
     visits.forEach(visit => {
         const visitDate = new Date(visit.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-        
-        visit.treatments.forEach(treatment => {
-            const item = {
-                id: treatment._id,
-                date: visitDate,
-                treatmentName: treatment.treatment_name,
-                teeth: treatment.teeth_numbers,
-                cost: treatment.cost,
-                status: treatment.status
-            };
+        const findings = visit.findings?.diagnosis_notes || ''; // Extract diagnosis from visit findings
 
-            if (item.status === 'Completed') c.push(item);
-            else if (item.status === 'In Progress') i.push(item);
-            else p.push(item); // Default to Planned
-        });
+        if (visit.treatments) {
+            visit.treatments.forEach(treatment => {
+                const item = {
+                    visitId: visit._id, 
+                    id: treatment._id,
+                    date: visitDate,
+                    treatmentName: treatment.treatment_name,
+                    teeth: treatment.teeth_numbers,
+                    cost: treatment.cost,
+                    status: treatment.status,
+                    diagnosis: findings, // Pass diagnosis from visit parent
+                    notes: "No notes" // You can add notes to your model if needed
+                };
+
+                if (item.status === 'Completed') c.push(item);
+                else if (item.status === 'In Progress') i.push(item);
+                else p.push(item);
+            });
+        }
     });
 
     return { planned: p, inProgress: i, completed: c };
   }, [visits]);
 
+  // API Call
+  const handleUpdateStatus = async (visitId, treatmentId, newStatus) => {
+    try {
+        console.log(`Updating: Visit ${visitId}, Treatment ${treatmentId} -> ${newStatus}`);
+        
+        // This matches the backend route exactly
+        await API.patch(`/visits/${visitId}/treatments/${treatmentId}/status`, { status: newStatus });
+        
+        setSelectedPlan(null);
+        if (onRefresh) onRefresh(); // Reload data
+    } catch (err) {
+        console.error("Update failed", err);
+        alert("Failed to update status. Check console.");
+    }
+  };
+
   return (
-    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Planned */}
-            <div className="flex flex-col gap-4 bg-[#F9F9F9] p-4 rounded-xl border border-gray-200 transition-all">
-                <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-base text-[#8B720D] bg-[#FFFAE4] border border-[#FFCC00]">
-                    Treatment Plans ({planned.length})
-                </h3>
-                <div className="flex flex-col gap-4 max-h-[800px] overflow-y-auto no-scrollbar">
-                    {planned.map((item, idx) => <TreatmentCard key={idx} data={item} status="Planned" />)}
-                    {planned.length === 0 && <p className="text-center text-gray-400 mt-10">No pending treatments</p>}
-                </div>
-            </div>
+    <>
+      <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* Planned */}
+              <div className="flex flex-col gap-4 bg-[#F9F9F9] p-4 rounded-xl border border-gray-200 transition-all">
+                  <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-xs uppercase tracking-wide text-[#8B720D] bg-[#FFFAE4] border border-[#FFCC00]">
+                      Planned ({planned.length})
+                  </h3>
+                  <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto custom-scrollbar">
+                      {planned.map((item, idx) => (
+                        <TreatmentCard key={idx} data={item} status="Planned" onClick={setSelectedPlan} />
+                      ))}
+                      {planned.length === 0 && <p className="text-center text-xs text-gray-400 mt-4">No treatments planned</p>}
+                  </div>
+              </div>
 
-            {/* In Progress */}
-            <div className="flex flex-col gap-4 bg-[#F9FAFB] p-4 rounded-xl border border-gray-200 transition-all">
-                <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-base text-[#0C3A99] bg-[#E4EDFF] border border-[#0054FF]">
-                    In Progress ({inProgress.length})
-                </h3>
-                <div className="flex flex-col gap-4 max-h-[800px] overflow-y-auto no-scrollbar">
-                     {inProgress.map((item, idx) => <TreatmentCard key={idx} data={item} status="In Progress" />)}
-                </div>
-            </div>
+              {/* In Progress */}
+              <div className="flex flex-col gap-4 bg-[#F9FAFB] p-4 rounded-xl border border-gray-200 transition-all">
+                  <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-xs uppercase tracking-wide text-[#0C3A99] bg-[#E4EDFF] border border-[#0054FF]">
+                      In Progress ({inProgress.length})
+                  </h3>
+                  <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto custom-scrollbar">
+                       {inProgress.map((item, idx) => (
+                         <TreatmentCard key={idx} data={item} status="In Progress" onClick={setSelectedPlan} />
+                       ))}
+                  </div>
+              </div>
 
-            {/* Completed */}
-            <div className="flex flex-col gap-4 bg-[#F9FAFB] p-4 rounded-xl border border-gray-200 transition-all">
-                <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-base text-[#066C50] bg-[#E7FFF8] border border-[#00D299]">
-                    Completed ({completed.length})
-                </h3>
-                <div className="flex flex-col gap-4 max-h-[800px] overflow-y-auto no-scrollbar">
-                     {completed.map((item, idx) => <TreatmentCard key={idx} data={item} status="Completed" />)}
-                </div>
-            </div>
+              {/* Completed */}
+              <div className="flex flex-col gap-4 bg-[#F9FAFB] p-4 rounded-xl border border-gray-200 transition-all">
+                  <h3 className="w-fit px-3 py-1.5 rounded-full font-heading font-semibold text-xs uppercase tracking-wide text-[#066C50] bg-[#E7FFF8] border border-[#00D299]">
+                      Completed ({completed.length})
+                  </h3>
+                  <div className="flex flex-col gap-3 max-h-[600px] overflow-y-auto custom-scrollbar">
+                       {completed.map((item, idx) => (
+                         <TreatmentCard key={idx} data={item} status="Completed" onClick={setSelectedPlan} />
+                       ))}
+                  </div>
+              </div>
 
-        </div>
-    </div>
+          </div>
+      </div>
+
+      <TreatmentStatusModal 
+        isOpen={!!selectedPlan} 
+        onClose={() => setSelectedPlan(null)} 
+        treatment={selectedPlan}
+        onUpdate={handleUpdateStatus}
+      />
+    </>
   );
 };
 

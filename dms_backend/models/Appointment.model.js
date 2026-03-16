@@ -18,7 +18,8 @@ const AppointmentSchema = new mongoose.Schema({
   },
   
   room_number: String,
-  token_number: Number
+  token_number: Number,
+  notes:{type: String},
 }, { timestamps: true });
 
 export default mongoose.model('Appointment', AppointmentSchema);

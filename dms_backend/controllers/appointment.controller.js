@@ -41,3 +41,11 @@ export async function updateStatus(req, res) {
     res.json(appt);
   } catch (err) { res.status(400).json({ error: err.message }); }
 }
+
+// PUT /api/appointments/:id
+export async function updateAppointment(req, res) {
+  try {
+    const appt = await Appointment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(appt);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+}

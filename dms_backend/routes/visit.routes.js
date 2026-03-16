@@ -6,12 +6,14 @@ import {
     createVisit, 
     getVisits, 
     getVisitById, 
-    getPatientHistory 
+    getPatientHistory,
+    updateTreatmentStatus
 } from '../controllers/visit.controller.js';
 
 router.post('/', createVisit);         // Changed from saveVisit
 router.get('/', getVisits);
 router.get('/:id', getVisitById);
 router.get('/patient/:id', getPatientHistory);
+router.patch('/:visitId/treatments/:treatmentId/status', updateTreatmentStatus);
 
 export default router;

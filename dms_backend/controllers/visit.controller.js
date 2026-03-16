@@ -47,3 +47,25 @@ export async function getPatientHistory(req, res) {
     res.json(visits);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
+
+// PATCH /api/visits/:visitId/treatments/:treatmentId/status
+export async function updateTreatmentStatus(req, res) {
+  try {
+    const { visitId, treatmentId } = req.params;
+    const { status } = req.body; // 'In Progress' or 'Completed'
+
+    const visit = await Visit.findOneAndUpdate(
+      { _id: visitId, "treatments._id": treatmentId },
+      { 
+        $set: { "treatments.$.status": status }
+      },
+      { new: true }
+    );
+
+    if (!visit) return res.status(404).json({ error: "Visit or Treatment not found" });
+
+    res.json(visit);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}

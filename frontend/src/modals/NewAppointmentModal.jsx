@@ -14,7 +14,7 @@ const TREATMENT_TYPES = [
   'Consultation', 'Root Canal', 'Cleaning', 'Whitening', 'Extraction', 'Braces Checkup'
 ];
 
-const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
+const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit }) => {
   // --- Data States ---
   const [patients, setPatients] = useState([]); // Stores search results
   const [doctors, setDoctors] = useState([]);   // Stores fetched doctors
@@ -36,6 +36,42 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
     type: 'Consultation',
     notes: ''
   });
+
+  // --- Populate Form on Edit ---
+  useEffect(() => {
+    if (isOpen && appointmentToEdit) {
+        const dateObj = new Date(appointmentToEdit.start_time);
+        const dateStr = dateObj.toISOString().split('T')[0];
+        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        setFormData({
+            selectedPatient: appointmentToEdit.patient, // Assuming this is the patient object
+            doctorId: appointmentToEdit.doctor_id,
+            date: dateStr,
+            time: timeStr,
+            duration: '30', // You might need to calculate this from start/end time if stored
+            type: appointmentToEdit.type,
+            notes: appointmentToEdit.notes || ''
+        });
+        
+        // Pre-fill search term for UI consistency
+        if (appointmentToEdit.patient) {
+            setSearchTerm(`${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name}`);
+        }
+    } else if (isOpen && !appointmentToEdit) {
+        // Reset form for new appointment
+        setFormData({
+            selectedPatient: null, 
+            doctorId: '',
+            date: new Date().toISOString().split('T')[0],
+            time: '09:00',
+            duration: '30',
+            type: 'Consultation',
+            notes: ''
+        });
+        setSearchTerm('');
+    }
+  }, [isOpen, appointmentToEdit]);
 
   // --- 1. Fetch Doctors on Mount ---
   useEffect(() => {
@@ -113,18 +149,34 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
       const endDateTime = new Date(startDateTime.getTime() + parseInt(formData.duration) * 60000);
 
       const appointmentPayload = {
-        patient_id: formData.selectedPatient._id, // MongoDB _id
+        patient_id: formData.selectedPatient?._id, // MongoDB _id
         doctor_id: formData.doctorId,             // MongoDB _id
         start_time: startDateTime,
         end_time: endDateTime,
-        title: `${formData.type} - ${formData.selectedPatient.first_name}`,
+        title: `${formData.type} - ${formData.selectedPatient?.first_name}`,
         type: formData.type,
-        status: 'Scheduled',
+        status: appointmentToEdit ? appointmentToEdit.status : 'Scheduled',
         room_number: 'Room 1',
         notes: formData.notes
       };
 
-      const res = await API.post('/appointments', appointmentPayload);
+      console.log("SENDING PAYLOAD:", appointmentPayload); 
+
+if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
+  alert("Error: Patient ID or Doctor ID is missing. Check console.");
+  setLoading(false);
+  return;
+}
+
+      let res;
+      if (appointmentToEdit) {
+          // UPDATE EXISTING
+          // You'll need an update endpoint, e.g., PUT /appointments/:id
+          res = await API.put(`/appointments/${appointmentToEdit._id}`, appointmentPayload);
+      } else {
+          // CREATE NEW
+          res = await API.post('/appointments', appointmentPayload);
+      }
       
       // Notify parent to refresh calendar
       if(onSave) onSave(res.data);
@@ -146,7 +198,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
           
           {/* Header */}
           <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
-            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Book Appointment</h3>
+            <h3 className="font-bold text-lg text-slate-800 dark:text-white">{appointmentToEdit ? 'Edit Appointment' : 'Book Appointment'}</h3>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 transition-colors">
               <X size={20} />
             </button>
@@ -170,7 +222,9 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
                     onChange={(e) => {
                       setSearchTerm(e.target.value);
                       setShowDropdown(true);
-                      setFormData({...formData, selectedPatient: null});
+                      if (appointmentToEdit && searchTerm !== `${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name}`) {
+                          setFormData({...formData, selectedPatient: null});
+                      }
                     }}
                     onFocus={() => setShowDropdown(true)}
                   />
@@ -323,7 +377,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave }) => {
               disabled={loading}
               className={`px-6 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-600 text-white font-bold text-sm shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2 ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
             >
-              {loading ? 'Booking...' : 'Confirm Booking'}
+              {loading ? 'Saving...' : (appointmentToEdit ? 'Update Appointment' : 'Confirm Booking')}
             </button>
           </div>
 

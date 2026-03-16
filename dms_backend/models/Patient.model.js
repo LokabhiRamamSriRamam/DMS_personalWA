@@ -36,8 +36,12 @@ const PatientSchema = new mongoose.Schema({
   
   // --- AGGREGATES (Updated by Triggers/Controllers for fast UI loading) ---
   last_visit_date: { type: Date },
-  total_due: { type: Number, default: 0.00 } 
-
+  total_due: { type: Number, default: 0.00 },
+  dentition_type: { 
+    type: String, 
+    enum: ['Adult', 'Pedo', 'Mixed'], 
+    default: 'Adult' 
+  }
 }, { timestamps: true });
 
 // Virtual for Full Name
