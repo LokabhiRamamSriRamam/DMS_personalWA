@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import axios from '../services/api';
 import { 
   MoreVertical, Calendar, TrendingUp, Users, CreditCard, FileText, Plus,
   Clock, PlayCircle, AlertCircle, XCircle, DollarSign, Loader2, Edit, Trash2
@@ -65,10 +65,11 @@ const AppointmentsPage = () => {
   
   // --- STATE ---
   const [appointments, setAppointments] = useState([]);
+  const [dashStats, setDashStats] = useState({ todays_revenue: 0, outstanding_amount: 0, outstanding_count: 0 });
   const [isCashModalOpen, setIsCashModalOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [doctors, setDoctors] = useState([]); 
+  const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -107,16 +108,18 @@ const AppointmentsPage = () => {
     try {
       setLoading(true);
       
-      const [doctorsRes, appointmentsRes] = await Promise.all([
+      const [doctorsRes, appointmentsRes, statsRes] = await Promise.all([
         axios.get(`${API_BASE}/users/doctors`),
-        axios.get(`${API_BASE}/appointments?date=${selectedDate}`)
+        axios.get(`${API_BASE}/appointments?date=${selectedDate}`),
+        axios.get(`${API_BASE}/appointments/dashboard-stats?date=${selectedDate}`)
       ]);
 
       setDoctors(doctorsRes.data);
+      setDashStats(statsRes.data);
 
       const mappedAppts = appointmentsRes.data.map(apt => {
         const patientName = apt.patient_id ? `${apt.patient_id.first_name} ${apt.patient_id.last_name}` : 'Unknown';
-        const doctorName = apt.doctor_id ? apt.doctor_id.name : 'Unassigned';
+        const doctorName = apt.doctor_id ? `${apt.doctor_id.firstName} ${apt.doctor_id.lastName}` : 'Unassigned';
         const start = new Date(apt.start_time);
         const end = new Date(apt.end_time);
         const duration = (end - start) / 60000; 
@@ -280,10 +283,10 @@ const AppointmentsPage = () => {
 
         {/* ... (Keep Stats Grid) ... */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <StatCard icon={<Calendar />} colorClass="text-[#137fec]" title="Total Appointments" value={appointments.length} trend="" trendUp={true} subtext="For selected date" />
-          <StatCard icon={<Users />} colorClass="text-orange-500" title="Pending Check-ins" value="12" trend="" trendUp={true} subtext="/ 24 Arrived" />
-          <StatCard icon={<CreditCard />} colorClass="text-[#137fec]" title="Today's Revenue" value="$4,250" trend="+12%" trendUp={true} subtext="Target: $5,000" />
-          <StatCard icon={<FileText />} colorClass="text-red-500" title="Outstanding" value="$850" trend="2 Invoices" trendUp={false} subtext="Due this week" />
+          <StatCard icon={<Calendar />} colorClass="text-[#137fec]" title="Total Appointments" value={appointments.length} subtext="For selected date" />
+          <StatCard icon={<Users />} colorClass="text-orange-500" title="Pending Check-ins" value={appointments.filter(a => !['Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'].includes(a.status)).length} subtext={`${appointments.filter(a => a.status === 'Checked In' || a.status === 'In Progress').length} Checked in`} />
+          <StatCard icon={<CreditCard />} colorClass="text-[#137fec]" title="Today's Revenue" value={`₹${dashStats.todays_revenue.toLocaleString('en-IN')}`} subtext="Services + Labs for the day" />
+          <StatCard icon={<FileText />} colorClass="text-red-500" title="Outstanding" value={`₹${dashStats.outstanding_amount.toLocaleString('en-IN')}`} trend={`${dashStats.outstanding_count} Invoice${dashStats.outstanding_count !== 1 ? 's' : ''}`} trendUp={false} subtext="Pending this month" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -401,19 +404,23 @@ const AppointmentsPage = () => {
                   <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[700px]">
                     <div className="grid border-b border-slate-200 bg-slate-50 flex-none z-10 sticky top-0" style={{ gridTemplateColumns: `60px repeat(${doctors.length || 1}, 1fr)` }}>
                       <div className="p-4 border-r border-slate-200 flex items-center justify-center"><Clock className="text-slate-400" size={20} /></div>
-                      {doctors.length > 0 ? doctors.map((dr) => (
+                      {doctors.length > 0 ? doctors.map((dr) => {
+                        const fullName = `${dr.firstName} ${dr.lastName}`.trim();
+                        const initials = dr.lastName?.charAt(0) || 'Dr';
+                        return (
                         <div key={dr._id} className="p-3 text-center border-r border-slate-200 last:border-r-0">
                           <div className="flex flex-col items-center gap-2">
                             <div className="size-9 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-500 font-bold">
-                              {dr.name.split(' ')[1] ? dr.name.split(' ')[1].charAt(0) : 'Dr'}
+                              {initials}
                             </div>
                             <div>
-                              <p className="font-semibold text-sm text-slate-900 truncate max-w-[100px]">{dr.name}</p>
+                              <p className="font-semibold text-sm text-slate-900 truncate max-w-[100px]">{fullName}</p>
                               <p className="text-[10px] uppercase tracking-wide text-slate-500 truncate">{dr.specialization || 'General'}</p>
                             </div>
                           </div>
                         </div>
-                      )) : <div className="p-4 text-center text-sm text-slate-500">No Doctors Found</div>}
+                        );
+                      }) : <div className="p-4 text-center text-sm text-slate-500">No Doctors Found</div>}
                     </div>
                     <div className="overflow-y-auto flex-1 relative bg-white">
                       <div className="min-h-[768px] relative grid divide-x divide-slate-100" style={{ gridTemplateColumns: `60px repeat(${doctors.length || 1}, 1fr)` }}>
@@ -483,17 +490,19 @@ const AppointmentsPage = () => {
               <div className="flex flex-col gap-4">
                 {doctors.length > 0 ? doctors.map((doc) => {
                   const statusObj = getDoctorStatus(doc._id);
+                  const fullName = `${doc.firstName} ${doc.lastName}`.trim();
+                  const initials = doc.lastName?.charAt(0) || 'Dr';
                   return (
                     <div key={doc._id} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <div className="size-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
-                            {doc.name.split(' ')[1] ? doc.name.split(' ')[1].charAt(0) : 'Dr'}
+                            {initials}
                           </div>
                           <span className={`absolute bottom-0 right-0 size-2.5 rounded-full bg-${statusObj.color}-500 border-2 border-white`}></span>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">{doc.name}</p>
+                          <p className="text-sm font-semibold text-slate-900">{fullName}</p>
                           <p className="text-xs text-slate-500">{doc.specialization || 'Dentist'}</p>
                         </div>
                       </div>

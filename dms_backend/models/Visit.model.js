@@ -1,40 +1,27 @@
-// models/Visit.js
 import mongoose from 'mongoose';
 
 const VisitSchema = new mongoose.Schema({
-  patient_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
-  doctor_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  patient_id:     { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
+  doctor_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   appointment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
-  date: { type: Date, default: Date.now },
+  date:           { type: Date, default: Date.now },
 
-  // --- 1. EXAMINATION FINDINGS (From Dental Chart Tabs) ---
+  // --- 1. EXAMINATION FINDINGS ---
   findings: {
-    soft_tissue: [{ type: String }], // ["Buccal Mucosa", "Gingiva"]
-    tmj: [{ type: String }],         // ["Left TMJ", "Clicking"]
-    diagnosis_notes: { type: String }
+    soft_tissue:      [{ type: String }],
+    tmj:              [{ type: String }],
+    diagnosis_notes:  { type: String }
   },
 
-  // --- 2. TREATMENT CHARTING (From Treatment Board) ---
+  // --- 2. TREATMENT CHARTING ---
   treatments: [{
-    // The specific tooth/teeth involved
-    teeth_numbers: [{ type: String }], // ["18", "55"] (Supports Mixed Dentition strings)
-    
-    // Surface Graphic Data
+    teeth_numbers: [{ type: String }],
     surfaces: [{ type: String, enum: ['Mesial', 'Distal', 'Occlusal', 'Buccal', 'Lingual', 'Palatal'] }],
-    
-    // Treatment Details
-    treatment_name: { type: String, required: true }, // "Root Canal", "Composite Filling"
-    cost: { type: Number, default: 0 },
-    qty: { type: Number, default: 1 },
-    
-    // Lifecycle Status (Colors in UI: Yellow -> Blue -> Green)
-    status: { 
-      type: String, 
-      enum: ['Planned', 'In Progress', 'Completed', 'Cancelled'],
-      default: 'Planned'
-    },
-    
-    // Link to Inventory (Auto-deduct when status becomes 'Completed')
+    treatment_name: { type: String, required: true },
+    cost:   { type: Number, default: 0 },
+    qty:    { type: Number, default: 1 },
+    status: { type: String, enum: ['Planned', 'In Progress', 'Completed', 'Cancelled'], default: 'Planned' },
+    invoice_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
     consumables_used: [{
       inventory_item_id: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
       quantity: Number
@@ -43,19 +30,26 @@ const VisitSchema = new mongoose.Schema({
 
   // --- 3. PRESCRIPTIONS ---
   prescriptions: [{
-    drug_name: String,   // Can link to InventoryItem if it's pharmacy stock
-    dosage: String,      // "1-0-1"
-    duration: String,    // "5 Days"
-    instructions: String // "After food"
+    drug_name:    String,
+    dosage:       String,
+    duration:     String,
+    instructions: String,
+    invoice_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null }
   }],
 
-  // --- 4. FILES (X-Rays/RVG) ---
-  files: [{
-    file_type: { type: String, enum: ['X-Ray', 'Report', 'Consent Form'] },
-    url: String,
-    uploaded_at: { type: Date, default: Date.now }
-  }]
+  // --- 4. CONSULTATION NOTES (rich HTML, one or more per visit) ---
+  consultation_notes: [{
+    content:    { type: String, required: true }, // HTML from rich text editor
+    created_at: { type: Date, default: Date.now }
+  }],
+
+  // --- 5. ADVICES (rich HTML, one or more per visit) ---
+  advices: [{
+    content:    { type: String, required: true }, // HTML from rich text editor
+    created_at: { type: Date, default: Date.now }
+  }],
 
 }, { timestamps: true });
 
+export { VisitSchema };
 export default mongoose.model('Visit', VisitSchema);

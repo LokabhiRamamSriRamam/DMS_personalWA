@@ -20,4 +20,5 @@ const TransactionSchema = new mongoose.Schema({
   notes: String
 }, { timestamps: true });
 
+export { TransactionSchema };
 export default mongoose.model('Transaction', TransactionSchema);

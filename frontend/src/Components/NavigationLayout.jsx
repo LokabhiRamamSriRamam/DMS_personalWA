@@ -1,5 +1,6 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../Context/AuthContext';
 
 const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
   return (
@@ -33,6 +34,13 @@ const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
 
 const NavigationLayout = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  function handleLogout() {
+    logout();
+    navigate('/login');
+  }
 
   // Helper to check if the path matches the current location
   // You can change 'startsWith' to '===' if you want exact matching only
@@ -119,15 +127,18 @@ const NavigationLayout = ({ children }) => {
 
           {/* User Profile */}
           <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 mt-auto overflow-hidden">
-            <div 
-              className="flex-shrink-0 bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 border border-slate-200 dark:border-slate-700" 
-              style={{ backgroundImage: 'url("https://randomuser.me/api/portraits/women/44.jpg")' }}
-            ></div>
-            <div className="flex flex-col overflow-hidden opacity-0 w-0 group-hover/sidebar:w-auto group-hover/sidebar:opacity-100 transition-all duration-300 whitespace-nowrap">
-              <p className="text-slate-900 dark:text-white text-sm font-medium truncate">Dr. Sarah Smith</p>
-              <p className="text-slate-500 dark:text-slate-400 text-xs truncate">Main Orthodontist</p>
+            <div className="flex-shrink-0 flex items-center justify-center rounded-full size-10 border border-slate-200 dark:border-slate-700 bg-blue-100 text-blue-600 font-semibold text-sm">
+              {user?.name?.charAt(0)?.toUpperCase() ?? '?'}
             </div>
-            <button className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300">
+            <div className="flex flex-col overflow-hidden opacity-0 w-0 group-hover/sidebar:w-auto group-hover/sidebar:opacity-100 transition-all duration-300 whitespace-nowrap">
+              <p className="text-slate-900 dark:text-white text-sm font-medium truncate">{user?.name ?? 'User'}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{user?.role ?? ''}</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              title="Logout"
+              className="ml-auto text-slate-400 hover:text-red-500 opacity-0 group-hover/sidebar:opacity-100 transition-all duration-300"
+            >
               <span className="material-symbols-outlined text-[20px]">logout</span>
             </button>
           </div>

@@ -14,7 +14,7 @@ const TREATMENT_TYPES = [
   'Consultation', 'Root Canal', 'Cleaning', 'Whitening', 'Extraction', 'Braces Checkup'
 ];
 
-const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit }) => {
+const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defaultPatient }) => {
   // --- Data States ---
   const [patients, setPatients] = useState([]); // Stores search results
   const [doctors, setDoctors] = useState([]);   // Stores fetched doctors
@@ -59,9 +59,8 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit }) => 
             setSearchTerm(`${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name}`);
         }
     } else if (isOpen && !appointmentToEdit) {
-        // Reset form for new appointment
         setFormData({
-            selectedPatient: null, 
+            selectedPatient: defaultPatient || null,
             doctorId: '',
             date: new Date().toISOString().split('T')[0],
             time: '09:00',
@@ -69,7 +68,10 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit }) => 
             type: 'Consultation',
             notes: ''
         });
-        setSearchTerm('');
+        setSearchTerm(defaultPatient
+            ? `${defaultPatient.first_name} ${defaultPatient.last_name || ''}`.trim()
+            : ''
+        );
     }
   }, [isOpen, appointmentToEdit]);
 

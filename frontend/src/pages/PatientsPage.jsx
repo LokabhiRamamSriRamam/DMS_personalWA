@@ -20,25 +20,29 @@ const PatientsPage = () => {
   const fetchPatients = async (query = '') => {
     setLoading(true);
     try {
-      const { data } = await API.get(`/patients${query ? `?search=${query}` : ''}`);
-      
-      const formattedData = data.map(p => ({
-        id: p._id, 
-        regDate: new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        regTime: new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        name: `${p.first_name} ${p.last_name || ''}`.trim(),
-        phone: p.contact?.mobile || '-', // Safe access
-        patientId: p.patientId, 
-        gender: p.gender,
-        // Calculate Age from DOB
-        age: p.dob ? new Date().getFullYear() - new Date(p.dob).getFullYear() : '-', 
-        // Note: 'total_visits' isn't in your Patient model yet, defaulting to 0
-        visit: p.total_visits || 0, 
-        // FIXED: Matched to Model 'total_due'
-        due: (p.total_due || 0).toFixed(2),
-        avatarColor: 'bg-blue-100 text-[#137fec]', 
-        fullData: p 
-      }));
+      const [{ data }, { data: statsMap }] = await Promise.all([
+        API.get(`/patients${query ? `?search=${query}` : ''}`),
+        API.get('/patients/stats'),
+      ]);
+
+      const formattedData = data.map(p => {
+        const stats = statsMap[p._id] || { visit_count: 0, due_amount: 0 };
+        return {
+          id: p._id,
+          regDate: new Date(p.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          regTime: new Date(p.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          name: `${p.first_name} ${p.last_name || ''}`.trim(),
+          phone: p.contact?.mobile || '-',
+          patientId: p.patientId,
+          gender: p.gender,
+          age: p.dob ? new Date().getFullYear() - new Date(p.dob).getFullYear() : '-',
+          visit: stats.visit_count,
+          lastVisit: p.last_visit_date ? new Date(p.last_visit_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null,
+          due: stats.due_amount,
+          avatarColor: 'bg-blue-100 text-[#137fec]',
+          fullData: p,
+        };
+      });
 
       setPatients(formattedData);
     } catch (error) {
@@ -174,9 +178,23 @@ const PatientsPage = () => {
                         <td className="py-4 px-6 text-sm text-slate-600 dark:text-slate-300">
                           {patient.gender} <span className="text-slate-400">/</span> {patient.age}
                         </td>
-                        <td className="py-4 px-6 text-sm text-slate-600 dark:text-slate-300">{patient.visit}</td>
-                        <td className="py-4 px-6 text-sm text-slate-600 dark:text-slate-300">-</td> 
-                        <td className="py-4 px-6 text-sm font-medium text-right text-slate-900 dark:text-white">{patient.due}</td>
+                        <td className="py-4 px-6 text-sm text-slate-600 dark:text-slate-300">
+                          {patient.visit > 0 ? (
+                            <span className="font-medium text-slate-800">{patient.visit}</span>
+                          ) : (
+                            <span className="text-slate-400">0</span>
+                          )}
+                        </td>
+                        <td className="py-4 px-6 text-sm text-slate-600 dark:text-slate-300">
+                          {patient.lastVisit ? patient.lastVisit : <span className="text-slate-400">-</span>}
+                        </td>
+                        <td className="py-4 px-6 text-sm font-medium text-right">
+                          {patient.due > 0 ? (
+                            <span className="font-bold text-red-600">₹{patient.due.toFixed(2)}</span>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </td>
                         <td className="py-4 px-6">
                           <div className="flex items-center justify-center gap-2">
                             <button onClick={() => handleViewProfile(patient)} className="p-1.5 rounded-md text-slate-400 hover:text-[#137fec] hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition-all" title="View">

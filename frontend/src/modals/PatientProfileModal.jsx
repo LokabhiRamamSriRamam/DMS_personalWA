@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  X, User, Edit2, Phone, MapPin, Activity, 
-  Calendar, FileText, Clock, AlertCircle, ArrowRight,
-  Stethoscope, Image as ImageIcon, File
+import {
+  X, User, Edit2, Phone, MapPin, Activity,
+  ArrowRight, Stethoscope
 } from 'lucide-react';
-import API from '../services/api'; 
-import TreatmentPlanBoard from '../components/TreatmentPlanBoard'; 
+import API from '../services/api';
+import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
+import ReportsNotesSection from '../components/ReportNotesSection';
+import AppointmentTimeline from '../components/AppointmentTimeline';
 
 
 const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
@@ -15,8 +16,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
   
   // Data States
   const [patientData, setPatientData] = useState(null);
-  const [appointments, setAppointments] = useState([]);
-  const [visits, setVisits] = useState([]); 
+  const [visits, setVisits] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // Notes State
@@ -41,16 +41,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
     }
   }, [isOpen, initialPatient]);
 
-  // --- 2. Fetch Tab Specific Data ---
-  useEffect(() => {
-    if (!isOpen || !initialPatient?._id) return;
-
-    if (activeTab === 'Appointments') {
-      API.get(`/appointments?patient_id=${initialPatient._id}`)
-         .then(res => setAppointments(res.data))
-         .catch(err => console.error(err));
-    }
-  }, [activeTab, isOpen, initialPatient]);
+  // Appointments tab is handled by AppointmentTimeline component directly
 
   const fetchPatientDetails = async () => {
     setLoading(true);
@@ -88,13 +79,6 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
       navigate(`/treatment/${initialPatient._id}`); // Go to full page
   };
 
-  // --- Aggregators ---
-  // Extract all files from all visits for the "Medical Records" tab
-  const allRecords = visits.flatMap(v => v.files || []).concat([
-      // Mock data for visual demonstration if no real files exist yet
-      { file_type: 'X-Ray', url: 'https://dentobesscdn.b-cdn.net/dental-teeth/Pedo/Teeth55.svg', uploaded_at: new Date() },
-      { file_type: 'Report', url: '', uploaded_at: new Date('2025-12-01') }
-  ]);
 
   // --- Helpers ---
   const getAge = (dob) => dob ? new Date().getFullYear() - new Date(dob).getFullYear() : 'N/A';
@@ -256,41 +240,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
 
               {/* === MEDICAL RECORDS TAB === */}
               {activeTab === 'Medical Records' && (
-                  <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm min-h-[300px]">
-                      <div className="flex justify-between mb-6">
-                          <h4 className="font-bold text-slate-800">Files & X-Rays</h4>
-                          <button className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors">
-                              + Upload File
-                          </button>
-                      </div>
-                      
-                      {allRecords.length > 0 ? (
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              {allRecords.map((file, i) => (
-                                  <div key={i} className="group relative border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-all cursor-pointer">
-                                      {/* Preview Area */}
-                                      <div className="h-32 bg-slate-50 flex items-center justify-center">
-                                          {file.file_type === 'X-Ray' || file.url.includes('.svg') || file.url.includes('.jpg') ? (
-                                              <img src={file.url} alt="Record" className="w-full h-full object-cover" />
-                                          ) : (
-                                              <FileText size={32} className="text-slate-300" />
-                                          )}
-                                      </div>
-                                      {/* Info Area */}
-                                      <div className="p-3 bg-white">
-                                          <p className="text-xs font-bold text-slate-700 truncate">{file.file_type} Record</p>
-                                          <p className="text-[10px] text-slate-400">{formatDate(file.uploaded_at)}</p>
-                                      </div>
-                                  </div>
-                              ))}
-                          </div>
-                      ) : (
-                          <div className="flex flex-col items-center justify-center h-40 text-slate-400">
-                              <ImageIcon size={32} className="mb-2 opacity-50"/>
-                              <p className="text-sm">No medical records uploaded yet.</p>
-                          </div>
-                      )}
-                  </div>
+                  <ReportsNotesSection patientId={initialPatient._id} />
               )}
 
               {/* === NOTES TAB === */}
@@ -327,33 +277,10 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
 
               {/* === APPOINTMENTS TAB === */}
               {activeTab === 'Appointments' && (
-                  <div className="flex flex-col gap-3">
-                     {appointments.length > 0 ? (
-                        appointments.map(appt => (
-                            <div key={appt._id} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl hover:shadow-sm transition-all">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 bg-blue-50 text-[#137fec] rounded-lg flex items-center justify-center">
-                                        <Calendar size={18}/>
-                                    </div>
-                                    <div>
-                                        <p className="font-bold text-sm text-slate-800">{appt.title}</p>
-                                        <div className="flex gap-3 text-xs text-slate-500 mt-1">
-                                            <span className="flex items-center gap-1"><Clock size={12}/> {new Date(appt.start_time).toLocaleDateString()}</span>
-                                            <span className="flex items-center gap-1"><User size={12}/> {appt.doctor_id?.name || 'Doctor'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                                    appt.status === 'Completed' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                                }`}>
-                                    {appt.status}
-                                </span>
-                            </div>
-                        ))
-                     ) : (
-                        <div className="text-center py-10 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300">No appointments found.</div>
-                     )}
-                  </div>
+                <AppointmentTimeline
+                  patientId={initialPatient._id}
+                  patient={patientData || initialPatient}
+                />
               )}
 
             </div>

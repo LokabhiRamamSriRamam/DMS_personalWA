@@ -5,7 +5,7 @@ const InvoiceSchema = new mongoose.Schema({
   
   // Snapshot Data (Stores name/phone at time of invoice)
   patient_name: { type: String, required: true },
-  patient_phone: { type: String, required: true },
+  patient_phone: { type: String, default: '' },
   
   // Optional: Link to Patient profile if it exists
   patient_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Patient' }, 
@@ -15,7 +15,7 @@ const InvoiceSchema = new mongoose.Schema({
   items: [{
     item_id: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' }, // Critical for linking back
     name: { type: String, required: true }, 
-    type: { type: String, enum: ['Service', 'Pharmacy'], default: 'Service' },
+    type: { type: String, enum: ['Service', 'Pharmacy', 'Lab'], default: 'Service' },
     quantity: { type: Number, default: 1 },
     rate: { type: Number, required: true },
     total: { type: Number, required: true }
@@ -53,4 +53,5 @@ InvoiceSchema.pre('save', function(next) {
   next();
 });
 
+export { InvoiceSchema };
 export default mongoose.model('Invoice', InvoiceSchema);

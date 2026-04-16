@@ -3,7 +3,7 @@ import { Trash2, Check, ArrowRight, X, Clock, FileText, AlertCircle, DollarSign,
 import API from '../services/api';
 
 // --- SUB-COMPONENT: DETAILED TREATMENT MODAL ---
-const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate }) => {
+const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate, onDelete }) => {
   if (!isOpen || !treatment) return null;
 
   return (
@@ -106,6 +106,15 @@ const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate }) => {
                   <Check size={20} /> Treatment Completed
                </div>
             )}
+
+            {treatment.status === 'Planned' && onDelete && (
+              <button
+                onClick={() => onDelete(treatment.visitId, treatment.id)}
+                className="w-full py-3 flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 hover:bg-red-50 font-semibold rounded-xl transition-all"
+              >
+                <Trash2 size={18} /> Delete Treatment
+              </button>
+            )}
           </div>
 
         </div>
@@ -117,19 +126,28 @@ const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate }) => {
 // --- TREATMENT CARD (Small View) ---
 const TreatmentCard = ({ data, status, onClick }) => {
   return (
-    <div 
+    <div
       onClick={() => onClick(data)}
       className="p-4 bg-white border border-[#DCE5EE] rounded-xl shadow-sm flex flex-col gap-3 relative cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
     >
       <div className="flex justify-between items-start">
         <p className="text-xs font-medium text-slate-400">{data.date}</p>
-        <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
-            status === 'Completed' ? 'bg-green-50 text-green-600 border-green-100' : 
-            status === 'In Progress' ? 'bg-blue-50 text-blue-600 border-blue-100' :
-            'bg-yellow-50 text-yellow-600 border-yellow-100'
-        }`}>
-            {status}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
+            data.invoiced
+              ? 'bg-green-50 text-green-600 border-green-100'
+              : 'bg-orange-50 text-orange-500 border-orange-100'
+          }`}>
+            {data.invoiced ? 'Paid' : 'Unpaid'}
+          </span>
+          <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
+              status === 'Completed' ? 'bg-green-50 text-green-600 border-green-100' :
+              status === 'In Progress' ? 'bg-blue-50 text-blue-600 border-blue-100' :
+              'bg-yellow-50 text-yellow-600 border-yellow-100'
+          }`}>
+              {status}
+          </span>
+        </div>
       </div>
 
       <div>
@@ -155,6 +173,18 @@ const TreatmentCard = ({ data, status, onClick }) => {
 const TreatmentPlanBoard = ({ visits = [], onRefresh }) => {
   const [selectedPlan, setSelectedPlan] = useState(null);
 
+  const handleDelete = async (visitId, treatmentId) => {
+    if (!confirm('Delete this treatment? This cannot be undone.')) return;
+    try {
+      await API.delete(`/visits/${visitId}/treatments/${treatmentId}`);
+      setSelectedPlan(null);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('Delete failed', err);
+      alert('Failed to delete treatment.');
+    }
+  };
+
   // Parse visits into lists
   const { planned, inProgress, completed } = useMemo(() => {
     const p = [], i = [], c = [];
@@ -164,17 +194,18 @@ const TreatmentPlanBoard = ({ visits = [], onRefresh }) => {
         const findings = visit.findings?.diagnosis_notes || ''; // Extract diagnosis from visit findings
 
         if (visit.treatments) {
-            visit.treatments.forEach(treatment => {
+            visit.treatments.filter(t => t.treatment_name !== 'Missing').forEach(treatment => {
                 const item = {
-                    visitId: visit._id, 
+                    visitId: visit._id,
                     id: treatment._id,
                     date: visitDate,
                     treatmentName: treatment.treatment_name,
                     teeth: treatment.teeth_numbers,
                     cost: treatment.cost,
                     status: treatment.status,
-                    diagnosis: findings, // Pass diagnosis from visit parent
-                    notes: "No notes" // You can add notes to your model if needed
+                    invoiced: !!treatment.invoice_id,
+                    diagnosis: findings,
+                    notes: "No notes"
                 };
 
                 if (item.status === 'Completed') c.push(item);
@@ -248,11 +279,12 @@ const TreatmentPlanBoard = ({ visits = [], onRefresh }) => {
           </div>
       </div>
 
-      <TreatmentStatusModal 
-        isOpen={!!selectedPlan} 
-        onClose={() => setSelectedPlan(null)} 
+      <TreatmentStatusModal
+        isOpen={!!selectedPlan}
+        onClose={() => setSelectedPlan(null)}
         treatment={selectedPlan}
         onUpdate={handleUpdateStatus}
+        onDelete={handleDelete}
       />
     </>
   );

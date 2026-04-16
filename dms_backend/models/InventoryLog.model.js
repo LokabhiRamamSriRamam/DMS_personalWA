@@ -19,4 +19,5 @@ const InventoryLogSchema = new mongoose.Schema({
   date: { type: Date, default: Date.now }
 });
 
+export { InventoryLogSchema };
 export default mongoose.model('InventoryLog', InventoryLogSchema);

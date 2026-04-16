@@ -10,4 +10,5 @@ const VendorSchema = new Schema({
   address: String,
   gst_number: String
 });
+export { VendorSchema };
 export default model('Vendor', VendorSchema);

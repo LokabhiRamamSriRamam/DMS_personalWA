@@ -22,4 +22,5 @@ const AppointmentSchema = new mongoose.Schema({
   notes:{type: String},
 }, { timestamps: true });
 
+export { AppointmentSchema };
 export default mongoose.model('Appointment', AppointmentSchema);

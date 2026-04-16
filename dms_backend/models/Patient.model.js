@@ -29,6 +29,8 @@ const PatientSchema = new mongoose.Schema({
   // Matches the "Medical History" tags in Profile Modal
   medical_history: [{ type: String }], // e.g. ["Diabetes", "BP High"]
   allergies: [{ type: String }],       // e.g. ["Penicillin", "Latex"]
+  chief_complaint: { type: String, default: '' },
+  dental_history:  { type: String, default: '' },
   
   // --- META ---
   reference_source: { type: String }, // Who referred them?
@@ -37,11 +39,36 @@ const PatientSchema = new mongoose.Schema({
   // --- AGGREGATES (Updated by Triggers/Controllers for fast UI loading) ---
   last_visit_date: { type: Date },
   total_due: { type: Number, default: 0.00 },
-  dentition_type: { 
-    type: String, 
-    enum: ['Adult', 'Pedo', 'Mixed'], 
-    default: 'Adult' 
-  }
+  dentition_type: {
+    type: String,
+    enum: ['Adult', 'Pedo', 'Mixed'],
+    default: 'Adult'
+  },
+
+  // --- GOOGLE DRIVE ---
+  drive_folders: {
+    root:           { type: String, default: null },
+    clinical_notes: { type: String, default: null },
+    scans:          { type: String, default: null },
+    photographs:    { type: String, default: null },
+    lab_reports:    { type: String, default: null },
+  },
+
+  // File records stored per-patient (uploaded to Drive subfolders)
+  files: [{
+    file_name:     { type: String, required: true },
+    category: {
+      type: String,
+      enum: ['Clinical Notes', 'Scans', 'Photographs', 'Lab Reports'],
+      required: true,
+    },
+    drive_file_id: { type: String, required: true },
+    web_view_link: { type: String },
+    mime_type:     { type: String },
+    visit_id:      { type: mongoose.Schema.Types.ObjectId, ref: 'Visit' }, // optional
+    uploaded_at:   { type: Date, default: Date.now },
+  }],
+
 }, { timestamps: true });
 
 // Virtual for Full Name
@@ -49,4 +76,5 @@ PatientSchema.virtual('full_name').get(function() {
   return `${this.first_name} ${this.last_name || ''}`.trim();
 });
 
+export { PatientSchema };
 export default mongoose.model('Patient', PatientSchema);

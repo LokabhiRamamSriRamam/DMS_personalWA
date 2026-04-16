@@ -1,9 +1,4 @@
-import InventoryItem from '../models/InventoryItem.model.js';
-import InventoryLog from '../models/InventoryLog.model.js';
-import Order from '../models/Order.model.js';
-
 // --- HELPER: CENTRALIZED STATUS LOGIC ---
-// 
 const calculateStatus = (currentStock, minStock) => {
     const stock = Number(currentStock);
     const min = Number(minStock);
@@ -16,10 +11,12 @@ const calculateStatus = (currentStock, minStock) => {
 
 // GET /api/inventory
 export async function getItems(req, res) {
+  const { InventoryItem } = req.tenantModels;
   try {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+    // Note: Aggregate needs to be called on models bound to the connection
     const items = await InventoryItem.aggregate([
       {
         $lookup: {
@@ -62,6 +59,7 @@ export async function getItems(req, res) {
 
 // POST /api/inventory
 export async function createItem(req, res) {
+  const { InventoryItem } = req.tenantModels;
   try {
     const newItem = new InventoryItem(req.body);
     // Calculate initial status
@@ -73,6 +71,7 @@ export async function createItem(req, res) {
 
 // PUT /api/inventory/:id
 export async function updateItem(req, res) {
+  const { InventoryItem } = req.tenantModels;
   try {
     const updates = req.body;
     const item = await InventoryItem.findById(req.params.id);
@@ -96,6 +95,7 @@ export async function updateItem(req, res) {
 
 // DELETE /api/inventory/:id
 export async function deleteItem(req, res) {
+  const { InventoryItem } = req.tenantModels;
   try {
     await InventoryItem.findByIdAndDelete(req.params.id);
     res.json({ message: "Item deleted" });
@@ -104,6 +104,7 @@ export async function deleteItem(req, res) {
 
 // POST /api/inventory/adjust (For Manual Usage / Stock In / Correction)
 export async function adjustStock(req, res) {
+  const { InventoryItem, InventoryLog } = req.tenantModels;
   const { item_id, type, qty, reason, notes } = req.body;
   
   try {
@@ -138,6 +139,7 @@ export async function adjustStock(req, res) {
 
 // GET /api/inventory/logs
 export async function getLogs(req, res) {
+  const { InventoryLog } = req.tenantModels;
   try {
     const logs = await InventoryLog.find()
       .populate('item_id', 'name type') 
@@ -148,6 +150,7 @@ export async function getLogs(req, res) {
 
 // GET /api/inventory/orders
 export async function getOrders(req, res) {
+  const { Order } = req.tenantModels;
   try {
     const orders = await Order.find().sort({ order_date: -1 });
     res.json(orders);
@@ -156,6 +159,7 @@ export async function getOrders(req, res) {
 
 // POST /api/inventory/orders
 export async function createOrder(req, res) {
+  const { Order } = req.tenantModels;
   try {
     const newOrder = new Order(req.body);
     await newOrder.save();
@@ -165,6 +169,7 @@ export async function createOrder(req, res) {
 
 // PUT /api/inventory/orders/:id (Updates Status & Inventory on Receipt)
 export async function updateOrder(req, res) {
+  const { Order, InventoryItem, InventoryLog } = req.tenantModels;
   try {
     const { id } = req.params;
     const { status } = req.body;

@@ -1,15 +1,17 @@
-import Vendor from '../models/Vendor.model.js';
-
 // GET /api/vendors
 export async function getVendors(req, res) {
+  const { Vendor } = req.tenantModels;
   try {
-    const vendors = await Vendor.find({ type: { $in: ['Lab', 'General', 'Consumable'] } });
+    const { type } = req.query;
+    const query = type ? { type } : { type: { $in: ['Lab', 'General', 'Consumable'] } };
+    const vendors = await Vendor.find(query);
     res.json(vendors);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
 // POST /api/vendors
 export async function createVendor(req, res) {
+  const { Vendor } = req.tenantModels;
   try {
     const newVendor = new Vendor(req.body);
     await newVendor.save();
@@ -19,6 +21,7 @@ export async function createVendor(req, res) {
 
 // PUT /api/vendors/:id
 export async function updateVendor(req, res) {
+  const { Vendor } = req.tenantModels;
   try {
     const updatedVendor = await Vendor.findByIdAndUpdate(
       req.params.id, 
@@ -32,6 +35,7 @@ export async function updateVendor(req, res) {
 
 // DELETE /api/vendors/:id
 export async function deleteVendor(req, res) {
+  const { Vendor } = req.tenantModels;
   try {
     const deletedVendor = await Vendor.findByIdAndDelete(req.params.id);
     if (!deletedVendor) return res.status(404).json({ error: "Vendor not found" });

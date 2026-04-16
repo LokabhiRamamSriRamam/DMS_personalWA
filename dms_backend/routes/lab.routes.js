@@ -1,27 +1,19 @@
 import { Router } from 'express';
 const router = Router();
-import { getOrders, createOrder, updateOrder, getCatalog, createCatalogItem} from '../controllers/lab.controller.js';
+import {
+  getOrders, createOrder, updateOrderStatus, updateOrderFull,
+  getCatalog, createCatalogItem, updateCatalogItem,
+} from '../controllers/lab.controller.js';
 
-// ==========================================
-// 1. LAB ORDERS ROUTES
-// ==========================================
-// GET /api/labs/orders -> Fetch all orders
+// Lab Orders
 router.get('/orders', getOrders);
-
-// POST /api/labs/orders -> Create a new order
 router.post('/orders', createOrder);
+router.patch('/orders/:id', updateOrderStatus);  // status-only (inline)
+router.put('/orders/:id', updateOrderFull);       // full edit (modal)
 
-// PATCH /api/labs/orders/:id -> Update status (e.g. "Received")
-router.patch('/orders/:id', updateOrder);
-
-
-// ==========================================
-// 2. LAB CATALOG ROUTES (Items List)
-// ==========================================
-// GET /api/labs/items -> List available lab items (Zirconia, etc.)
+// Lab Catalog
 router.get('/items', getCatalog);
-
-// POST /api/labs/items -> Add new item to catalog
 router.post('/items', createCatalogItem);
+router.put('/items/:id', updateCatalogItem);
 
 export default router;

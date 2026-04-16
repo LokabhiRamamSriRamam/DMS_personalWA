@@ -29,4 +29,5 @@ const OrderSchema = new mongoose.Schema({
   notes: String
 }, { timestamps: true });
 
+export { OrderSchema };
 export default mongoose.model('Order', OrderSchema);

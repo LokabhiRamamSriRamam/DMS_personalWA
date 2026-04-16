@@ -1,7 +1,6 @@
-import Service from '../models/Services.model.js';
-
 // GET /api/services
 export async function getServices(req, res) {
+  const { Service } = req.tenantModels;
   try {
     const services = await Service.find({ isActive: true });
     res.json(services);
@@ -10,6 +9,7 @@ export async function getServices(req, res) {
 
 // POST /api/services (To add new services one-time)
 export async function createService(req, res) {
+  const { Service } = req.tenantModels;
   try {
     const service = new Service(req.body);
     await service.save();
@@ -19,6 +19,7 @@ export async function createService(req, res) {
 
 // PUT /api/services/:id (To update existing service details)
 export async function updateService(req, res) {
+  const { Service } = req.tenantModels;
   try {
     const service = await Service.findById(req.params.id);
     if (!service) return res.status(404).json({ error: "Service not found" });

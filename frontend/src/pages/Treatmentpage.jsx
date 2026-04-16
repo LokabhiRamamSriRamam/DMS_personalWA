@@ -1,16 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom'; 
-import { 
-  Printer, FileText, Monitor, Phone, 
-  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2, Save
+import { useParams } from 'react-router-dom';
+import {
+  Printer, FileText, Monitor, Phone,
+  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2, Save, Edit2, Receipt, Mic
 } from 'lucide-react';
 
 // --- IMPORTS ---
-import API from '../services/api'; 
+import API from '../services/api';
+import { useAuth } from '../Context/AuthContext';
 import PatientProfileModal from '../modals/PatientProfileModal';
-import TreatmentTabs from '../components/TreatmentTabs'; 
+import RichTextEditorModal from '../modals/RichTextEditorModal';
+import PrescriptionModal from '../modals/PrescriptionModal';
+import NewInvoiceModal from '../modals/NewInvoiceModal';
+import ClinicalReportModal from '../modals/ClinicalReportModal';
+import TreatmentTabs from '../components/TreatmentTabs';
 import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
 import ReportsNotesSection from '../components/ReportNotesSection';
+import AppointmentTimeline from '../components/AppointmentTimeline';
 
 // --- Sub-Components ---
 
@@ -213,87 +219,676 @@ const ClinicalHistory = ({ patient, onSaveHistory }) => {
   );
 };
 
-// --- NEW SECTIONS ---
+// --- Shared: date label for a visit ---
+const formatVisitDate = (date) =>
+  new Date(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-const ConsultationNotes = () => (
-  <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-    <div className="flex justify-between items-center mb-4">
-       <div className="flex items-center gap-3">
-         <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
-            <NotebookPen size={20} />
-         </div>
-         <h3 className="font-heading font-semibold text-lg text-[#322A2A]">Consultation Notes</h3>
-       </div>
-       <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
-         <Plus size={18} /> New Note
-       </button>
-    </div>
-  </div>
-);
+// --- CONSULTATION NOTES ---
+const ConsultationNotes = ({ visits, patientId, onRefresh }) => {
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [editTarget, setEditTarget] = useState(null); // { visitId, noteId, content }
 
-const Medications = () => (
-   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-     <div className="flex justify-between items-center">
-        <div className="flex items-center gap-3">
-           <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
-             <Pill size={20} />
-           </div>
-           <h3 className="font-heading font-semibold text-lg text-[#322A2A]">Medications</h3>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
-          <Plus size={18} /> Prescribe Medicine
-        </button>
-     </div>
-   </div>
-);
+  const allNotes = visits
+    .filter(v => v.consultation_notes?.length > 0)
+    .flatMap(v =>
+      [...v.consultation_notes]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .map(note => ({ ...note, visitId: v._id, visitDate: v.date }))
+    )
+    .sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate));
 
-const LabOrders = () => (
-   <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-     <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-3">
-           <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
-             <TestTube size={20} />
-           </div>
-           <h3 className="font-heading font-semibold text-lg text-[#322A2A]">Lab Orders</h3>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
-          <Plus size={18} /> Add Lab Order
-        </button>
-     </div>
-   </div>
-);
+  function openCreate() { setEditTarget(null); setModalOpen(true); }
+  function openEdit(note) { setEditTarget(note); setModalOpen(true); }
+  function handleClose() { setModalOpen(false); setEditTarget(null); }
 
-const AdvicesRecall = () => {
-  const [activeTab, setActiveTab] = useState('Advices');
+  async function handleSave(content) {
+    if (editTarget) {
+      await API.patch(`/visits/${editTarget.visitId}/notes/${editTarget._id}`, { content });
+    } else {
+      await API.post(`/visits/patient/${patientId}/note`, { content });
+    }
+    onRefresh();
+  }
+
   return (
     <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
-       <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-6">
-             <button onClick={() => setActiveTab('Advices')} className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Advices' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}>Advices</button>
-             <button onClick={() => setActiveTab('Recall')} className={`pb-2 text-lg font-medium transition-all border-b-2 ${activeTab === 'Recall' ? 'text-[#137fec] border-[#137fec]' : 'text-gray-500 border-transparent hover:text-gray-800'}`}>Recall</button>
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
+            <NotebookPen size={20} />
           </div>
-          <button className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm">
-            <Plus size={18} /> Add {activeTab === 'Advices' ? 'Advice' : 'Recall'}
-          </button>
-       </div>
-       <div className="flex items-center justify-center py-8 text-gray-400 text-sm">
-          No {activeTab.toLowerCase()} yet.
-       </div>
+          <h3 className="font-semibold text-lg text-slate-800">Consultation Notes</h3>
+        </div>
+        <button
+          onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm"
+        >
+          <Plus size={16} /> New Note
+        </button>
+      </div>
+
+      {allNotes.length === 0 ? (
+        <div className="flex items-center justify-center py-10 text-slate-400 text-sm bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          No consultation notes yet.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {allNotes.map(note => (
+            <div key={note._id} className="relative group bg-slate-50 rounded-lg px-4 pt-4 pb-3 border border-slate-100">
+              <button
+                onClick={() => openEdit(note)}
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 bg-white border border-slate-200 rounded-md text-xs text-slate-500 hover:text-[#137fec] hover:border-[#137fec]"
+              >
+                <Edit2 size={11} /> Edit
+              </button>
+              <div
+                className="text-sm text-slate-700 leading-relaxed pr-12
+                  [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                  [&_li]:my-0.5 [&_b]:font-semibold [&_strong]:font-semibold"
+                dangerouslySetInnerHTML={{ __html: note.content }}
+              />
+              <p className="text-right text-[11px] text-slate-400 mt-2">{formatVisitDate(note.visitDate)}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <RichTextEditorModal
+        isOpen={modalOpen}
+        onClose={handleClose}
+        type="note"
+        initialContent={editTarget?.content}
+        onSave={handleSave}
+        onDelete={editTarget ? async () => {
+          await API.delete(`/visits/${editTarget.visitId}/notes/${editTarget._id}`);
+          onRefresh();
+        } : undefined}
+      />
     </div>
-  )
+  );
+};
+
+const DOSAGE_OPTIONS = [
+  '1-0-0', '0-0-1', '0-1-0',
+  '1-1-0', '0-1-1', '1-0-1',
+  '1-1-1', 'SOS', 'Once daily',
+  'Twice daily', 'Thrice daily',
+];
+const DURATION_OPTIONS = [
+  '1 day', '2 days', '3 days', '4 days', '5 days',
+  '7 days', '10 days', '14 days', '1 month',
+];
+const emptyRow = () => ({ drug_name: '', dosage: '', duration: '', instructions: '' });
+
+// --- MEDICATIONS ---
+const Medications = ({ visits = [], patientId, onRefresh }) => {
+  const [showForm, setShowForm] = useState(false);
+  const [pharmacyItems, setPharmacyItems] = useState([]);
+  const [rows, setRows] = useState([emptyRow()]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    API.get('/inventory').then(res => {
+      const data = Array.isArray(res.data) ? res.data : [];
+      setPharmacyItems(data.filter(i => i.type === 'Pharmacy'));
+    }).catch(() => {});
+  }, []);
+
+  const allPrescriptions = visits
+    .filter(v => v.prescriptions?.length > 0)
+    .flatMap(v => v.prescriptions.map(p => ({ ...p, visitId: v._id, visitDate: v.date })))
+    .sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate));
+
+  const updateRow = (idx, field, value) => {
+    setRows(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  };
+
+  const addRow = () => setRows(prev => [...prev, emptyRow()]);
+
+  const removeRow = (idx) => setRows(prev => prev.length === 1 ? prev : prev.filter((_, i) => i !== idx));
+
+  const handleSaveAll = async () => {
+    const valid = rows.filter(r => r.drug_name.trim());
+    if (!valid.length) return;
+    setSaving(true);
+    try {
+      await Promise.all(valid.map(r =>
+        API.post(`/visits/patient/${patientId}/prescription`, r)
+      ));
+      setRows([emptyRow()]);
+      setShowForm(false);
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscard = () => { setRows([emptyRow()]); setShowForm(false); };
+
+  const handleDelete = async (visitId, prescriptionId) => {
+    try {
+      await API.delete(`/visits/${visitId}/prescriptions/${prescriptionId}`);
+      onRefresh();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
+            <Pill size={20} />
+          </div>
+          <h3 className="font-semibold text-lg text-slate-800">Medications</h3>
+        </div>
+        {!showForm && (
+          <button
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm"
+          >
+            <Plus size={16} /> Prescribe Medicine
+          </button>
+        )}
+      </div>
+
+      {/* Multi-row prescription form */}
+      {showForm && (
+        <div className="mb-4 rounded-xl border border-blue-100 overflow-hidden">
+          {/* Column headers */}
+          <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 px-3 py-2 bg-blue-50/60 border-b border-blue-100">
+            <span className="text-xs font-semibold text-slate-500">Drug Name *</span>
+            <span className="text-xs font-semibold text-slate-500">Dosage</span>
+            <span className="text-xs font-semibold text-slate-500">Days</span>
+            <span className="text-xs font-semibold text-slate-500">Instructions</span>
+            <span></span>
+          </div>
+
+          <datalist id="pharmacy-drugs">
+            {pharmacyItems.map(item => <option key={item._id} value={item.name} />)}
+          </datalist>
+
+          {/* Medicine rows */}
+          <div className="flex flex-col divide-y divide-slate-100">
+            {rows.map((row, idx) => (
+              <div key={idx} className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 items-center px-3 py-2 bg-white">
+                {/* Drug Name */}
+                <div>
+                  <input
+                    list="pharmacy-drugs"
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#137fec]"
+                    placeholder="Medicine name..."
+                    value={row.drug_name}
+                    onChange={e => updateRow(idx, 'drug_name', e.target.value)}
+                  />
+                </div>
+                {/* Dosage dropdown */}
+                <div>
+                  <select
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#137fec] bg-white"
+                    value={row.dosage}
+                    onChange={e => updateRow(idx, 'dosage', e.target.value)}
+                  >
+                    <option value="">-- Select --</option>
+                    {DOSAGE_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                {/* Duration dropdown */}
+                <div>
+                  <select
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#137fec] bg-white"
+                    value={row.duration}
+                    onChange={e => updateRow(idx, 'duration', e.target.value)}
+                  >
+                    <option value="">-- Select --</option>
+                    {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                {/* Instructions */}
+                <div>
+                  <input
+                    className="w-full border border-gray-200 rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:border-[#137fec]"
+                    placeholder="After food..."
+                    value={row.instructions}
+                    onChange={e => updateRow(idx, 'instructions', e.target.value)}
+                  />
+                </div>
+                {/* Remove row */}
+                <button
+                  onClick={() => removeRow(idx)}
+                  disabled={rows.length === 1}
+                  className="flex items-center justify-center w-7 h-7 rounded-md text-slate-300 hover:text-red-400 hover:bg-red-50 disabled:opacity-0 transition-colors"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer actions */}
+          <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-t border-slate-100">
+            <button
+              onClick={addRow}
+              className="flex items-center gap-1 text-xs text-[#137fec] font-medium hover:underline"
+            >
+              <Plus size={13} /> Add Medicine
+            </button>
+            <div className="flex gap-2">
+              <button onClick={handleDiscard} className="px-4 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-100">
+                Discard
+              </button>
+              <button
+                onClick={handleSaveAll}
+                disabled={saving || !rows.some(r => r.drug_name.trim())}
+                className="px-4 py-1.5 text-sm bg-[#137fec] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : `Save ${rows.filter(r => r.drug_name.trim()).length > 1 ? `All (${rows.filter(r => r.drug_name.trim()).length})` : 'Prescription'}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* List */}
+      {allPrescriptions.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-slate-400 text-sm bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          No prescriptions recorded.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <th className="pb-2 font-semibold">Drug</th>
+                <th className="pb-2 font-semibold">Dosage</th>
+                <th className="pb-2 font-semibold">Duration</th>
+                <th className="pb-2 font-semibold">Instructions</th>
+                <th className="pb-2 font-semibold">Date</th>
+                <th className="pb-2 font-semibold">Status</th>
+                <th className="pb-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {allPrescriptions.map(p => (
+                <tr key={p._id} className="border-b border-slate-50 hover:bg-slate-50 group">
+                  <td className="py-2 font-medium text-slate-800">{p.drug_name}</td>
+                  <td className="py-2 text-slate-600">{p.dosage || '-'}</td>
+                  <td className="py-2 text-slate-600">{p.duration || '-'}</td>
+                  <td className="py-2 text-slate-600">{p.instructions || '-'}</td>
+                  <td className="py-2 text-slate-400 text-xs">{formatVisitDate(p.visitDate)}</td>
+                  <td className="py-2">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                      p.invoice_id
+                        ? 'bg-green-50 text-green-600 border-green-100'
+                        : 'bg-orange-50 text-orange-500 border-orange-100'
+                    }`}>
+                      {p.invoice_id ? 'Paid' : 'Unpaid'}
+                    </span>
+                  </td>
+                  <td className="py-2">
+                    <button
+                      onClick={() => handleDelete(p.visitId, p._id)}
+                      className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 text-xs px-2 py-0.5 rounded border border-transparent hover:border-red-200 transition-all"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const LAB_STATUS_COLORS = {
+  'Sent':                 'bg-blue-50 text-blue-600',
+  'In Process':           'bg-amber-50 text-amber-600',
+  'Received':             'bg-purple-50 text-purple-600',
+  'Delivered to Patient': 'bg-green-50 text-green-600',
+};
+
+// --- LAB ORDERS ---
+const LabOrders = ({ patientId, onRefresh, onOrdersLoaded }) => {
+  const [orders, setOrders] = useState([]);
+  const [catalogItems, setCatalogItems] = useState([]);
+  const [labVendors, setLabVendors] = useState([]);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    item_name: '', shade: '', notes: '', expected_delivery: '',
+    vendor_id: '', cost_to_clinic: ''
+  });
+  const [saving, setSaving] = useState(false);
+
+  const fetchOrders = async () => {
+    try {
+      const res = await API.get('/labs/orders');
+      const data = Array.isArray(res.data) ? res.data : [];
+      const filtered = data.filter(o => o.patient_id?._id === patientId || o.patient_id === patientId);
+      setOrders(filtered);
+      onOrdersLoaded?.(filtered);
+    } catch (err) { console.error(err); }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+    Promise.all([
+      API.get('/labs/items'),
+      API.get('/vendors'),
+    ]).then(([catalogRes, vendorRes]) => {
+      setCatalogItems(Array.isArray(catalogRes.data) ? catalogRes.data : []);
+      const vendors = Array.isArray(vendorRes.data) ? vendorRes.data : [];
+      setLabVendors(vendors.filter(v => v.type === 'Lab'));
+    }).catch(() => {});
+  }, [patientId]);
+
+  const handleAdd = async () => {
+    if (!form.item_name.trim()) return;
+    setSaving(true);
+    try {
+      await API.post('/labs/orders', { ...form, patient_id: patientId });
+      setForm({ item_name: '', shade: '', notes: '', expected_delivery: '', vendor_id: '', cost_to_clinic: '' });
+      setShowForm(false);
+      fetchOrders();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStatusChange = async (orderId, status) => {
+    try {
+      await API.patch(`/labs/orders/${orderId}`, { status });
+      fetchOrders();
+    } catch (err) { console.error(err); }
+  };
+
+  return (
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-blue-50 rounded-full flex items-center justify-center text-[#137fec]">
+            <TestTube size={20} />
+          </div>
+          <h3 className="font-semibold text-lg text-slate-800">Lab Orders</h3>
+        </div>
+        <button
+          onClick={() => setShowForm(v => !v)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium text-sm"
+        >
+          <Plus size={16} /> Add Lab Order
+        </button>
+      </div>
+
+      {/* Add form */}
+      {showForm && (
+        <div className="mb-4 p-4 bg-blue-50/40 rounded-xl border border-blue-100 flex flex-col gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Item *</label>
+              <input
+                list="lab-catalog-items"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                placeholder="Type or select lab item..."
+                value={form.item_name}
+                onChange={e => setForm({ ...form, item_name: e.target.value })}
+              />
+              <datalist id="lab-catalog-items">
+                {catalogItems.map(item => <option key={item._id} value={item.name} />)}
+              </datalist>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Shade</label>
+              <input
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                placeholder="e.g. A2"
+                value={form.shade}
+                onChange={e => setForm({ ...form, shade: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Lab Vendor</label>
+              <select
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                value={form.vendor_id}
+                onChange={e => setForm({ ...form, vendor_id: e.target.value })}
+              >
+                <option value="">-- Select Vendor --</option>
+                {labVendors.map(v => <option key={v._id} value={v._id}>{v.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Expected Delivery</label>
+              <input
+                type="date"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                value={form.expected_delivery}
+                onChange={e => setForm({ ...form, expected_delivery: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Cost to Clinic (₹)</label>
+              <input
+                type="number"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                placeholder="0"
+                value={form.cost_to_clinic}
+                onChange={e => setForm({ ...form, cost_to_clinic: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-500 mb-1 block">Notes / Instructions</label>
+              <input
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
+                placeholder="Special instructions..."
+                value={form.notes}
+                onChange={e => setForm({ ...form, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowForm(false)} className="px-4 py-1.5 text-sm border border-slate-200 rounded-lg text-slate-500 hover:bg-slate-50">Cancel</button>
+            <button
+              onClick={handleAdd}
+              disabled={saving || !form.item_name.trim()}
+              className="px-4 py-1.5 text-sm bg-[#137fec] text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+            >
+              {saving ? 'Saving...' : 'Create Order'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Orders list */}
+      {orders.length === 0 ? (
+        <div className="flex items-center justify-center py-8 text-slate-400 text-sm bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          No lab orders for this patient.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {orders.map(order => {
+            const item = order.items?.[0] || {};
+            return (
+              <div key={order._id} className="flex items-center justify-between gap-4 px-4 py-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <span className="font-medium text-slate-800 text-sm truncate">{item.item_name || '-'}</span>
+                  <span className="text-xs text-slate-400">
+                    {order.vendor_id?.name || 'No vendor'}
+                    {item.shade ? ` · Shade: ${item.shade}` : ''}
+                    {order.expected_delivery ? ` · Due: ${formatVisitDate(order.expected_delivery)}` : ''}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  {order.cost_to_clinic > 0 && (
+                    <span className="text-xs text-slate-500">₹{order.cost_to_clinic}</span>
+                  )}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    order.invoice_id
+                      ? 'bg-green-50 text-green-600 border-green-100'
+                      : 'bg-orange-50 text-orange-500 border-orange-100'
+                  }`}>
+                    {order.invoice_id ? 'Paid' : 'Unpaid'}
+                  </span>
+                  <select
+                    value={order.status}
+                    onChange={e => handleStatusChange(order._id, e.target.value)}
+                    className={`text-xs font-medium px-2 py-1 rounded-full border-0 cursor-pointer focus:outline-none ${LAB_STATUS_COLORS[order.status] || 'bg-slate-100 text-slate-600'}`}
+                  >
+                    {['Sent', 'In Process', 'Received', 'Delivered to Patient'].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- ADVICES & RECALL ---
+const AdvicesRecall = ({ visits, patientId, patient, onRefresh, onSelectDate }) => {
+  const [activeTab, setActiveTab]   = useState('Advices');
+  const [modalOpen, setModalOpen]   = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+
+  const allAdvices = visits
+    .filter(v => v.advices?.length > 0)
+    .flatMap(v =>
+      [...v.advices]
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .map(advice => ({ ...advice, visitId: v._id, visitDate: v.date }))
+    )
+    .sort((a, b) => new Date(b.visitDate) - new Date(a.visitDate));
+
+  function openCreate() { setEditTarget(null); setModalOpen(true); }
+  function openEdit(advice) { setEditTarget(advice); setModalOpen(true); }
+  function handleClose() { setModalOpen(false); setEditTarget(null); }
+
+  async function handleSave(content) {
+    if (editTarget) {
+      await API.patch(`/visits/${editTarget.visitId}/advices/${editTarget._id}`, { content });
+    } else {
+      await API.post(`/visits/patient/${patientId}/advice`, { content });
+    }
+    onRefresh();
+  }
+
+  return (
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6">
+
+      {/* Tab Header */}
+      <div className="flex justify-between items-center mb-5">
+        <div className="flex gap-5 border-b border-slate-100 w-full pb-3">
+          {['Advices', 'Recall'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`text-sm font-semibold pb-1 border-b-2 transition-all ${
+                activeTab === tab
+                  ? 'text-[#137fec] border-[#137fec]'
+                  : 'text-slate-400 border-transparent hover:text-slate-600'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+          {/* Action button aligned right */}
+          <div className="ml-auto">
+            {activeTab === 'Advices' ? (
+              <button
+                onClick={openCreate}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition-colors font-medium text-xs"
+              >
+                <Plus size={14} /> Add Advice
+              </button>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {/* Advices Tab */}
+      {activeTab === 'Advices' && (
+        <>
+          {allAdvices.length === 0 ? (
+            <div className="flex items-center justify-center py-10 text-slate-400 text-sm bg-slate-50 rounded-xl border border-dashed border-slate-200">
+              No advices added yet.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {allAdvices.map(advice => (
+                <div key={advice._id} className="relative group bg-amber-50/40 rounded-lg px-4 pt-4 pb-3 border border-amber-100">
+                  <button
+                    onClick={() => openEdit(advice)}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 px-2 py-1 bg-white border border-amber-200 rounded-md text-xs text-slate-500 hover:text-amber-600 hover:border-amber-400"
+                  >
+                    <Edit2 size={11} /> Edit
+                  </button>
+                  <div
+                    className="text-sm text-slate-700 leading-relaxed pr-12
+                      [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                      [&_li]:my-0.5 [&_b]:font-semibold [&_strong]:font-semibold"
+                    dangerouslySetInnerHTML={{ __html: advice.content }}
+                  />
+                  <p className="text-right text-[11px] text-slate-400 mt-2">{formatVisitDate(advice.visitDate)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Recall Tab */}
+      {activeTab === 'Recall' && (
+        <AppointmentTimeline
+          patientId={patientId}
+          patient={patient}
+          buttonLabel="Add Recall"
+          onSelectDate={onSelectDate}
+        />
+      )}
+
+      <RichTextEditorModal
+        isOpen={modalOpen}
+        onClose={handleClose}
+        type="advice"
+        initialContent={editTarget?.content}
+        onSave={handleSave}
+        onDelete={editTarget ? async () => {
+          await API.delete(`/visits/${editTarget.visitId}/advices/${editTarget._id}`);
+          onRefresh();
+        } : undefined}
+      />
+    </div>
+  );
 };
 
 // --- MAIN PAGE COMPONENT ---
 
-export default function TreatmentPage({ patientIdProp, isOverlay }) {
-  const { id: paramId } = useParams(); // Get ID from URL if available
-  // PRIORITY: Prop (from Overlay) > Param (from URL)
-  const id = patientIdProp || paramId; 
-  
-  const [patient, setPatient] = useState(null);
-  const [visits, setVisits] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [isProfileOpen, setIsProfileOpen] = useState(false); // Modal State
+export default function TreatmentPage({ patientIdProp }) {
+  const { id: paramId } = useParams();
+  const id = patientIdProp || paramId;
+
+  const { user } = useAuth();
+
+  const [patient, setPatient]               = useState(null);
+  const [visits, setVisits]                 = useState([]);
+  const [labOrders, setLabOrders]           = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [isProfileOpen, setIsProfileOpen]   = useState(false);
+  const [isPrescriptionOpen, setIsPrescriptionOpen] = useState(false);
+  const [isInvoiceOpen, setIsInvoiceOpen]   = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [reportRefreshKey, setReportRefreshKey]   = useState(0);
+  const [viewingDate, setViewingDate]             = useState(null); // ISO date string or null (= today)
 
   // Central Data Fetch Function
   const fetchPageData = async () => {
@@ -340,6 +935,15 @@ export default function TreatmentPage({ patientIdProp, isOverlay }) {
       );
   }
 
+  // When a past appointment is selected, filter visits to that day only
+  const displayVisits = viewingDate
+    ? visits.filter(v => new Date(v.date).toISOString().slice(0, 10) === new Date(viewingDate).toISOString().slice(0, 10))
+    : visits;
+
+  const viewingDateLabel = viewingDate
+    ? new Date(viewingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+
   return (
     <div className="min-h-screen bg-[#EBF2F7] px-4 font-sans pb-20">
       <div className="max-w-7xl mx-auto pt-6">
@@ -347,57 +951,148 @@ export default function TreatmentPage({ patientIdProp, isOverlay }) {
         {/* Note: PatientHeader removed as requested */}
         
         {/* Pass 'onViewProfile' to open the modal */}
-        <PatientInfoCard 
-            patient={patient} 
+        <PatientInfoCard
+            patient={patient}
             onViewProfile={() => setIsProfileOpen(true)}
         />
-        
-        <ClinicalHistory 
-            patient={patient} 
+
+        {/* "Viewing past date" banner */}
+        {viewingDate && (
+          <div className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-5 py-3 mb-6">
+            <p className="text-sm text-amber-800">
+              Viewing entries for <span className="font-semibold">{viewingDateLabel}</span>
+            </p>
+            <button
+              onClick={() => setViewingDate(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-amber-300 text-amber-700 rounded-lg text-xs font-semibold hover:bg-amber-100 transition-colors"
+            >
+              ← Back to Today
+            </button>
+          </div>
+        )}
+
+        <ClinicalHistory
+            patient={patient}
             onSaveHistory={handleSaveHistory}
         />
-        
-        <ReportsNotesSection 
-            patientId={id} 
-            visits={visits} 
-            onRefresh={fetchPageData} 
+
+        <ReportsNotesSection
+            patientId={id}
+            refreshTrigger={reportRefreshKey}
+            visits={visits}
+            onRefresh={fetchPageData}
         />
 
-        {/* 1. Dental Chart Tabs - Pass callback to refresh data when treatment added */}
-        <TreatmentTabs 
+        {/* 1. Dental Chart Tabs */}
+        <TreatmentTabs
           onTreatmentAdded={fetchPageData}
           visits={visits}
           patientId={id}
           initialDentition={patient?.dentition_type || 'Adult'} />
 
-        {/* 2. Treatment Plan Board - Pass callback to refresh data when status changes */}
-        <TreatmentPlanBoard 
-            visits={visits} 
-            onRefresh={fetchPageData} 
+        {/* 2. Treatment Plan Board */}
+        <TreatmentPlanBoard
+            visits={displayVisits}
+            onRefresh={fetchPageData}
         />
 
-        {/* 3. Other Sections */}
-        <ConsultationNotes />
-        <Medications />
-        <LabOrders />
-        <AdvicesRecall />
+        {/* 3. Other Sections — use displayVisits so they reflect the selected date */}
+        <ConsultationNotes visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
+        <Medications visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
+        <LabOrders patientId={id} onRefresh={fetchPageData} onOrdersLoaded={setLabOrders} />
+        <AdvicesRecall visits={displayVisits} patientId={id} patient={patient} onRefresh={fetchPageData} onSelectDate={setViewingDate} />
 
         {/* Sticky Bottom Action Bar */}
         <div className="sticky bottom-4 z-10 bg-white p-4 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border border-gray-100 flex justify-end gap-3">
-             <button className="px-6 py-2 border border-[#137fec] text-[#137fec] font-medium rounded-lg hover:bg-blue-50 flex items-center gap-2 transition-colors">
-                <FileText size={18} /> Prescription
-             </button>
-             <button disabled className="px-8 py-2 bg-gray-300 text-white font-medium rounded-lg cursor-not-allowed">
-                Continue
-             </button>
+          <button
+            onClick={() => setIsReportModalOpen(true)}
+            className="px-6 py-2 border border-purple-300 text-purple-600 font-medium rounded-lg hover:bg-purple-50 flex items-center gap-2 transition-colors"
+          >
+            <Mic size={18} /> AI Report
+          </button>
+          <button
+            onClick={() => setIsPrescriptionOpen(true)}
+            className="px-6 py-2 border border-[#137fec] text-[#137fec] font-medium rounded-lg hover:bg-blue-50 flex items-center gap-2 transition-colors"
+          >
+            <FileText size={18} /> Prescription
+          </button>
+          <button
+            onClick={() => setIsInvoiceOpen(true)}
+            className="px-6 py-2 bg-[#137fec] text-white font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+          >
+            <Receipt size={18} /> Generate Invoice
+          </button>
         </div>
       </div>
 
-      {/* Patient Profile Modal */}
-      <PatientProfileModal 
-        isOpen={isProfileOpen} 
-        onClose={() => setIsProfileOpen(false)} 
-        patient={patient} 
+      <ClinicalReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onSuccess={() => { fetchPageData(); setReportRefreshKey(k => k + 1); }}
+        patientId={id}
+        patient={patient}
+      />
+
+      <PatientProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        patient={patient}
+      />
+
+      <PrescriptionModal
+        isOpen={isPrescriptionOpen}
+        onClose={() => setIsPrescriptionOpen(false)}
+        patient={patient}
+        visits={visits}
+        doctorName={user?.name}
+      />
+
+      <NewInvoiceModal
+        isOpen={isInvoiceOpen}
+        onClose={() => setIsInvoiceOpen(false)}
+        onSuccess={() => { setIsInvoiceOpen(false); fetchPageData(); }}
+        initialPatient={patient}
+        initialItems={[
+          // Unpaid treatments
+          ...visits.flatMap(v =>
+            (v.treatments || [])
+              .filter(t => !t.invoice_id && t.status !== 'Cancelled' && t.treatment_name !== 'Missing')
+              .map(t => ({
+                name:           t.treatment_name,
+                type:           'Service',
+                quantity:       t.qty || 1,
+                rate:           t.cost || 0,
+                total:          (t.cost || 0) * (t.qty || 1),
+                item_id:        null,
+                _treatmentRef:  { visitId: v._id, treatmentId: t._id },
+              }))
+          ),
+          // Unpaid prescriptions
+          ...visits.flatMap(v =>
+            (v.prescriptions || [])
+              .filter(p => !p.invoice_id)
+              .map(p => ({
+                name:               p.drug_name,
+                type:               'Pharmacy',
+                quantity:           1,
+                rate:               0,
+                total:              0,
+                item_id:            null,
+                _prescriptionRef:   { visitId: v._id, prescriptionId: p._id },
+              }))
+          ),
+          // Unpaid lab orders
+          ...labOrders
+            .filter(o => !o.invoice_id)
+            .map(o => ({
+              name:     o.items?.[0]?.item_name || 'Lab Order',
+              type:     'Lab',
+              quantity: 1,
+              rate:     o.cost_to_clinic || 0,
+              total:    o.cost_to_clinic || 0,
+              item_id:  o._id,
+            })),
+        ]}
       />
     </div>
   );

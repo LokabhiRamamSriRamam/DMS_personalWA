@@ -1,76 +1,88 @@
-import LabOrder from '../models/LabOrder.model.js';
-
-import LabCatalogItem from '../models/LabCatalogItem.model.js';
-import Patient from '../models/Patient.model.js';
-
 // =======================
 // 1. LAB ORDERS
 // =======================
 
 export async function getOrders(req, res) {
+  const { LabOrder } = req.tenantModels;
   try {
     const orders = await LabOrder.find()
       .populate('patient_id', 'first_name last_name patientId')
       .populate('vendor_id', 'name')
       .sort({ createdAt: -1 });
-
     res.json(orders);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Server Error fetching orders' });
+    res.status(500).json({ error: err.message });
   }
 }
 
 export async function createOrder(req, res) {
+  const { LabOrder } = req.tenantModels;
   try {
-    const { 
-      patient_id, 
-      vendor_id, 
-      item, 
-      amount, 
-      orderDate,
-      expectedDate,
-      notes 
-    } = req.body;
-
-    const patientExists = await Patient.findById(patient_id);
-    if (!patientExists) return res.status(404).json({ error: 'Patient not found' });
-
-    const vendorExists = await Vendor.findById(vendor_id);
-    if (!vendorExists) return res.status(404).json({ error: 'Vendor not found' });
+    const { patient_id, vendor_id, item_name, shade, cost_to_clinic, order_date, expected_delivery, notes } = req.body;
 
     const newOrder = new LabOrder({
       patient_id,
-      vendor_id,
-      order_date: orderDate || new Date(),
-      expected_delivery: expectedDate,
-      items: [{
-        item_name: item, 
-        cost: amount,
-        instructions: notes || ''
-      }],
-      cost_to_clinic: amount,
-      status: 'Sent'
+      vendor_id: vendor_id || undefined,
+      order_date: order_date || new Date(),
+      expected_delivery: expected_delivery || undefined,
+      items: [{ item_name, shade, instructions: notes, cost: cost_to_clinic }],
+      cost_to_clinic,
+      status: 'Sent',
     });
 
-    const savedOrder = await newOrder.save();
-    res.status(201).json(savedOrder);
-
+    const saved = await newOrder.save();
+    const populated = await LabOrder.findById(saved._id)
+      .populate('patient_id', 'first_name last_name patientId')
+      .populate('vendor_id', 'name');
+    res.status(201).json(populated);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 }
 
-export async function updateOrder(req, res) {
+// PATCH /api/labs/orders/:id — status-only update (inline table)
+export async function updateOrderStatus(req, res) {
+  const { LabOrder } = req.tenantModels;
   try {
     const { status } = req.body;
-    const updatedOrder = await LabOrder.findByIdAndUpdate(
-      req.params.id, 
-      { status }, 
+    const updated = await LabOrder.findByIdAndUpdate(
+      req.params.id,
+      { status },
       { new: true }
-    );
-    if (!updatedOrder) return res.status(404).json({ error: 'Order not found' });
-    res.json(updatedOrder);
+    )
+      .populate('patient_id', 'first_name last_name patientId')
+      .populate('vendor_id', 'name');
+    if (!updated) return res.status(404).json({ error: 'Order not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
+// PUT /api/labs/orders/:id — full update (from edit modal)
+export async function updateOrderFull(req, res) {
+  const { LabOrder } = req.tenantModels;
+  try {
+    const { patient_id, vendor_id, item_name, shade, cost_to_clinic, order_date, expected_delivery, notes, status } = req.body;
+
+    const updated = await LabOrder.findByIdAndUpdate(
+      req.params.id,
+      {
+        patient_id,
+        vendor_id: vendor_id || undefined,
+        order_date,
+        expected_delivery: expected_delivery || undefined,
+        items: [{ item_name, shade, instructions: notes, cost: cost_to_clinic }],
+        cost_to_clinic,
+        status,
+      },
+      { new: true }
+    )
+      .populate('patient_id', 'first_name last_name patientId')
+      .populate('vendor_id', 'name');
+
+    if (!updated) return res.status(404).json({ error: 'Order not found' });
+    res.json(updated);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -81,17 +93,43 @@ export async function updateOrder(req, res) {
 // =======================
 
 export async function getCatalog(req, res) {
+  const { LabCatalogItem } = req.tenantModels;
   try {
     const items = await LabCatalogItem.find().populate('preferred_vendor_id', 'name');
     res.json(items);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 export async function createCatalogItem(req, res) {
+  const { LabCatalogItem } = req.tenantModels;
   try {
-    const newItem = new LabCatalogItem(req.body);
+    const payload = {
+      ...req.body,
+      preferred_vendor_id: req.body.preferred_vendor_id || undefined,
+    };
+    const newItem = new LabCatalogItem(payload);
     await newItem.save();
-    res.status(201).json(newItem);
-  } catch (err) { res.status(400).json({ error: err.message }); }
+    const populated = await LabCatalogItem.findById(newItem._id).populate('preferred_vendor_id', 'name');
+    res.status(201).json(populated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 }
 
+export async function updateCatalogItem(req, res) {
+  const { LabCatalogItem } = req.tenantModels;
+  try {
+    const payload = {
+      ...req.body,
+      preferred_vendor_id: req.body.preferred_vendor_id || undefined,
+    };
+    const updated = await LabCatalogItem.findByIdAndUpdate(req.params.id, payload, { new: true })
+      .populate('preferred_vendor_id', 'name');
+    if (!updated) return res.status(404).json({ error: 'Item not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}

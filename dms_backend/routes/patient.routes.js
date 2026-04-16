@@ -1,7 +1,8 @@
 import express from 'express';
-import { getPatients, createPatient, getPatientById, updatePatient,deletePatient } from '../controllers/patient.controller.js';    
+import { getPatients, getPatientStats, createPatient, getPatientById, updatePatient, deletePatient } from '../controllers/patient.controller.js';
 
 const router = express.Router();
+router.get('/stats', getPatientStats); // must be before /:id
 router.get('/', getPatients);
 router.post('/', createPatient);
 router.get('/:id', getPatientById);

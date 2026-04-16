@@ -17,7 +17,7 @@ const InventoryItemSchema = new mongoose.Schema({
   // Pricing
   cost_price: { type: Number, default: 0 }, // Changed from purchase_rate to match controller
   selling_price: { type: Number, default: 0 },
-
+  
   // Status (Auto-calculated)
   status: { 
     type: String, 
@@ -35,4 +35,5 @@ InventoryItemSchema.pre('save', function(next) {
     next();
 });
 
+export { InventoryItemSchema };
 export default mongoose.model('InventoryItem', InventoryItemSchema);

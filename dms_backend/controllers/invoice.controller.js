@@ -1,10 +1,7 @@
-import Invoice from '../models/Invoice.model.js';
-import InventoryItem from '../models/InventoryItem.model.js';
-import InventoryLog from '../models/InventoryLog.model.js';
-import Transaction from '../models/Transaction.model.js'; 
+import { logEvent } from '../services/analyticsLogger.js';
 
 // Helper: Generate ID
-const generateInvoiceId = async () => {
+const generateInvoiceId = async (Invoice) => {
   const count = await Invoice.countDocuments();
   const year = new Date().getFullYear();
   return `INV-${year}-${String(count + 1).padStart(3, '0')}`;
@@ -16,23 +13,28 @@ const generateInvoiceId = async () => {
 
 // GET /api/invoices
 export async function getInvoices(req, res) {
+  const { Invoice } = req.tenantModels;
   try {
-    const invoices = await Invoice.find().sort({ createdAt: -1 });
+    const filter = {};
+    if (req.query.patient_id) filter.patient_id = req.query.patient_id;
+    const invoices = await Invoice.find(filter).sort({ createdAt: -1 });
     res.json(invoices);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
 // GET /api/invoices/:id
 export async function getInvoiceById(req, res) {
-    try {
-        const invoice = await Invoice.findById(req.params.id);
-        if(!invoice) return res.status(404).json({error: "Invoice not found"});
-        res.json(invoice);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+  const { Invoice } = req.tenantModels;
+  try {
+      const invoice = await Invoice.findById(req.params.id);
+      if(!invoice) return res.status(404).json({error: "Invoice not found"});
+      res.json(invoice);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
 // POST /api/invoices
 export async function createInvoice(req, res) {
+  const { Invoice, InventoryItem, InventoryLog, Transaction, LabOrder } = req.tenantModels;
   try {
     const { 
         patient_name, patient_phone, date, items, 
@@ -40,7 +42,7 @@ export async function createInvoice(req, res) {
     } = req.body;
 
     // 1. Generate ID
-    const invoice_id = await generateInvoiceId();
+    const invoice_id = await generateInvoiceId(Invoice);
 
     // 2. INVENTORY LOGIC: Deduct Stock
     for (const item of items) {
@@ -49,7 +51,8 @@ export async function createInvoice(req, res) {
             if (inventoryItem) {
                 inventoryItem.stock_on_hand -= Number(item.quantity);
                 
-                // Recalculate Status
+                // Recalculate Status - pre-save hook on model should handle this if configured, 
+                // but we'll manually set it as per original controller logic
                 if(inventoryItem.stock_on_hand <= 0) inventoryItem.status = 'Out of Stock';
                 else if(inventoryItem.stock_on_hand <= inventoryItem.min_stock_level) inventoryItem.status = 'Low';
                 else inventoryItem.status = 'Good';
@@ -60,7 +63,7 @@ export async function createInvoice(req, res) {
                     item_id: item.item_id,
                     type: 'Stock Out',
                     quantity: Number(item.quantity),
-                    reason: 'Usage', 
+                    reason: 'Sold to Patient',
                     notes: `Invoice: ${invoice_id} - Sold to ${patient_name}`,
                     date: new Date()
                 });
@@ -81,20 +84,32 @@ export async function createInvoice(req, res) {
         payment_method
     });
 
-    await newInvoice.save(); 
-    
-    // 4. Record Initial Transaction (Matches your new Model)
+    await newInvoice.save();
+
+    // 4. Mark Lab Orders as invoiced
+    for (const item of items) {
+      if (item.type === 'Lab' && item.item_id) {
+        await LabOrder.findByIdAndUpdate(item.item_id, { invoice_id: newInvoice._id });
+      }
+    }
+
+    // 5. Record Initial Transaction
     if (Number(paid_amount) > 0) {
         await Transaction.create({
             type: 'Income',
-            category: 'Invoice Payment', // Or "Treatment" / "Pharmacy Sales" based on logic
+            category: 'Invoice Payment',
             amount: Number(paid_amount),
             payment_method: payment_method,
             date: new Date(),
-            party_name: patient_name, // ✅ Linked to Patient Name
+            party_name: patient_name,
             invoice_id: newInvoice._id,
             notes: `Initial payment for ${invoice_id}`
         });
+
+        // Log to analytics if status becomes 'Paid' or at least we record a payment
+        if (newInvoice.status === 'Paid') {
+            logEvent(req.user.tenantId, 'invoice_paid', { invoiceId: newInvoice.invoice_id, amount: newInvoice.total_amount });
+        }
     }
 
     res.status(201).json(newInvoice);
@@ -107,14 +122,38 @@ export async function createInvoice(req, res) {
 
 // PUT /api/invoices/:id (Manual Update)
 export async function updateInvoice(req, res) {
+  const { Invoice, Transaction } = req.tenantModels;
   try {
       const invoice = await Invoice.findById(req.params.id);
       if(!invoice) return res.status(404).json({error: "Invoice not found"});
 
       if (req.body.paid_amount !== undefined) {
-          invoice.paid_amount = req.body.paid_amount;
+          const oldPaid = invoice.paid_amount || 0;
+          const newPaid = Number(req.body.paid_amount);
+          const delta   = newPaid - oldPaid;
+
+          invoice.paid_amount = newPaid;
+
+          // Record a transaction for any additional payment collected
+          if (delta > 0) {
+              await Transaction.create({
+                  type: 'Income',
+                  category: 'Invoice Payment',
+                  amount: delta,
+                  payment_method: req.body.payment_method || invoice.payment_method,
+                  date: new Date(),
+                  party_name: invoice.patient_name,
+                  invoice_id: invoice._id,
+                  notes: `Payment update for ${invoice.invoice_id}`,
+              });
+
+              // Log to analytics
+              if (invoice.status === 'Paid') {
+                  logEvent(req.user.tenantId, 'invoice_paid', { invoiceId: invoice.invoice_id, amount: invoice.total_amount });
+              }
+          }
       }
-      
+
       await invoice.save();
       res.json(invoice);
   } catch (err) { res.status(400).json({ error: err.message }); }
@@ -126,14 +165,16 @@ export async function updateInvoice(req, res) {
 
 // GET /api/transactions
 export async function getTransactions(req, res) {
-    try {
-        const transactions = await Transaction.find().sort({ date: -1 });
-        res.json(transactions);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+  const { Transaction } = req.tenantModels;
+  try {
+      const transactions = await Transaction.find().sort({ date: -1 });
+      res.json(transactions);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
 // POST /api/transactions (Record new payment / expense)
 export async function recordTransaction(req, res) {
+  const { Transaction, Invoice } = req.tenantModels;
   try {
     const { 
         type, category, amount, payment_method, 
@@ -160,6 +201,11 @@ export async function recordTransaction(req, res) {
       if(invoice) {
           invoice.paid_amount += Number(amount);
           await invoice.save(); // Updates status to Paid/Partially Paid
+
+          // Log to analytics if paid
+          if (invoice.status === 'Paid') {
+            logEvent(req.user.tenantId, 'invoice_paid', { invoiceId: invoice.invoice_id, amount: invoice.total_amount });
+          }
       }
     }
 

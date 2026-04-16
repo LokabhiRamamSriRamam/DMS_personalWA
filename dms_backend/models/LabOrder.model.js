@@ -21,7 +21,8 @@ const LabOrderSchema = new mongoose.Schema({
     default: 'Sent'
   },
   
-  cost_to_clinic: Number
+  cost_to_clinic: Number,
+  invoice_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null }
 }, { timestamps: true });
-
-export default mongoose.model('LabOrder', LabOrderSchema);  
+export { LabOrderSchema };
+export default mongoose.model('LabOrder', LabOrderSchema);
