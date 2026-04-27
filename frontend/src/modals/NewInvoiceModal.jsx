@@ -65,7 +65,9 @@ const PatientSearchInput = ({ onSelect, onAddNew }) => {
   );
 };
 
-// ── Searchable select for Services / Pharmacy items ───────────────────────────
+// ── Searchable select for Services / Pharmacy / Lab items ────────────────────
+const ENDPOINTS = { Service: '/services', Pharmacy: '/inventory', Lab: '/labs/items' };
+
 const SearchableSelect = ({ placeholder, type, onSelect, initialValue = '' }) => {
   const [query, setQuery] = useState(initialValue);
   const [results, setResults] = useState([]);
@@ -77,13 +79,13 @@ const SearchableSelect = ({ placeholder, type, onSelect, initialValue = '' }) =>
     if (query.length > 1) {
       const t = setTimeout(async () => {
         try {
-          const endpoint = type === 'Pharmacy' ? '/inventory' : '/services';
-          const { data } = await API.get(endpoint);
-          const filtered = data.filter(item =>
-            type === 'Pharmacy'
-              ? item.type === 'Pharmacy' && item.name.toLowerCase().includes(query.toLowerCase())
-              : item.name.toLowerCase().includes(query.toLowerCase())
-          );
+          const { data } = await API.get(ENDPOINTS[type]);
+          const list = Array.isArray(data) ? data : [];
+          const filtered = list.filter(item => {
+            const nameMatch = item.name.toLowerCase().includes(query.toLowerCase());
+            if (type === 'Pharmacy') return item.type === 'Pharmacy' && nameMatch;
+            return nameMatch;
+          });
           setResults(filtered);
           setShowDropdown(true);
         } catch { /* ignore */ }
@@ -91,6 +93,12 @@ const SearchableSelect = ({ placeholder, type, onSelect, initialValue = '' }) =>
       return () => clearTimeout(t);
     } else { setResults([]); setShowDropdown(false); }
   }, [query, type]);
+
+  const getPrice = (item) => {
+    if (type === 'Pharmacy') return item.selling_price;
+    if (type === 'Lab') return item.price;
+    return item.cost;
+  };
 
   return (
     <div className="relative flex-1">
@@ -102,20 +110,19 @@ const SearchableSelect = ({ placeholder, type, onSelect, initialValue = '' }) =>
         onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
       />
       {showDropdown && results.length > 0 && (
-        <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-md shadow-xl mt-1 max-h-40 overflow-auto">
+        <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-md shadow-xl mt-1 max-h-48 overflow-auto">
           {results.map(item => (
             <div
               key={item._id}
-              className="p-2 hover:bg-slate-50 cursor-pointer text-sm flex justify-between items-center"
+              className="p-2 hover:bg-slate-50 cursor-pointer text-sm flex justify-between items-center gap-2"
               onClick={() => { onSelect(item); setQuery(item.name); setShowDropdown(false); }}
             >
-              <div>
-                <div className="font-medium">{item.name}</div>
+              <div className="min-w-0">
+                <div className="font-medium truncate">{item.name}</div>
                 {type === 'Pharmacy' && <div className="text-[10px] text-slate-400">Stock: {item.stock_on_hand}</div>}
+                {type === 'Lab' && item.turnaround_time && <div className="text-[10px] text-slate-400">{item.turnaround_time}</div>}
               </div>
-              <span className="text-[#137fec] font-bold text-xs">
-                ₹{type === 'Pharmacy' ? item.selling_price : item.cost}
-              </span>
+              <span className="text-[#137fec] font-bold text-xs flex-shrink-0">₹{getPrice(item)}</span>
             </div>
           ))}
         </div>
@@ -426,29 +433,20 @@ export default function NewInvoiceModal({
                       </span>
 
                       {/* Name input */}
-                      {item.type === 'Lab' ? (
-                        <input
-                          className={`flex-1 border rounded-md text-sm py-1.5 px-2 focus:outline-none focus:border-[#137fec] ${attempted && err.name ? 'border-red-400 bg-red-50' : 'border-slate-200'}`}
-                          placeholder="Lab item name *"
-                          value={item.name}
-                          onChange={e => updateItem(idx, 'name', e.target.value)}
+                      <div className={`flex-1 ${attempted && err.name ? 'ring-1 ring-red-400 rounded-md' : ''}`}>
+                        <SearchableSelect
+                          type={item.type}
+                          initialValue={item.name}
+                          placeholder={item.type === 'Pharmacy' ? 'Search Medicine *' : item.type === 'Lab' ? 'Search Lab Item *' : 'Search Service *'}
+                          onSelect={data => {
+                            const rate = item.type === 'Pharmacy' ? (data.selling_price || 0) : item.type === 'Lab' ? (data.price || 0) : (data.cost || 0);
+                            setItems(prev => prev.map((it, i) => i === idx
+                              ? { ...it, name: data.name, item_id: data._id, rate, total: rate * it.quantity }
+                              : it
+                            ));
+                          }}
                         />
-                      ) : (
-                        <div className={`flex-1 ${attempted && err.name ? 'ring-1 ring-red-400 rounded-md' : ''}`}>
-                          <SearchableSelect
-                            type={item.type}
-                            initialValue={item.name}
-                            placeholder={item.type === 'Pharmacy' ? 'Search Medicine *' : 'Search Service *'}
-                            onSelect={data => {
-                              const rate = item.type === 'Pharmacy' ? (data.selling_price || 0) : (data.cost || 0);
-                              setItems(prev => prev.map((it, i) => i === idx
-                                ? { ...it, name: data.name, item_id: data._id, rate, total: rate * it.quantity }
-                                : it
-                              ));
-                            }}
-                          />
-                        </div>
-                      )}
+                      </div>
 
                       <input
                         type="number"

@@ -1,24 +1,60 @@
-import React, { useState } from 'react';
-import { 
-  Search, Calendar, ChevronDown, Upload, FileText, 
-  ArrowUpRight, Wallet, Building2, 
+import { useState, useEffect } from 'react';
+import {
+  Search, Calendar, ChevronDown, Upload, FileText,
+  ArrowUpRight, Wallet, Building2,
   Printer
 } from 'lucide-react';
+import API from '../services/api';
 
 const TransactionsPage = () => {
   const [activeTab, setActiveTab] = useState('Statement');
-  
+
   // Filter States
   const [dateFilterLabel, setDateFilterLabel] = useState('This Month'); // Controls the button text
   const [customRange, setCustomRange] = useState({ start: null, end: null }); // Stores actual custom dates
-  
+
   // UI States
   const [showDateMenu, setShowDateMenu] = useState(false);
   const [showCustomInput, setShowCustomInput] = useState(false);
-  
+
   // Temporary states for the custom input form
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
+
+  // Data & Loading States
+  const [allTransactions, setAllTransactions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Fetch transactions on mount
+  useEffect(() => {
+    fetchTransactions();
+  }, []);
+
+  const fetchTransactions = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await API.get('/transactions');
+      const formatted = (Array.isArray(data) ? data : []).map(txn => ({
+        id: txn._id || '',
+        date: txn.date ? new Date(txn.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '',
+        party: txn.party_name || 'Unknown',
+        type: txn.type || 'Income',
+        category: txn.category || 'General',
+        method: txn.payment_method || 'Cash',
+        amount: txn.amount || 0,
+        status: 'Success'
+      }));
+      setAllTransactions(formatted);
+    } catch (err) {
+      console.error('Failed to fetch transactions:', err);
+      setError('Failed to load transactions');
+      setAllTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Helper: Format Date for Display (DD Mon YYYY)
   const getFormattedDate = (dateObj) => {
@@ -29,27 +65,15 @@ const TransactionsPage = () => {
     });
   };
 
-  // --- MOCK DATA ---
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  const allTransactions = [
-    { id: 'TXN-8821', date: getFormattedDate(today), party: 'Avtansh (Patient)', type: 'Income', category: 'Treatment', method: 'Cash', amount: 5000, status: 'Success' },
-    { id: 'TXN-8822', date: getFormattedDate(yesterday), party: 'Dental Depot', type: 'Expense', category: 'Supplies', method: 'Bank Transfer', amount: 12000, status: 'Success' },
-    { id: 'TXN-8823', date: '23 Dec 2025', party: 'Alok (Patient)', type: 'Income', category: 'Consultation', method: 'UPI', amount: 800, status: 'Success' },
-    { id: 'TXN-8824', date: '22 Dec 2025', party: 'City Lab', type: 'Expense', category: 'Lab Work', method: 'Card', amount: 4500, status: 'Pending' },
-    { id: 'TXN-8825', date: '01 Dec 2025', party: 'Rahul (Patient)', type: 'Income', category: 'X-Ray', method: 'Cash', amount: 1500, status: 'Success' },
-    { id: 'TXN-8826', date: '15 Nov 2025', party: 'Old Patient', type: 'Income', category: 'Cleaning', method: 'Cash', amount: 2000, status: 'Success' },
-  ];
 
   // --- FILTER LOGIC ---
   const filteredTransactions = allTransactions.filter(txn => {
     // 1. Tab Filter
     if (activeTab !== 'Statement' && txn.type !== activeTab) return false;
-    
+
     // 2. Date Filter
     const txnDate = new Date(txn.date);
+    if (isNaN(txnDate.getTime())) return false;
     const currentDate = new Date();
     
     // Normalize times to 00:00:00 for accurate day comparison
@@ -305,7 +329,28 @@ const TransactionsPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredTransactions.length > 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan="8" className="h-64 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#137fec]"></div>
+                        <p className="text-slate-500 font-medium">Loading transactions...</p>
+                      </div>
+                    </td>
+                  </tr>
+                ) : error ? (
+                  <tr>
+                    <td colSpan="8" className="h-64 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-500">
+                          <Search size={32} />
+                        </div>
+                        <p className="text-red-600 font-medium">{error}</p>
+                        <button onClick={fetchTransactions} className="text-xs text-[#137fec] hover:underline">Retry</button>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredTransactions.length > 0 ? (
                   filteredTransactions.map((txn, index) => (
                     <tr key={index} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors group">
                       <td className="py-4 px-6 text-sm text-slate-500">{index + 1}</td>
