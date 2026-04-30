@@ -109,27 +109,37 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
 
   // --- RENDERERS ---
   const renderDashboard = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
-      {CATEGORIES.map((cat) => {
-        const stats = getCategoryStats(cat.id);
-        const Icon = cat.icon;
-        return (
-          <div
-            key={cat.id}
-            onClick={() => { setActiveCategory(cat.id); setView('LIST'); }}
-            className={`p-5 rounded-xl border ${cat.border} ${cat.bg} cursor-pointer transition-all hover:shadow-md flex flex-col justify-between h-32 group`}
-          >
-            <div className="flex justify-between items-start">
-              <div className={`p-2 bg-white rounded-lg shadow-sm ${cat.color}`}><Icon size={20} /></div>
-              <span className={`text-xs font-bold px-2 py-1 bg-white/60 rounded-full ${cat.color}`}>{stats.count} Files</span>
+    <div className="space-y-6">
+      <div className="flex items-center justify-center py-8 px-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border-2 border-dashed border-amber-300">
+        <div className="text-center">
+          <div className="text-4xl mb-2">🔜</div>
+          <h3 className="text-xl font-bold text-slate-800 mb-1">Reports & File Management Coming Soon</h3>
+          <p className="text-sm text-slate-600">We're working on integrating file storage and document management.</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
+        {CATEGORIES.map((cat) => {
+          const stats = getCategoryStats(cat.id);
+          const Icon = cat.icon;
+          return (
+            <div
+              key={cat.id}
+              className={`p-5 rounded-xl border ${cat.border} ${cat.bg} cursor-not-allowed transition-all flex flex-col justify-between h-32 group opacity-60 relative`}
+            >
+              <div className="flex justify-between items-start">
+                <div className={`p-2 bg-white rounded-lg shadow-sm ${cat.color}`}><Icon size={20} /></div>
+                <span className={`text-xs font-bold px-2 py-1 bg-white/60 rounded-full ${cat.color}`}>{stats.count} Files</span>
+              </div>
+              <div>
+                <h4 className={`font-bold text-lg ${cat.color.replace('600', '800')}`}>{cat.label}</h4>
+                <p className={`text-xs ${cat.color} opacity-70`}>Updated: {stats.lastUpdated}</p>
+              </div>
+              <div className="absolute inset-0 rounded-xl bg-black/5"></div>
             </div>
-            <div>
-              <h4 className={`font-bold text-lg ${cat.color.replace('600', '800')}`}>{cat.label}</h4>
-              <p className={`text-xs ${cat.color} opacity-70`}>Updated: {stats.lastUpdated}</p>
-            </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 

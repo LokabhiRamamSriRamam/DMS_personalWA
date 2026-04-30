@@ -8,28 +8,30 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
   const [activeTab, setActiveTab] = useState('Pharmacy'); 
   
   const [formData, setFormData] = useState({
-    name: '', company: '', content: '', category: '', 
-    costPrice: '', sellingPrice: '', 
-    currentStock: '', // Changed from unit to currentStock
-    minStock: ''
+    name: '', company: '', content: '', category: '',
+    costPrice: '', sellingPrice: '',
+    currentStock: '',
+    minStock: '',
+    consumptionUnit: ''
   });
 
   useEffect(() => {
     if (isOpen) {
       if (editItem) {
-        setActiveTab(editItem.type); 
+        setActiveTab(editItem.type);
         setFormData({
           name: editItem.name || '',
           company: editItem.manufacturer || '',
           content: editItem.composition || '',
           category: editItem.category || '',
-          costPrice: editItem.cost_price || '',       
-          sellingPrice: editItem.selling_price || '', 
-          currentStock: editItem.stock_on_hand || 0, // Load existing stock
-          minStock: editItem.min_stock_level || ''
+          costPrice: editItem.cost_price || '',
+          sellingPrice: editItem.selling_price || '',
+          currentStock: editItem.stock_on_hand || 0,
+          minStock: editItem.min_stock_level || '',
+          consumptionUnit: editItem.consumption_unit || ''
         });
       } else {
-        setFormData({ name: '', company: '', content: '', category: '', costPrice: '', sellingPrice: '', currentStock: '', minStock: '' });
+        setFormData({ name: '', company: '', content: '', category: '', costPrice: '', sellingPrice: '', currentStock: '', minStock: '', consumptionUnit: '' });
         setActiveTab('Pharmacy');
       }
     }
@@ -46,11 +48,14 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
             manufacturer: formData.company,
             composition: formData.content,
             cost_price: Number(formData.costPrice),
-            selling_price: activeTab === 'Pharmacy' ? Number(formData.sellingPrice) : 0, 
+            selling_price: activeTab === 'Pharmacy' ? Number(formData.sellingPrice) : 0,
             min_stock_level: Number(formData.minStock),
-            // Allow setting stock directly here
-            stock_on_hand: Number(formData.currentStock) 
+            stock_on_hand: Number(formData.currentStock)
         };
+
+        if (activeTab === 'Consumable' && formData.consumptionUnit) {
+            payload.consumption_unit = Number(formData.consumptionUnit);
+        }
 
         if (editItem) {
             await API.put(`/inventory/${editItem._id}`, payload);
@@ -58,7 +63,7 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
             await API.post('/inventory', payload);
         }
 
-        if (typeof onSave === 'function') onSave(); 
+        if (typeof onSave === 'function') onSave();
         onClose();
     } catch (err) {
         console.error(err);
@@ -102,7 +107,14 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
                 <input type="text" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} className="w-full border border-slate-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none" />
               </div>
             )}
-            
+
+            {activeTab === 'Consumable' && (
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase mb-1 block text-teal-600">Min Consumption per Treatment</label>
+                <input type="number" step="0.01" placeholder="e.g., 0.1" value={formData.consumptionUnit} onChange={e => setFormData({...formData, consumptionUnit: e.target.value})} className="w-full border border-teal-200 bg-teal-50 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
                <div className="col-span-2">
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Category</label>
@@ -218,6 +230,7 @@ const InventoryItems = ({ SectionHeader }) => {
                     <tr>
                       <th className="p-3">Name & Company</th>
                       <th className="p-3">Category</th>
+                      {sec.type === 'consumable' && <th className="p-3 text-center text-teal-600">Unit</th>}
                       <th className="p-3 text-right text-blue-600">Cost</th>
                       {sec.type === 'pharmacy' && <th className="p-3 text-right text-green-600">SP</th>}
                       <th className="p-3 text-right">Stock / Min</th>
@@ -231,10 +244,10 @@ const InventoryItems = ({ SectionHeader }) => {
                           <div className="text-xs text-slate-500">{item.manufacturer}</div>
                         </td>
                         <td className="p-3"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{item.category}</span></td>
+                        {sec.type === 'consumable' && <td className="p-3 text-center"><span className="bg-teal-100 px-2 py-1 rounded text-xs border border-teal-200 text-teal-700 font-medium">{item.consumption_unit ? `${item.consumption_unit}` : '-'}</span></td>}
                         <td className="p-3 text-right font-medium text-slate-600">₹{item.cost_price || 0}</td>
                         {sec.type === 'pharmacy' && <td className="p-3 text-right font-medium text-green-700">₹{item.selling_price || 0}</td>}
-                        
-                        {/* REVISED STOCK DISPLAY */}
+
                         <td className="p-3 text-right">
                           <div className="flex flex-col items-end">
                               <span className={`font-bold text-md ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>

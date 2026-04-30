@@ -35,12 +35,15 @@ export async function resolveTenant(req, res, next) {
 
     // Inject sensitive credentials (Google, API Keys)
     req.tenantConfig = {
-      clientId:        tenant.googleClientId,
-      clientSecret:    tenant.googleClientSecret,
-      refreshToken:    tenant.googleRefreshToken,
-      driveFolderId:   tenant.googleDriveFolderId, // Correct field name
-      sarvamApiKey:    tenant.sarvamApiKey,
-      nvidiaApiKey:    tenant.nvidiaApiKey,
+      clientId:             tenant.googleClientId,
+      clientSecret:         tenant.googleClientSecret,
+      refreshToken:         tenant.googleRefreshToken,
+      driveFolderId:        tenant.googleDriveFolderId,
+      sarvamApiKey:         tenant.sarvamApiKey,
+      nvidiaApiKey:         tenant.nvidiaApiKey,
+      cloudinaryCloudName:  tenant.cloudinaryCloudName,
+      cloudinaryApiKey:     tenant.cloudinaryApiKey,
+      cloudinaryApiSecret:  tenant.cloudinaryApiSecret,
     };
 
     next();

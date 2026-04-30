@@ -111,26 +111,86 @@ export async function loginUser(req, res) {
   }
 }
 
-// ─── GET /api/users/doctors ───────────────────────────────────────────────────
-// Protected (authenticate only). Returns active doctors for this tenant.
-// Used by appointment creation dropdowns. Does NOT need resolveTenant.
-export async function getDoctors(req, res) {
+// ─── GET /api/users/profile ───────────────────────────────────────────────────
+// Protected. Returns current user + tenant info for sidebar/header display.
+export async function getUserProfile(req, res) {
   try {
-    const { tenantId } = req.user;
-    if (!tenantId) return res.status(403).json({ message: 'No tenant assigned.' });
+    const { id: userId, tenantId, name, role } = req.user;
+
+    if (!tenantId) {
+      return res.status(403).json({ message: 'User not assigned to a clinic.' });
+    }
 
     const analyticsDb = getAnalyticsDb();
 
-    const doctors = await analyticsDb.collection('dms_users').find({
-      product:  'dms',
-      tenantId: new mongoose.Types.ObjectId(tenantId),
-      role:     'Doctor',
-      status:   'active',
-    }).toArray();
+    // Fetch tenant info
+    const tenant = await analyticsDb.collection('tenants').findOne({
+      _id: new mongoose.Types.ObjectId(tenantId)
+    });
 
-    const sanitized = doctors.map(({ password, ...rest }) => rest);
-    res.json(sanitized);
+    if (!tenant) {
+      return res.status(404).json({ message: 'Clinic not found.' });
+    }
+
+    // Fetch full user info (excluding password)
+    const user = await analyticsDb.collection('dms_users').findOne({
+      _id: new mongoose.Types.ObjectId(userId)
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    console.log('[getUserProfile] Raw tenant data:', tenant);
+    console.log('[getUserProfile] Raw user data:', user);
+
+    res.json({
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+      },
+      tenant: {
+        id: tenant._id,
+        name: tenant.name || 'Clinic',
+        slug: tenant.slug || '',
+        status: tenant.status || 'active',
+        address: tenant.address || '',
+        phone: tenant.phone || '',
+        email: tenant.email || '',
+        website: tenant.website || '',
+        city: tenant.city || '',
+        state: tenant.state || '',
+        zipCode: tenant.zipCode || '',
+        country: tenant.country || '',
+        currency: tenant.currency || 'INR',
+        timezone: tenant.timezone || 'Asia/Kolkata',
+        googleDriveFolderId: tenant.googleDriveFolderId || '',
+      },
+    });
   } catch (err) {
+    console.error('[getUserProfile]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── GET /api/users/doctors ───────────────────────────────────────────────────
+// Alias for /api/doctors for backward compatibility. Delegates to Doctor model.
+// This endpoint is kept for clients that expect /users/doctors.
+export async function getDoctors(req, res) {
+  try {
+    if (!req.tenantModels || !req.tenantModels.Doctor) {
+      return res.status(500).json({ error: 'Doctor model not available' });
+    }
+
+    const { Doctor } = req.tenantModels;
+    const doctors = await Doctor.find({ is_active: true }).sort({ name: 1 });
+    res.json(doctors);
+  } catch (err) {
+    console.error('[getDoctors]', err.message);
     res.status(500).json({ error: err.message });
   }
 }

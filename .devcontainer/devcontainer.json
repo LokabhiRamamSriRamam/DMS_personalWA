@@ -1,0 +1,29 @@
+{
+  "name": "DentalClinic Demo",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspace",
+  "forwardPorts": [4000, 5173, 5174],
+  "portsAttributes": {
+    "4000": { "label": "Backend", "onAutoForward": "notify" },
+    "5173": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
+    "5174": { "label": "Frontend (Vite)", "onAutoForward": "notify" },
+	"5175": { "label": "Frontend (Vite)", "onAutoForward": "notify" }
+  },
+  "postCreateCommand": "bash .devcontainer/setup.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "mongodb.mongodb-vscode",
+        "eamodio.gitlens",
+		"anthropic.claude-code"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode"
+      }
+    }
+  }
+}

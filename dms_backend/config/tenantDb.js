@@ -19,11 +19,21 @@ export async function getTenantConnection(mongoUri, mongoDbName) {
   }
 
   // Create new connection if it doesn't exist or was closed
-  const conn = await mongoose.createConnection(mongoUri, { 
-    dbName: mongoDbName, 
-    autoIndex: true 
+  const conn = await mongoose.createConnection(mongoUri, {
+    dbName:                    mongoDbName,
+    autoIndex:                 true,
+    serverSelectionTimeoutMS:  10000,
+    socketTimeoutMS:           45000,
+    // Keep the TCP connection alive so Atlas doesn't idle-disconnect
+    heartbeatFrequencyMS:      300000,
+    // Aggressive reconnection settings
+    maxPoolSize:               50,
+    minPoolSize:               5,
+    retryWrites:               true,
+    retryReads:                true,
+    // Connection string should have maxIdleTimeMS to prevent server-side idle drop
   }).asPromise();
-  
+
   pool.set(cacheKey, conn);
 
   conn.on('disconnected', () => {
@@ -34,6 +44,16 @@ export async function getTenantConnection(mongoUri, mongoDbName) {
   conn.on('error', (err) => {
     console.error(`[TenantDB] Error on ${cacheKey}:`, err.message);
     pool.delete(cacheKey);
+  });
+
+  // Graceful reconnection on disconnect
+  conn.on('disconnected', async () => {
+    console.log(`[TenantDB] Attempting to reconnect: ${cacheKey}`);
+    setTimeout(() => {
+      getTenantConnection(mongoUri, mongoDbName).catch(err => {
+        console.error(`[TenantDB] Reconnection failed for ${cacheKey}:`, err.message);
+      });
+    }, 5000); // Retry after 5 seconds
   });
 
   return conn;

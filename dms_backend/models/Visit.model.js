@@ -8,9 +8,10 @@ const VisitSchema = new mongoose.Schema({
 
   // --- 1. EXAMINATION FINDINGS ---
   findings: {
-    soft_tissue:      [{ type: String }],
-    tmj:              [{ type: String }],
-    diagnosis_notes:  { type: String }
+    clinical_findings: [{ type: String }],  // Clinical findings from examination
+    soft_tissue:       [{ type: String }],
+    tmj:               [{ type: String }],
+    diagnosis_notes:   { type: String }
   },
 
   // --- 2. TREATMENT CHARTING ---
@@ -22,6 +23,7 @@ const VisitSchema = new mongoose.Schema({
     qty:    { type: Number, default: 1 },
     status: { type: String, enum: ['Planned', 'In Progress', 'Completed', 'Cancelled'], default: 'Planned' },
     invoice_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Invoice', default: null },
+    journey_started: { type: Boolean, default: false },
     consumables_used: [{
       inventory_item_id: { type: mongoose.Schema.Types.ObjectId, ref: 'InventoryItem' },
       quantity: Number
@@ -48,6 +50,9 @@ const VisitSchema = new mongoose.Schema({
     content:    { type: String, required: true }, // HTML from rich text editor
     created_at: { type: Date, default: Date.now }
   }],
+
+  // --- 6. VISIT NOTES ---
+  notes: { type: String, default: '' },
 
 }, { timestamps: true });
 

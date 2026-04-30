@@ -322,46 +322,60 @@ const TreatmentTabs = ({ onTreatmentAdded, visits = [], patientId }) => {
 
   const handleSaveTreatment = async (formData) => {
     try {
-      if (!patientId) return alert("Error: Patient ID is missing."); 
+      if (!patientId) return alert("Error: Patient ID is missing.");
       if (modalTargets.length === 0) return alert("No items selected");
 
       let selectedTeeth = [], selectedSoftTissues = [], selectedTMJ = [];
-      
+
       if (activeTab === 'Dental Chart') selectedTeeth = modalTargets;
       else if (activeTab === 'Soft Tissue') selectedSoftTissues = modalTargets;
       else selectedTMJ = modalTargets;
 
+      // Handle multiple treatments with their costs
+      const treatments = formData.treatments && formData.treatments.length > 0
+        ? formData.treatments.map(t => ({
+            teeth_numbers: selectedTeeth,
+            surfaces: [],
+            treatment_name: t.name,
+            cost: Number(t.cost) || 0,
+            status: 'Planned',
+            qty: 1
+          }))
+        : [];
+
+      // Handle multiple diagnoses
+      const diagnosisNotes = formData.diagnosis && formData.diagnosis.length > 0
+        ? formData.diagnosis.map(d => d.name).join(', ')
+        : '';
+
       const payload = {
         patient_id: patientId,
         date: new Date(),
-        treatments: [{
-          teeth_numbers: selectedTeeth, 
-          surfaces: [], 
-          treatment_name: formData.treatment,
-          cost: Number(formData.cost) || 0,
-          status: 'Planned', 
-          qty: 1
-        }],
+        treatments: treatments,
         findings: {
-          diagnosis_notes: formData.diagnosis,
+          diagnosis_notes: diagnosisNotes,
+          clinical_findings: formData.clinical_findings && formData.clinical_findings.length > 0
+            ? formData.clinical_findings.map(f => f.name)
+            : [],
           soft_tissue: selectedSoftTissues,
           tmj: selectedTMJ
-        }
+        },
+        notes: formData.notes || ''
       };
 
       await API.post('/visits', payload);
-      
+
       setDentalSelections([]);
       setSoftTissueSelections([]);
       setTmjSelections([]);
       setIsModalOpen(false);
       setModalMode('Plan');
-      
+
       if (onTreatmentAdded) onTreatmentAdded();
-      
+
     } catch (err) {
       console.error("Failed to save treatment", err);
-      alert("Error saving treatment plan");
+      alert("Error saving treatment plan: " + (err.response?.data?.error || err.message));
     }
   };
 

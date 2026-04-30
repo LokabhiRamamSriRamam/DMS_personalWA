@@ -18,7 +18,10 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('dms_token');
       localStorage.removeItem('dms_user');
-      window.location.href = '/login';
+      // Only redirect if not already on the login page to avoid infinite reload loop
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }

@@ -105,6 +105,10 @@ const SettingsPage = () => {
   };
 
   const handleAddDoctor = () => {
+    if (doctors.length >= 10) {
+      alert('You can only add a maximum of 10 doctors.');
+      return;
+    }
     setEditingDoctor(null);
     setDoctorFormData({
       name: '',
@@ -380,10 +384,19 @@ const SettingsPage = () => {
         {activeTab === 'doctors' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Doctor Management</h2>
+              <div className="flex items-center gap-3">
+                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Doctor Management</h2>
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">({doctors.length}/10)</span>
+              </div>
               <button
                 onClick={handleAddDoctor}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl transition-colors"
+                disabled={doctors.length >= 10}
+                className={`flex items-center gap-2 px-4 py-2.5 font-semibold rounded-xl transition-colors ${
+                  doctors.length >= 10
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-[#137fec] hover:bg-blue-600 text-white'
+                }`}
+                title={doctors.length >= 10 ? 'Maximum of 10 doctors reached' : 'Add a new doctor'}
               >
                 <Plus size={20} /> Add Doctor
               </button>

@@ -100,25 +100,48 @@ function Revenue({ from, to }) {
         </div>
       </div>
 
-      {/* Top patients table */}
-      {d.top_patients?.length > 0 && (
-        <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
-          <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Top Patients by Revenue</h3></div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
-              <tr><th className="p-3 text-left">Patient</th><th className="p-3 text-right">Total Billed</th></tr>
-            </thead>
-            <tbody>
-              {d.top_patients.map((p, i) => (
-                <tr key={i} className="border-t border-slate-50 hover:bg-slate-50">
-                  <td className="p-3">{p.name}</td>
-                  <td className="p-3 text-right font-semibold text-slate-700">{fmt(p.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top patients table */}
+        {d.top_patients?.length > 0 && (
+          <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Top Patients by Revenue</h3></div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr><th className="p-3 text-left">Patient</th><th className="p-3 text-right">Total Billed</th></tr>
+              </thead>
+              <tbody>
+                {d.top_patients.map((p, i) => (
+                  <tr key={i} className="border-t border-slate-50 hover:bg-slate-50">
+                    <td className="p-3">{p.name}</td>
+                    <td className="p-3 text-right font-semibold text-slate-700">{fmt(p.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Revenue by doctors table */}
+        {d.by_doctors?.length > 0 && (
+          <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+            <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Revenue by Doctors</h3></div>
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
+                <tr><th className="p-3 text-left">Doctor</th><th className="p-3 text-right">Cases</th><th className="p-3 text-right">Total Revenue</th></tr>
+              </thead>
+              <tbody>
+                {d.by_doctors.map((dr, i) => (
+                  <tr key={i} className="border-t border-slate-50 hover:bg-slate-50">
+                    <td className="p-3 font-medium">{dr.name}</td>
+                    <td className="p-3 text-right text-slate-500">{dr.count || 0}</td>
+                    <td className="p-3 text-right font-semibold text-slate-700">{fmt(dr.total || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -269,17 +292,19 @@ function TreatmentRevenue({ from, to }) {
       <div className="bg-white p-6 rounded-2xl border shadow-sm">
         <h3 className="font-bold text-slate-800 mb-6">Revenue by Treatment Type</h3>
         {rows.length > 0 ? (
-          <ResponsiveContainer width="100%" height={Math.max(300, rows.length * 36)}>
-            <BarChart data={rows} layout="vertical" margin={{ left: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-              <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={fmt} />
-              <YAxis dataKey="name" type="category" width={160} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-              <Tooltip formatter={v => [fmt(v), 'Revenue']} />
-              <Bar dataKey="total_cost" fill="#137fec" radius={[0, 4, 4, 0]} barSize={18} name="Revenue">
-                {rows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ height: '500px', overflowY: 'auto' }}>
+            <ResponsiveContainer width="100%" height={Math.max(300, rows.length * 36)}>
+              <BarChart data={rows} layout="vertical" margin={{ left: 160 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={fmt} />
+                <YAxis dataKey="name" type="category" width={150} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <Tooltip formatter={v => [fmt(v), 'Revenue']} />
+                <Bar dataKey="total_cost" fill="#137fec" radius={[0, 4, 4, 0]} barSize={18} name="Revenue">
+                  {rows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         ) : <p className="text-slate-400 text-sm text-center py-16">No treatment data in this period.</p>}
       </div>
 

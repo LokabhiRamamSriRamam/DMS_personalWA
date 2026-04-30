@@ -1,6 +1,36 @@
 import { createPatientDriveFolders } from '../services/googleDrive.service.js';
 import { logEvent } from '../services/analyticsLogger.js';
 
+/**
+ * Format phone number for WhatsApp (ensure country code 91 for India)
+ * Input: 8104489957, 98765-43210, +918104489957, 918104489957
+ * Output: 918104489957
+ */
+function formatWhatsAppPhone(phone) {
+  if (!phone) return '';
+
+  // Remove all non-digits
+  const digits = phone.replace(/\D/g, '');
+
+  // If already has country code (starts with 91 and has 12 digits), return as-is
+  if (digits.startsWith('91') && digits.length === 12) {
+    return digits;
+  }
+
+  // If has 10 digits (no country code), prepend 91
+  if (digits.length === 10) {
+    return '91' + digits;
+  }
+
+  // If has 12 digits but doesn't start with 91, it's invalid - try prepending 91
+  if (digits.length === 12) {
+    return '91' + digits.slice(-10);
+  }
+
+  // Return as-is if doesn't match expected format (let validation catch it)
+  return digits;
+}
+
 // GET /api/patients/stats
 // Returns { [patientId]: { visit_count, due_amount } } for all patients
 export async function getPatientStats(req, res) {
@@ -72,10 +102,25 @@ export async function createPatient(req, res) {
   const { Patient } = req.tenantModels;
   const credentials = req.tenantConfig;
   try {
-    const count = await Patient.countDocuments();
-    const patientId = `PID-${String(count + 1).padStart(3, '0')}`;
+    // Find the highest existing patientId and increment from there
+    const lastPatient = await Patient.findOne({}, { patientId: 1 }).sort({ patientId: -1 });
+    let nextNum = 1;
+    if (lastPatient && lastPatient.patientId) {
+      const match = lastPatient.patientId.match(/PID-(\d+)/);
+      if (match) nextNum = parseInt(match[1], 10) + 1;
+    }
+    const patientId = `PID-${String(nextNum).padStart(3, '0')}`;
 
-    const newPatient = new Patient({ ...req.body, patientId });
+    // Format phone number for WhatsApp (ensure country code)
+    const patientData = { ...req.body, patientId };
+    if (patientData.contact?.mobile) {
+      patientData.contact.mobile = formatWhatsAppPhone(patientData.contact.mobile);
+    }
+    if (patientData.emergency_contact?.phone) {
+      patientData.emergency_contact.phone = formatWhatsAppPhone(patientData.emergency_contact.phone);
+    }
+
+    const newPatient = new Patient(patientData);
     await newPatient.save();
 
     // Log to analytics
@@ -114,9 +159,18 @@ export async function getPatientById(req, res) {
 export async function updatePatient(req, res) {
   const { Patient } = req.tenantModels;
   try {
+    // Format phone numbers for WhatsApp
+    const updateData = { ...req.body };
+    if (updateData.contact?.mobile) {
+      updateData.contact.mobile = formatWhatsAppPhone(updateData.contact.mobile);
+    }
+    if (updateData.emergency_contact?.phone) {
+      updateData.emergency_contact.phone = formatWhatsAppPhone(updateData.emergency_contact.phone);
+    }
+
     const patient = await Patient.findByIdAndUpdate(
-      req.params.id, 
-      { $set: req.body }, 
+      req.params.id,
+      { $set: updateData },
       { new: true }
     );
     res.status(200).json(patient);

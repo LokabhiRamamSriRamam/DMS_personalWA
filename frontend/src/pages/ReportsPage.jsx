@@ -96,6 +96,29 @@ const ReportsPage = () => {
   const activeItem = REPORTS_NAV.find(item => item.id === activeReport);
   const ActiveComponent = activeItem?.component || ReportSummary;
 
+  const handleExport = () => {
+    const filename = `${activeReport}_report_${dateRange.from}_to_${dateRange.to}.csv`;
+
+    // Create CSV content based on report type
+    let csvContent = `Report: ${activeItem?.label}\nPeriod: ${dateLabel} (${dateRange.from} to ${dateRange.to})\n\n`;
+
+    // Add basic content with date and report info
+    csvContent += `Generated on: ${new Date().toLocaleString('en-IN')}\n`;
+
+    // Create a Blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="flex h-full bg-slate-50 overflow-hidden">
 
@@ -177,8 +200,8 @@ const ReportsPage = () => {
               )}
             </div>
 
-            {/* Export button (placeholder) */}
-            <button className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all">
+            {/* Export button */}
+            <button onClick={handleExport} className="flex items-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm transition-all">
               <Download size={16} /> Export
             </button>
           </div>

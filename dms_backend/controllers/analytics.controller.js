@@ -51,8 +51,9 @@ async function getSummary(models, start, end) {
 
 // ── REVENUE ───────────────────────────────────────────────────────────────────
 async function getRevenue(models, start, end) {
-  const { Invoice } = models;
+  const { Invoice, Visit } = models;
   const invoices = await Invoice.find({ createdAt: { $gte: start, $lte: end } }).lean();
+  const visits = await Visit.find({ date: { $gte: start, $lte: end } }).populate('doctor_id', 'name').lean();
 
   const total = invoices.reduce((s, i) => s + (i.total_amount || 0), 0);
   const collected = invoices.reduce((s, i) => s + (i.paid_amount || 0), 0);
@@ -81,7 +82,35 @@ async function getRevenue(models, start, end) {
     .sort((a, b) => b.total - a.total)
     .slice(0, 10);
 
-  return { total, collected, pending, trend, by_payment_method, top_patients };
+  // Revenue by doctors
+  const doctorMap = {};
+  visits.forEach(v => {
+    const doctorId = v.doctor_id?._id?.toString() || 'Unknown';
+    const doctorName = v.doctor_id?.name || 'Unknown Doctor';
+    if (!doctorMap[doctorId]) {
+      doctorMap[doctorId] = { name: doctorName, count: 0, total: 0 };
+    }
+    doctorMap[doctorId].count += 1;
+  });
+
+  invoices.forEach(inv => {
+    const treatments = inv.items || [];
+    treatments.forEach(item => {
+      if (item.item_id) {
+        const visit = visits.find(v => v.treatments?.some(t => t._id?.toString() === item.item_id?.toString()));
+        if (visit && visit.doctor_id) {
+          const doctorId = visit.doctor_id._id?.toString();
+          if (doctorMap[doctorId]) {
+            doctorMap[doctorId].total += item.total || 0;
+          }
+        }
+      }
+    });
+  });
+
+  const by_doctors = Object.values(doctorMap).sort((a, b) => b.total - a.total);
+
+  return { total, collected, pending, trend, by_payment_method, top_patients, by_doctors };
 }
 
 // ── EXPENSES ──────────────────────────────────────────────────────────────────

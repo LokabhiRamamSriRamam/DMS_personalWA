@@ -157,6 +157,16 @@ export async function getOrders(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
+// GET /api/inventory/orders/:id
+export async function getOrderById(req, res) {
+  const { Order } = req.tenantModels;
+  try {
+    const order = await Order.findById(req.params.id);
+    if (!order) return res.status(404).json({ error: "Order not found" });
+    res.json(order);
+  } catch (err) { res.status(400).json({ error: err.message }); }
+}
+
 // POST /api/inventory/orders
 export async function createOrder(req, res) {
   const { Order } = req.tenantModels;

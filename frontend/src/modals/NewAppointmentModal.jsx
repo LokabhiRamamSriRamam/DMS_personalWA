@@ -11,7 +11,7 @@ import API from '../services/api';
 import AddPatientModal from './AddPatientModal'; 
 
 const TREATMENT_TYPES = [
-  'Consultation', 'Root Canal', 'Cleaning', 'Whitening', 'Extraction', 'Braces Checkup'
+  'Consultation', 'Follow-up', 'Cleaning', 'Whitening'
 ];
 
 const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defaultPatient }) => {
@@ -26,34 +26,69 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
+  // Helper: Get today's date in IST (UTC+5:30)
+  const getIndiaDate = () => {
+    const now = new Date();
+    // Convert to UTC first, then add 5.5 hours for IST
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+    const istTime = new Date(utcTime + (5.5 * 60 * 60 * 1000));
+    return istTime.toISOString().split('T')[0];
+  };
+
+  // Helper: Get current time in IST (UTC+5:30)
+  const getIndiaTime = () => {
+    const now = new Date();
+    // Convert to UTC first, then add 5.5 hours for IST
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+    const istTime = new Date(utcTime + (5.5 * 60 * 60 * 1000));
+    return istTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
+  // Helper: Convert UTC date string + time to IST time string
+  const utcToIndiaTime = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return getIndiaTime();
+    const [hours, minutes] = timeStr.split(':');
+    const utcDate = new Date(`${dateStr}T${timeStr}:00Z`);
+    const istTime = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
+    return istTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
   // --- Form State ---
   const [formData, setFormData] = useState({
-    selectedPatient: null, 
+    selectedPatient: null,
     doctorId: '',
-    date: new Date().toISOString().split('T')[0],
-    time: '09:00',
+    date: getIndiaDate(),
+    time: getIndiaTime(),
     duration: '30',
     type: 'Consultation',
-    notes: ''
+    notes: '',
+    whatsapp_language: '',
   });
 
   // --- Populate Form on Edit ---
   useEffect(() => {
     if (isOpen && appointmentToEdit) {
-        const dateObj = new Date(appointmentToEdit.start_time);
-        const dateStr = dateObj.toISOString().split('T')[0];
-        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        const utcDate = new Date(appointmentToEdit.start_time);
+        // Convert UTC to IST (UTC+5:30)
+        const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
+        const dateStr = istDate.toISOString().split('T')[0];
+        const timeStr = istDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+        // Handle doctor_id - could be a string ID or an object with _id
+        const doctorId = typeof appointmentToEdit.doctor_id === 'object'
+          ? appointmentToEdit.doctor_id._id
+          : appointmentToEdit.doctor_id;
 
         setFormData({
             selectedPatient: appointmentToEdit.patient, // Assuming this is the patient object
-            doctorId: appointmentToEdit.doctor_id,
+            doctorId: doctorId || '',
             date: dateStr,
             time: timeStr,
             duration: '30', // You might need to calculate this from start/end time if stored
             type: appointmentToEdit.type,
             notes: appointmentToEdit.notes || ''
         });
-        
+
         // Pre-fill search term for UI consistency
         if (appointmentToEdit.patient) {
             setSearchTerm(`${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name}`);
@@ -62,11 +97,12 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
         setFormData({
             selectedPatient: defaultPatient || null,
             doctorId: '',
-            date: new Date().toISOString().split('T')[0],
-            time: '09:00',
+            date: getIndiaDate(),
+            time: getIndiaTime(),
             duration: '30',
             type: 'Consultation',
-            notes: ''
+            notes: '',
+            whatsapp_language: '',
         });
         setSearchTerm(defaultPatient
             ? `${defaultPatient.first_name} ${defaultPatient.last_name || ''}`.trim()
@@ -147,19 +183,23 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
     setLoading(true);
 
     try {
-      const startDateTime = new Date(`${formData.date}T${formData.time}`);
-      const endDateTime = new Date(startDateTime.getTime() + parseInt(formData.duration) * 60000);
+      // Form date/time are in IST; convert to UTC for backend
+      const istDateTime = new Date(`${formData.date}T${formData.time}`);
+      // Subtract IST offset (5.5 hours) to get UTC
+      const utcStartTime = new Date(istDateTime.getTime() - (5.5 * 60 * 60 * 1000));
+      const utcEndTime = new Date(utcStartTime.getTime() + parseInt(formData.duration) * 60000);
 
       const appointmentPayload = {
-        patient_id: formData.selectedPatient?._id, // MongoDB _id
-        doctor_id: formData.doctorId,             // MongoDB _id
-        start_time: startDateTime,
-        end_time: endDateTime,
+        patient_id: formData.selectedPatient?._id,
+        doctor_id: formData.doctorId,
+        start_time: utcStartTime.toISOString(),
+        end_time: utcEndTime.toISOString(),
         title: `${formData.type} - ${formData.selectedPatient?.first_name}`,
         type: formData.type,
         status: appointmentToEdit ? appointmentToEdit.status : 'Scheduled',
         room_number: 'Room 1',
-        notes: formData.notes
+        notes: formData.notes,
+        ...(formData.whatsapp_language ? { whatsapp_language: formData.whatsapp_language } : {}),
       };
 
       console.log("SENDING PAYLOAD:", appointmentPayload); 
@@ -350,6 +390,27 @@ if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
                     <option value="45">45 Mins</option>
                     <option value="60">1 Hour</option>
                   </select>
+                </div>
+              </div>
+
+              {/* --- WHATSAPP LANGUAGE --- */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-1.5">
+                  <span>WhatsApp Language</span>
+                  <span className="normal-case font-normal text-slate-400">(optional — uses clinic default if blank)</span>
+                </label>
+                <div className="relative">
+                  <select
+                    className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 appearance-none"
+                    value={formData.whatsapp_language}
+                    onChange={e => setFormData({ ...formData, whatsapp_language: e.target.value })}
+                  >
+                    <option value="">Use clinic default</option>
+                    <option value="en">🇬🇧 English</option>
+                    <option value="hi">🇮🇳 Hindi</option>
+                    <option value="mr">🟠 Marathi</option>
+                  </select>
+                  <ChevronDown className="absolute right-3 top-3 text-slate-400 pointer-events-none" size={16} />
                 </div>
               </div>
 

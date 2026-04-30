@@ -44,18 +44,30 @@ const StatCard = ({ icon, colorClass, title, value, trend, trendUp, subtext }) =
   </div>
 );
 
-const AppointmentBlock = ({ style, colorClass, bgClass, time, patient, type, cancelled = false }) => (
-  <div 
-    className={`absolute left-1 right-1 p-2 m-0.5 rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer group ${colorClass} ${bgClass} ${cancelled ? 'opacity-70 hover:opacity-100' : ''} z-10 overflow-hidden`}
-    style={style}
-  >
-    <div className="flex justify-between items-start">
-      <span className={`text-[10px] font-bold block ${cancelled ? 'decoration-red-500 line-through decoration-2' : ''} ${colorClass.replace('border-', 'text-').replace('500', '800')}`}>{time}</span>
+const AppointmentBlock = ({ style, statusColor, time, patient, type, cancelled = false }) => {
+  const colorMap = {
+    green: { border: 'border-green-500', bg: 'bg-green-50', text: 'text-green-800' },
+    blue: { border: 'border-blue-500', bg: 'bg-blue-50', text: 'text-blue-800' },
+    orange: { border: 'border-orange-500', bg: 'bg-orange-50', text: 'text-orange-800' },
+    slate: { border: 'border-slate-500', bg: 'bg-slate-50', text: 'text-slate-800' },
+    red: { border: 'border-red-500', bg: 'bg-red-50', text: 'text-red-800' },
+  };
+
+  const colors = colorMap[statusColor] || colorMap.slate;
+
+  return (
+    <div
+      className={`absolute left-1 right-1 p-2 m-0.5 rounded-lg border-l-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer group ${colors.border} ${colors.bg} ${cancelled ? 'opacity-70 hover:opacity-100' : ''} z-10 overflow-hidden`}
+      style={style}
+    >
+      <div className="flex justify-between items-start">
+        <span className={`text-[10px] font-bold block ${cancelled ? 'decoration-red-500 line-through decoration-2' : ''} ${colors.text}`}>{time}</span>
+      </div>
+      <p className="text-xs font-bold text-slate-800 mt-0.5 truncate leading-tight">{patient}</p>
+      <p className="text-[10px] text-slate-500 truncate">{type}</p>
     </div>
-    <p className="text-xs font-bold text-slate-800 mt-0.5 truncate leading-tight">{patient}</p>
-    <p className="text-[10px] text-slate-500 truncate">{type}</p>
-  </div>
-);
+  );
+};
 
 const AppointmentsPage = () => {
   const { startTreatment } = useTreatment(); // Use Context Hook
@@ -72,7 +84,15 @@ const AppointmentsPage = () => {
   const [doctors, setDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  // Get today's date in IST (UTC+5:30), not UTC
+  const getIndiaDate = () => {
+    const now = new Date();
+    // Convert to UTC first, then add 5.5 hours for IST
+    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+    const istTime = new Date(utcTime + (5.5 * 60 * 60 * 1000));
+    return istTime.toISOString().split('T')[0];
+  };
+  const [selectedDate, setSelectedDate] = useState(getIndiaDate());
   
   const [activeDropdown, setActiveDropdown] = useState(null);
   const dropdownRef = useRef(null);
@@ -96,6 +116,9 @@ const AppointmentsPage = () => {
     switch (status) {
       case 'In Progress': return 'green';
       case 'Checked In': return 'blue';
+      case 'Scheduled': return 'slate';
+      case 'Confirmed': return 'blue';
+      case 'Completed': return 'green';
       case 'Waiting': return 'orange';
       case 'Cancelled': return 'red';
       case 'No Show': return 'red';
@@ -114,30 +137,39 @@ const AppointmentsPage = () => {
         axios.get(`${API_BASE}/appointments/dashboard-stats?date=${selectedDate}`)
       ]);
 
-      setDoctors(doctorsRes.data);
+      const doctorsMap = doctorsRes.data.slice(0, 10);
+      setDoctors(doctorsMap);
       setDashStats(statsRes.data);
 
       const mappedAppts = appointmentsRes.data.map(apt => {
         const patientName = apt.patient_id ? `${apt.patient_id.first_name} ${apt.patient_id.last_name}` : 'Unknown';
-        const doctorName = apt.doctor_id ? `${apt.doctor_id.firstName} ${apt.doctor_id.lastName}` : 'Unassigned';
-        const start = new Date(apt.start_time);
-        const end = new Date(apt.end_time);
-        const duration = (end - start) / 60000; 
+
+        // Look up doctor from the doctors array
+        const doctorId = typeof apt.doctor_id === 'object' ? apt.doctor_id._id : apt.doctor_id;
+        const doctor = doctorsMap.find(d => d._id === doctorId);
+        const doctorName = doctor ? doctor.name : 'Unassigned';
+
+        // Convert UTC to IST (UTC+5:30) for display
+        const utcStart = new Date(apt.start_time);
+        const istStart = new Date(utcStart.getTime() + (5.5 * 60 * 60 * 1000));
+        const utcEnd = new Date(apt.end_time);
+        const istEnd = new Date(utcEnd.getTime() + (5.5 * 60 * 60 * 1000));
+        const duration = (istEnd - istStart) / 60000;
 
         return {
           id: apt._id,
-          rawTime: start,
+          rawTime: istStart,
           duration: duration || 30,
-          time: start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 
+          time: istStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
           patient: patientName,
-          
+
           // --- FIX 1: Store FULL patient object for "Details" button ---
-          rawPatient: apt.patient_id, 
-          
+          rawPatient: apt.patient_id,
+
           patientId: apt.patient_id?._id,
           treatment: apt.type,
           doctor: doctorName,
-          doctorId: apt.doctor_id?._id,
+          doctorId: doctorId,
           status: apt.status,
           statusColor: getStatusColor(apt.status),
           notes: apt.notes
@@ -296,10 +328,11 @@ const AppointmentsPage = () => {
              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                  <h3 className="text-lg font-bold text-slate-900">Schedule</h3>
-                 <div className="bg-slate-100 p-1 rounded-lg flex text-sm font-medium">
+                 {/* Calendar view toggle commented out for now */}
+                 {/* <div className="bg-slate-100 p-1 rounded-lg flex text-sm font-medium">
                     <button onClick={() => setView('list')} className={`px-4 py-2 rounded-md transition-all focus:outline-none ${view === 'list' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-900'}`}>List</button>
                     <button onClick={() => setView('calendar')} className={`px-4 py-2 rounded-md transition-all focus:outline-none ${view === 'calendar' ? 'bg-white text-slate-900 shadow-sm font-semibold' : 'text-slate-500 hover:text-slate-900'}`}>Calendar</button>
-                 </div>
+                 </div> */}
               </div>
               <div className="flex bg-slate-100 rounded-lg p-1 self-start sm:self-auto items-center">
                 <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none text-xs font-medium text-slate-700 focus:ring-0 px-2 py-1 outline-none"/>
@@ -312,9 +345,10 @@ const AppointmentsPage = () => {
               <div className="flex justify-center items-center h-64 bg-white rounded-xl border border-red-200 text-red-500 font-medium"><AlertCircle className="mr-2" /> {error}</div>
             ) : (
               <>
-                {view === 'list' ? (
-                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden min-h-[500px] flex flex-col">
-                    <div className="overflow-x-visible">
+                {/* view === 'list' ? ( */}
+                {true ? (
+                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm min-h-[500px] flex flex-col overflow-hidden">
+                    <div className="overflow-x-auto flex-1">
                       <table className="w-full text-sm text-left">
                         <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
                           <tr>
@@ -337,30 +371,31 @@ const AppointmentsPage = () => {
                                     <div className="flex flex-col"><span className="font-medium text-slate-900">{apt.patient}</span><span className="text-xs text-slate-500">#{apt.id.slice(-4)}</span></div>
                                   </div>
                                 </td>
-                                <td className="px-6 py-4 text-slate-600">{apt.treatment}</td>
-                                <td className="px-6 py-4 text-slate-600">{apt.doctor}</td>
+                                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{apt.treatment}</td>
+                                <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{apt.doctor}</td>
                                 <td className="px-6 py-4">
                                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusStyles(apt.statusColor)}`}>
                                     <span className={`size-1.5 rounded-full ${getDotColor(apt.statusColor)}`}></span>{apt.status}
                                   </span>
                                 </td>
-                                <td className="px-6 py-4 text-right relative">
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === apt.id ? null : apt.id); }}
-                                    className={`p-1.5 rounded-lg transition-colors ${activeDropdown === apt.id ? 'bg-blue-50 text-[#137fec]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
-                                  >
-                                    <MoreVertical size={20} />
-                                  </button>
-                                  {activeDropdown === apt.id && (
-                                  <div ref={dropdownRef} className="absolute right-8 top-8 w-56 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right text-left">
-                                    
+                                <td className="px-6 py-4 text-right">
+                                  <div className="relative inline-block">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setActiveDropdown(activeDropdown === apt.id ? null : apt.id); }}
+                                      className={`p-1.5 rounded-lg transition-colors ${activeDropdown === apt.id ? 'bg-blue-50 text-[#137fec]' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-100'}`}
+                                    >
+                                      <MoreVertical size={20} />
+                                    </button>
+                                    {activeDropdown === apt.id && (
+                                    <div ref={dropdownRef} className="absolute right-0 top-10 w-64 sm:w-56 max-h-96 bg-white border border-slate-200 rounded-lg shadow-xl z-50 overflow-y-auto animate-in fade-in zoom-in-95 duration-100 origin-top-right text-left">
+
                                     {/* 1. START VISIT BUTTON */}
                                     {!['Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
-                                      <div className="p-1 border-b border-slate-100">
-                                        <button 
+                                      <div className="sticky top-0 bg-white p-1 border-b border-slate-100 z-10">
+                                        <button
                                           onClick={() => handleStartVisit(apt)}
                                           className={`w-full text-left px-3 py-2.5 text-sm font-bold text-white rounded-md flex items-center gap-2 transition-colors shadow-sm ${
-                        apt.status === 'In Progress' 
+                        apt.status === 'In Progress'
                             ? 'bg-orange-500 hover:bg-orange-600' // Orange for Continue
                             : 'bg-[#137fec] hover:bg-blue-600'    // Blue for Start
                         }`}
@@ -371,25 +406,26 @@ const AppointmentsPage = () => {
                                     )}
 
                                     {/* 2. CHANGE STATUS LIST (Removed "In Progress") */}
-                                    <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider">Change Status</div>
-                                    <div className="max-h-48 overflow-y-auto">
+                                    <div className="sticky top-0 bg-white px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider z-10">Change Status</div>
+                                    <div>
                                       {ALL_STATUSES
                                         .filter(s => s !== apt.status && s !== 'In Progress') // FILTER OUT 'In Progress'
                                         .map(status => (
-                                          <button key={status} onClick={() => handleStatusChange(apt.id, status)} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2">
-                                            <div className={`size-1.5 rounded-full ${getDotColor(getStatusColor(status).replace('text-', ''))}`} />{status}
+                                          <button key={status} onClick={() => handleStatusChange(apt.id, status)} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 whitespace-nowrap">
+                                            <div className={`size-1.5 rounded-full flex-shrink-0 ${getDotColor(getStatusColor(status).replace('text-', ''))}`} /><span>{status}</span>
                                           </button>
                                       ))}
                                     </div>
 
                                     {/* 3. EDIT BUTTON */}
-                                    <div className="border-t border-slate-100 p-1">
+                                    <div className="sticky bottom-0 bg-white border-t border-slate-100 p-1">
                                       <button onClick={() => handleEdit(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2">
                                         <Edit size={14} className="text-[#137fec]" /> Edit Appointment
                                       </button>
                                     </div>
                                   </div>
                                 )}
+                                  </div>
                                 </td>
                               </tr>
                             ))
@@ -401,57 +437,65 @@ const AppointmentsPage = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[700px]">
-                    <div className="grid border-b border-slate-200 bg-slate-50 flex-none z-10 sticky top-0" style={{ gridTemplateColumns: `60px repeat(${doctors.length || 1}, 1fr)` }}>
-                      <div className="p-4 border-r border-slate-200 flex items-center justify-center"><Clock className="text-slate-400" size={20} /></div>
-                      {doctors.length > 0 ? doctors.map((dr) => {
-                        const fullName = `${dr.firstName} ${dr.lastName}`.trim();
-                        const initials = dr.lastName?.charAt(0) || 'Dr';
-                        return (
-                        <div key={dr._id} className="p-3 text-center border-r border-slate-200 last:border-r-0">
-                          <div className="flex flex-col items-center gap-2">
-                            <div className="size-9 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-500 font-bold">
-                              {initials}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm text-slate-900 truncate max-w-[100px]">{fullName}</p>
-                              <p className="text-[10px] uppercase tracking-wide text-slate-500 truncate">{dr.specialization || 'General'}</p>
+                  <>
+                  {/* Calendar view commented out for now */}
+                  {/* <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col h-[700px]">
+                    <div className="border-b border-slate-200 bg-slate-50 flex-none z-10 sticky top-0 overflow-x-auto">
+                      <div className="inline-flex w-full">
+                        <div className="p-4 border-r border-slate-200 flex items-center justify-center min-w-[60px]"><Clock className="text-slate-400" size={20} /></div>
+                        {doctors.length > 0 ? doctors.map((dr) => {
+                          const fullName = dr.name || 'Unknown';
+                          const initials = dr.name?.charAt(0) || 'Dr';
+                          return (
+                          <div key={dr._id} className="p-3 text-center border-r border-slate-200 last:border-r-0 min-w-[150px]">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className="size-9 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-500 font-bold">
+                                {initials}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-sm text-slate-900 truncate">{fullName}</p>
+                                <p className="text-[10px] uppercase tracking-wide text-slate-500 truncate">{dr.specialization || 'General'}</p>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        );
-                      }) : <div className="p-4 text-center text-sm text-slate-500">No Doctors Found</div>}
+                          );
+                        }) : <div className="p-4 text-center text-sm text-slate-500 min-w-[150px]">No Doctors</div>}
+                      </div>
                     </div>
-                    <div className="overflow-y-auto flex-1 relative bg-white">
-                      <div className="min-h-[768px] relative grid divide-x divide-slate-100" style={{ gridTemplateColumns: `60px repeat(${doctors.length || 1}, 1fr)` }}>
-                        <div className="bg-slate-50 text-xs text-slate-400 font-medium">
+
+                    <div className="overflow-auto flex-1 relative bg-white">
+                      <div className="inline-flex w-full" style={{ minWidth: '100%' }}>
+                        <div className="bg-slate-50 text-xs text-slate-400 font-medium min-w-[60px] flex-shrink-0 border-r border-slate-100">
                           {['09:00', '10:00', '11:00', '12:00', '01:00', '02:00', '03:00', '04:00'].map(time => (
                             <div key={time} className="h-24 border-b border-slate-100 p-2 text-right">{time}</div>
                           ))}
                         </div>
-                        {doctors.map(dr => (
-                          <div key={dr._id} className="relative">
-                            <div className="absolute inset-0 flex flex-col">{[...Array(8)].map((_, i) => <div key={i} className="h-24 border-b border-slate-50"></div>)}</div>
-                            {appointments.filter(a => a.doctorId === dr._id).map(apt => {
-                              const pos = calculatePosition(new Date(apt.rawTime), apt.duration);
-                              if (!pos) return null;
-                              return (
-                                <AppointmentBlock 
-                                  key={apt.id}
-                                  style={{ top: pos.top, height: pos.height }} 
-                                  colorClass={`border-${apt.statusColor}-500`} 
-                                  bgClass={`bg-${apt.statusColor}-50`} 
-                                  time={apt.time} 
-                                  patient={apt.patient} 
-                                  type={apt.treatment} 
-                                />
-                              );
-                            })}
-                          </div>
-                        ))}
+
+                        <div className="flex flex-1">
+                          {doctors.length > 0 ? doctors.map(dr => (
+                            <div key={dr._id} className="relative flex-1 min-w-[150px] border-r border-slate-100 last:border-r-0">
+                              <div className="absolute inset-0 flex flex-col pointer-events-none">{[...Array(8)].map((_, i) => <div key={i} className="h-24 border-b border-slate-50"></div>)}</div>
+                              {appointments.filter(a => a.doctorId === dr._id).map(apt => {
+                                const pos = calculatePosition(new Date(apt.rawTime), apt.duration);
+                                if (!pos) return null;
+                                return (
+                                  <AppointmentBlock
+                                    key={apt.id}
+                                    style={{ top: pos.top, height: pos.height }}
+                                    statusColor={apt.statusColor}
+                                    time={apt.time}
+                                    patient={apt.patient}
+                                    type={apt.treatment}
+                                  />
+                                );
+                              })}
+                            </div>
+                          )) : <div className="flex-1 flex items-center justify-center text-slate-500">No doctors to display</div>}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </div> */}
+                  </>
                 )}
               </>
             )}
@@ -490,8 +534,8 @@ const AppointmentsPage = () => {
               <div className="flex flex-col gap-4">
                 {doctors.length > 0 ? doctors.map((doc) => {
                   const statusObj = getDoctorStatus(doc._id);
-                  const fullName = `${doc.firstName} ${doc.lastName}`.trim();
-                  const initials = doc.lastName?.charAt(0) || 'Dr';
+                  const fullName = doc.name || 'Unknown';
+                  const initials = doc.name?.charAt(0) || 'Dr';
                   return (
                     <div key={doc._id} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">

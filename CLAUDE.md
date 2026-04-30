@@ -67,7 +67,7 @@ DentalClinic_Demo/
 | Model | File | Key Fields |
 |-------|------|-----------|
 | Patient | `Patient.model.js` | patientId (auto "PID-001"), first_name, last_name, dob, gender, blood_group, contact{mobile,email,address,city}, emergency_contact, medical_history[], allergies[], reference_source, last_visit_date, total_due, dentition_type (Adult/Pedo/Mixed), drive_folders{root,clinical_notes,scans,photographs,lab_reports}, files[]{file_name,category,drive_file_id,web_view_link,mime_type,visit_id,uploaded_at} |
-| User | `User.model.js` | name, email, password (plain text — no hashing yet), role (Doctor/Receptionist/Assistant), specialization, phone, is_active |
+| Doctor | `Doctor.model.js` | name, specialization, email, phone, license_number, qualification, experience_years, is_active, availability{monday..sunday}, notes |
 | Appointment | `Appointment.model.js` | patient_id, doctor_id, start_time, end_time, title, type, status (Scheduled/Confirmed/Checked In/In Progress/Completed/Cancelled/No Show), room_number, token_number, notes |
 | Visit | `Visit.model.js` | patient_id, doctor_id, appointment_id, date, findings{soft_tissue[],tmj[],diagnosis_notes}, treatments[]{teeth_numbers,surfaces,treatment_name,cost,qty,status,consumables_used[]}, prescriptions[]{drug_name,dosage,duration,instructions}, consultation_notes[]{content(HTML),created_at}, advices[]{content(HTML),created_at} |
 | Invoice | `Invoice.model.js` | invoice_id (auto "INV-2025-001"), patient_id, patient_name, patient_phone, items[]{item_id,name,type(Service/Pharmacy),quantity,rate,total}, subtotal, tax, total_amount, paid_amount, pending_amount (auto), payment_method, status (Draft/Pending/Paid/Overdue/Cancelled) |
@@ -89,8 +89,15 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 ### Auth / Users (`/api/users`)
 - `POST /api/users/register` — public, creates user
 - `POST /api/users/login` — public, returns `{ token, user }` (JWT, 8h expiry)
-- `GET /api/users/doctors` — protected, active doctors for dropdowns
-- `GET /api/users` — protected, all users
+- `GET /api/users/doctors` — protected, fetches doctors from tenant Doctor collection
+- `GET /api/users` — protected, all staff users
+
+### Doctors (`/api/doctors`)
+- `GET /api/doctors` — protected, list all active doctors
+- `POST /api/doctors` — protected, create new doctor
+- `GET /api/doctors/:id` — protected, get doctor by ID
+- `PUT /api/doctors/:id` — protected, update doctor
+- `DELETE /api/doctors/:id` — protected, delete doctor
 
 ### Patients (`/api/patients`)
 - `GET /api/patients?search=` — list/search by name, phone, patientId

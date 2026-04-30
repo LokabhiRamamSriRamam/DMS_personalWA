@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    container_name: dentalclinic-dev
+    volumes:
+      - ..:/workspace
+      - backend-node-modules:/workspace/dms_backend/node_modules
+      - frontend-node-modules:/workspace/frontend/node_modules
+    environment:
+      NODE_ENV: development
+    ports:
+      - "4000:4000"
+      - "5173:5173"
+      - "5174:5174"
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:7
+    container_name: dentalclinic-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: devpass
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+      - mongodb-config:/data/configdb
+    restart: unless-stopped
+
+volumes:
+  backend-node-modules:
+  frontend-node-modules:
+  mongodb-data:
+  mongodb-config:

@@ -17,11 +17,12 @@ import TreatmentTabs from '../components/TreatmentTabs';
 import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
 import ReportsNotesSection from '../components/ReportNotesSection';
 import AppointmentTimeline from '../components/AppointmentTimeline';
+import InventoryConsumption from '../components/InventoryConsumption';
 
 // --- Sub-Components ---
 
-// Updated to accept onViewProfile prop
-const PatientInfoCard = ({ patient, onViewProfile }) => { 
+// Updated to accept onViewProfile prop and appointments
+const PatientInfoCard = ({ patient, onViewProfile, appointments = [] }) => {
   // Handle Loading/Empty State
   if (!patient) {
       return <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 h-48 animate-pulse"></div>;
@@ -29,6 +30,12 @@ const PatientInfoCard = ({ patient, onViewProfile }) => {
 
   const age = patient.dob ? new Date().getFullYear() - new Date(patient.dob).getFullYear() : '-';
   const fullName = `${patient.first_name} ${patient.last_name || ''}`.trim();
+
+  // Get the latest appointment visit type
+  const latestAppointment = appointments && appointments.length > 0
+    ? appointments.sort((a, b) => new Date(b.start_time) - new Date(a.start_time))[0]
+    : null;
+  const visitType = latestAppointment?.type || '-';
 
   return (
     <div className="p-5 bg-white rounded-xl relative shadow-sm border border-gray-100 mb-6">
@@ -76,12 +83,9 @@ const PatientInfoCard = ({ patient, onViewProfile }) => {
             </div>
           ))}
           <div className="flex flex-col gap-1">
-              <p className="text-sm text-gray-400">Alerts</p>
+              <p className="text-sm text-gray-400">Visit Type</p>
               <div className="flex items-center gap-2">
-                 {patient.medical_history?.slice(0, 2).map((tag, i) => (
-                   <span key={i} className="text-[10px] bg-red-50 text-red-600 px-1 rounded border border-red-100">{tag}</span>
-                 ))}
-                 {(!patient.medical_history || patient.medical_history.length === 0) && <span>-</span>}
+                 <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 font-medium capitalize">{visitType}</span>
               </div>
           </div>
         </div>
@@ -199,20 +203,6 @@ const ClinicalHistory = ({ patient, onSaveHistory }) => {
             )}
           </div>
 
-        </div>
-
-        {/* 4. On Examination (Static for now, usually linked to Visits) */}
-        <div className="flex flex-col gap-2">
-          <label className="font-semibold text-gray-700">On Examination</label>
-          <div className="h-full min-h-[150px] bg-gray-50 rounded-lg border border-transparent hover:border-[#137fec] transition-colors p-4 flex flex-col gap-2">
-             <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Latest Findings</span>
-             {/* We can map recent visit findings here later */}
-             <div className="text-sm text-gray-600 italic">
-                From Dental Chart: <br/>
-                - 18: Decay<br/>
-                - 21: Missing
-             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -881,6 +871,7 @@ export default function TreatmentPage({ patientIdProp }) {
 
   const [patient, setPatient]               = useState(null);
   const [visits, setVisits]                 = useState([]);
+  const [appointments, setAppointments]     = useState([]);
   const [labOrders, setLabOrders]           = useState([]);
   const [loading, setLoading]               = useState(true);
   const [isProfileOpen, setIsProfileOpen]   = useState(false);
@@ -889,17 +880,20 @@ export default function TreatmentPage({ patientIdProp }) {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportRefreshKey, setReportRefreshKey]   = useState(0);
   const [viewingDate, setViewingDate]             = useState(null); // ISO date string or null (= today)
+  const [showConcludeModal, setShowConcludeModal] = useState(false);
+  const [concludingAppointment, setConcludingAppointment] = useState(null);
 
   // Central Data Fetch Function
   const fetchPageData = async () => {
     try {
-      // Note: We don't set loading(true) here to prevent full page flicker on refreshes
-      const [patientRes, visitsRes] = await Promise.all([
+      const [patientRes, visitsRes, appointmentsRes] = await Promise.all([
           API.get(`/patients/${id}`),
-          API.get(`/visits/patient/${id}`)
+          API.get(`/visits/patient/${id}`),
+          API.get(`/appointments/patient/${id}`)
       ]);
       setPatient(patientRes.data);
       setVisits(visitsRes.data);
+      setAppointments(appointmentsRes.data);
     } catch (err) {
       console.error("Failed to fetch treatment data", err);
     } finally {
@@ -927,6 +921,27 @@ export default function TreatmentPage({ patientIdProp }) {
       }
   };
 
+  const handleConcludeAppointment = async () => {
+    if (!concludingAppointment) throw new Error('No appointment to conclude');
+
+    try {
+      const response = await API.patch(`/appointments/${concludingAppointment._id}/status`, { status: 'Completed' });
+
+      if (response.data.status !== 'Completed') {
+        throw new Error('Failed to update appointment status');
+      }
+
+      await fetchPageData();
+      setShowConcludeModal(false);
+      setConcludingAppointment(null);
+      alert('Appointment marked as completed');
+    } catch (err) {
+      console.error('Error concluding appointment:', err);
+      alert('Failed to conclude appointment: ' + err.message);
+      throw err;
+    }
+  };
+
   if (loading) {
       return (
           <div className="min-h-screen flex items-center justify-center bg-[#EBF2F7]">
@@ -950,10 +965,11 @@ export default function TreatmentPage({ patientIdProp }) {
         
         {/* Note: PatientHeader removed as requested */}
         
-        {/* Pass 'onViewProfile' to open the modal */}
+        {/* Pass 'onViewProfile' to open the modal and appointments for visit type */}
         <PatientInfoCard
             patient={patient}
             onViewProfile={() => setIsProfileOpen(true)}
+            appointments={appointments}
         />
 
         {/* "Viewing past date" banner */}
@@ -998,30 +1014,49 @@ export default function TreatmentPage({ patientIdProp }) {
 
         {/* 3. Other Sections — use displayVisits so they reflect the selected date */}
         <ConsultationNotes visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
+        <InventoryConsumption visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <Medications visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <LabOrders patientId={id} onRefresh={fetchPageData} onOrdersLoaded={setLabOrders} />
         <AdvicesRecall visits={displayVisits} patientId={id} patient={patient} onRefresh={fetchPageData} onSelectDate={setViewingDate} />
 
         {/* Sticky Bottom Action Bar */}
-        <div className="sticky bottom-4 z-10 bg-white p-4 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border border-gray-100 flex justify-end gap-3">
+        <div className="sticky bottom-4 z-10 bg-white p-4 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border border-gray-100 flex justify-between items-center">
           <button
-            onClick={() => setIsReportModalOpen(true)}
-            className="px-6 py-2 border border-purple-300 text-purple-600 font-medium rounded-lg hover:bg-purple-50 flex items-center gap-2 transition-colors"
+            onClick={() => {
+              const latestAppointment = appointments.length > 0
+                ? appointments.sort((a, b) => new Date(b.start_time) - new Date(a.start_time))[0]
+                : null;
+              if (latestAppointment) {
+                setConcludingAppointment(latestAppointment);
+                setShowConcludeModal(true);
+              } else {
+                alert("No active appointment found");
+              }
+            }}
+            className="px-6 py-2 border-2 border-red-300 text-red-600 font-medium rounded-lg hover:bg-red-50 flex items-center gap-2 transition-colors"
           >
-            <Mic size={18} /> AI Report
+            ✓ Conclude Appointment
           </button>
-          <button
-            onClick={() => setIsPrescriptionOpen(true)}
-            className="px-6 py-2 border border-[#137fec] text-[#137fec] font-medium rounded-lg hover:bg-blue-50 flex items-center gap-2 transition-colors"
-          >
-            <FileText size={18} /> Prescription
-          </button>
-          <button
-            onClick={() => setIsInvoiceOpen(true)}
-            className="px-6 py-2 bg-[#137fec] text-white font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
-          >
-            <Receipt size={18} /> Generate Invoice
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="px-6 py-2 border border-purple-300 text-purple-600 font-medium rounded-lg hover:bg-purple-50 flex items-center gap-2 transition-colors"
+            >
+              <Mic size={18} /> AI Report
+            </button>
+            <button
+              onClick={() => setIsPrescriptionOpen(true)}
+              className="px-6 py-2 border border-[#137fec] text-[#137fec] font-medium rounded-lg hover:bg-blue-50 flex items-center gap-2 transition-colors"
+            >
+              <FileText size={18} /> Prescription
+            </button>
+            <button
+              onClick={() => setIsInvoiceOpen(true)}
+              className="px-6 py-2 bg-[#137fec] text-white font-medium rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
+            >
+              <Receipt size={18} /> Generate Invoice
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1094,6 +1129,57 @@ export default function TreatmentPage({ patientIdProp }) {
             })),
         ]}
       />
+
+      {/* Conclude Appointment Confirmation Modal */}
+      {showConcludeModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <span className="text-2xl text-red-600">⚠️</span>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 text-center mb-2">
+              Conclude Appointment
+            </h3>
+            <p className="text-slate-600 text-center mb-6">
+              Are you sure you want to mark this appointment as <span className="font-semibold">completed</span>?
+              This action will update the appointment status and cannot be easily undone.
+            </p>
+            {concludingAppointment && (
+              <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-200">
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-slate-500 text-xs font-medium uppercase">Time</p>
+                    <p className="text-slate-900 font-semibold">
+                      {new Date(concludingAppointment.start_time).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-slate-500 text-xs font-medium uppercase">Status</p>
+                    <p className="text-slate-900 font-semibold capitalize">{concludingAppointment.status}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowConcludeModal(false);
+                  setConcludingAppointment(null);
+                }}
+                className="flex-1 px-4 py-2.5 border border-slate-300 text-slate-700 font-medium rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConcludeAppointment}
+                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors"
+              >
+                Yes, Conclude
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
