@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTreatment } from '../Context/TreatmentContext.jsx';
-import TreatmentPage from '../pages/TreatmentPage.jsx'; 
+import TreatmentPage from '../pages/Treatmentpage.jsx'; 
 import { Minimize2, Maximize2, X, Activity } from 'lucide-react';
 
 const GlobalTreatmentOverlay = () => {
