@@ -2,8 +2,8 @@ import './App.css';
 import { createBrowserRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
 
 // Layout & Overlay
-import NavigationLayout from './components/NavigationLayout.jsx';
-import GlobalTreatmentOverlay from './components/GlobalTreatmentOverlay.jsx';
+import NavigationLayout from './Components/NavigationLayout.jsx';
+import GlobalTreatmentOverlay from './Components/GlobalTreatmentOverlay.jsx';
 
 // Pages
 import TreatmentPage from './pages/Treatmentpage.jsx';
