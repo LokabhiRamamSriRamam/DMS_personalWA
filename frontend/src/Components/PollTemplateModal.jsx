@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../services/api';
+import { WAHA_BASE_URL, WAHA_API_KEY } from '../config/env.js';
 
 const CONTENT_TYPES = ['text', 'image', 'video', 'document', 'location', 'contact'];
 const RATINGS = [1, 2, 3, 4, 5];
@@ -56,10 +57,10 @@ export default function PollTemplateModal({ isOpen, onClose, template, onSave })
         const user = JSON.parse(localStorage.getItem('dms_user') || '{}');
         if (!user.tenantId) return;
         
-        const wahaUrl = `${import.meta.env.VITE_WA_BACKEND_BASE_URL}/waha/tenant-feedback/${user.tenantId}`;
+        const wahaUrl = `${WAHA_BASE_URL}/waha/tenant-feedback/${user.tenantId}`;
         const res = await fetch(wahaUrl, {
           headers: {
-            'X-Api-Key': import.meta.env.VITE_WAHA_API_KEY || '7815f971660642e094f8a0ca675967ed'
+            'X-Api-Key': WAHA_API_KEY
           }
         });
         

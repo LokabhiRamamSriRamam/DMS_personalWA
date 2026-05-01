@@ -2,6 +2,7 @@
   "name": "clinic-backend",
   "type": "module",
   "scripts": {
+    "start": "node index.js",
     "dev": "nodemon index.js",
     "seed:clinical": "node seeds/seedAll.js",
     "seed:services": "node seeds/seedServices.mjs"

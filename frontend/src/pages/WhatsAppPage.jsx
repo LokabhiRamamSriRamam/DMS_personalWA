@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../services/api";
+import { WAHA_BASE_URL, WAHA_API_KEY } from "../config/env.js";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -2871,10 +2872,8 @@ function FeedbackPollConfigEditor({
           // NOTE: don't call onSettingChange here — it triggers parent re-render → infinite loop
         }
 
-        const WAHA_BASE = import.meta.env.VITE_WA_BACKEND_BASE_URL || 'http://localhost:3001';
-        const WAHA_KEY = import.meta.env.VITE_WAHA_API_KEY || '7815f971660642e094f8a0ca675967ed';
-        const wahaResp = await fetch(`${WAHA_BASE}/waha/tenant-feedback/${tenantId}`, {
-          headers: { 'X-Api-Key': WAHA_KEY }
+        const wahaResp = await fetch(`${WAHA_BASE_URL}/waha/tenant-feedback/${tenantId}`, {
+          headers: { 'X-Api-Key': WAHA_API_KEY }
         });
         console.log('[WAHA Load] status:', wahaResp.status);
         if (wahaResp.ok) {
@@ -2934,8 +2933,6 @@ function FeedbackPollConfigEditor({
 
       // 2. Bulk-save all 5 rating responses directly to WAHA
       if (tenantId) {
-        const WAHA_BASE = import.meta.env.VITE_WA_BACKEND_BASE_URL || 'http://localhost:4000';
-        const WAHA_KEY = import.meta.env.VITE_WAHA_API_KEY || '7815f971660642e094f8a0ca675967ed';
         const wahaPayload = {
           templates: [1, 2, 3, 4, 5].map(rating => {
             const resp = responses[`rating${rating}`];
@@ -2947,11 +2944,11 @@ function FeedbackPollConfigEditor({
             };
           })
         };
-        console.log('[WAHA Save] posting to:', `${WAHA_BASE}/waha/tenant-feedback/${tenantId}`);
+        console.log('[WAHA Save] posting to:', `${WAHA_BASE_URL}/waha/tenant-feedback/${tenantId}`);
         console.log('[WAHA Save] payload:', JSON.stringify(wahaPayload, null, 2));
-        const wahaRes = await fetch(`${WAHA_BASE}/waha/tenant-feedback/${tenantId}`, {
+        const wahaRes = await fetch(`${WAHA_BASE_URL}/waha/tenant-feedback/${tenantId}`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Api-Key': WAHA_KEY },
+          headers: { 'Content-Type': 'application/json', 'X-Api-Key': WAHA_API_KEY },
           body: JSON.stringify(wahaPayload),
         });
         const wahaResBody = await wahaRes.json().catch(() => null);
@@ -3572,8 +3569,7 @@ function FeedbackFollowUpEditor({ onBack, onSaved, feedbackTemplates = {} }) {
 
       // POST to WAAPI (optional — if WAAPI backend is running)
       try {
-        const waapiUrl =
-          import.meta.env.VITE_WA_BACKEND_BASE_URL || "http://localhost:4000";
+        const waapiUrl = WAHA_BASE_URL;
         const tenantId = "clinic-001"; // TODO: get from auth context
         await fetch(
           `${waapiUrl}/feedback/${tenantId}/template/${selectedRating}`,

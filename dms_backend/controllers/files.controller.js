@@ -1,4 +1,3 @@
-import fs from 'fs';
 import {
   createPatientDriveFolders,
   uploadFileToDrive,
@@ -67,20 +66,15 @@ export async function uploadFile(req, res) {
     }
 
     const folderId = patient.drive_folders[SUBFOLDER_KEY[category]];
-    const fileBuffer = fs.readFileSync(req.file.path);
+    const fileBuffer = req.file.buffer;
 
-    let driveFile;
-    try {
-      driveFile = await uploadFileToDrive(
-        credentials,
-        folderId,
-        fileBuffer,
-        req.file.originalname,
-        req.file.mimetype,
-      );
-    } finally {
-      fs.unlink(req.file.path, () => {});
-    }
+    const driveFile = await uploadFileToDrive(
+      credentials,
+      folderId,
+      fileBuffer,
+      req.file.originalname,
+      req.file.mimetype,
+    );
 
     const fileRecord = {
       file_name:     driveFile.name,

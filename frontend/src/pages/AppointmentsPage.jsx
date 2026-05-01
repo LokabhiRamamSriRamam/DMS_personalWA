@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from '../services/api';
+import { API_BASE_URL } from '../config/env.js';
 import { 
   MoreVertical, Calendar, TrendingUp, Users, CreditCard, FileText, Plus,
   Clock, PlayCircle, AlertCircle, XCircle, DollarSign, Loader2, Edit, Trash2
@@ -98,7 +99,6 @@ const AppointmentsPage = () => {
   const dropdownRef = useRef(null);
   const [editingAppointment, setEditingAppointment] = useState(null);
 
-  const API_BASE = 'http://localhost:5000/api'; 
   const ALL_STATUSES = ['Confirmed', 'Checked In', 'Completed', 'Cancelled'];
 
   // Click Outside Hook
@@ -132,9 +132,9 @@ const AppointmentsPage = () => {
       setLoading(true);
       
       const [doctorsRes, appointmentsRes, statsRes] = await Promise.all([
-        axios.get(`${API_BASE}/users/doctors`),
-        axios.get(`${API_BASE}/appointments?date=${selectedDate}`),
-        axios.get(`${API_BASE}/appointments/dashboard-stats?date=${selectedDate}`)
+        axios.get(`${API_BASE_URL}/users/doctors`),
+        axios.get(`${API_BASE_URL}/appointments?date=${selectedDate}`),
+        axios.get(`${API_BASE_URL}/appointments/dashboard-stats?date=${selectedDate}`)
       ]);
 
       const doctorsMap = doctorsRes.data.slice(0, 10);
@@ -198,7 +198,7 @@ const AppointmentsPage = () => {
 
     try {
       if (appointment.status !== 'In Progress') {
-        await axios.patch(`${API_BASE}/appointments/${appointment.id}/status`, { status: 'In Progress' });
+        await axios.patch(`${API_BASE_URL}/appointments/${appointment.id}/status`, { status: 'In Progress' });
         // Optimistic UI update for list
         setAppointments(prev => prev.map(a => a.id === appointment.id ? {...a, status: 'In Progress', statusColor: 'green'} : a));
       }
@@ -234,7 +234,7 @@ const AppointmentsPage = () => {
 
   const handleStatusChange = async (id, newStatus) => {
     try {
-      await axios.patch(`${API_BASE}/appointments/${id}/status`, { status: newStatus });
+      await axios.patch(`${API_BASE_URL}/appointments/${id}/status`, { status: newStatus });
       setAppointments(prev => prev.map(apt => 
         apt.id === id ? { ...apt, status: newStatus, statusColor: getStatusColor(newStatus) } : apt
       ));

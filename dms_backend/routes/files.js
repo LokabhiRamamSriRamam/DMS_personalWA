@@ -12,8 +12,8 @@ import {
 
 const router = express.Router();
 
-// Store uploads in temp dir; originalname preserved by controller
-const upload = multer({ dest: 'uploads/' });
+// Store uploads in memory; works on Vercel's ephemeral filesystem
+const upload = multer({ storage: multer.memoryStorage() });
 
 // Upload a file to a patient's Drive subfolder
 // POST /api/files/upload  (multipart: file, patient_id, category, visit_id?)
