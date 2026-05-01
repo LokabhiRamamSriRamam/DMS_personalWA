@@ -2,28 +2,28 @@ import './App.css';
 import { createBrowserRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
 
 // Layout & Overlay
-import NavigationLayout from './components/NavigationLayout';
-import GlobalTreatmentOverlay from './components/GlobalTreatmentOverlay';
+import NavigationLayout from './components/NavigationLayout.jsx';
+import GlobalTreatmentOverlay from './components/GlobalTreatmentOverlay.jsx';
 
 // Pages
-import TreatmentPage from './pages/TreatmentPage';
-import InvoicesPage from './pages/InvoicePage';
-import AppointmentsPage from './pages/AppointmentsPage';
-import PatientsPage from './pages/PatientsPage';
-import PatientFilesPage from './pages/PatientFilesPage';
-import TransactionsPage from './pages/TransactionsPage';
-import LabPage from './pages/LabOrdersPage';
-import InventoryPage from './pages/InventoryPage';
-import ReportsPage from './pages/ReportsPage';
-import SettingsPage from './pages/SettingsPage';
-import WhatsAppPage from './pages/WhatsAppPage';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import TreatmentPage from './pages/Treatmentpage.jsx';
+import InvoicesPage from './pages/InvoicePage.jsx';
+import AppointmentsPage from './pages/AppointmentsPage.jsx';
+import PatientsPage from './pages/PatientsPage.jsx';
+import PatientFilesPage from './pages/PatientFilesPage.jsx';
+import TransactionsPage from './pages/TransactionsPage.jsx';
+import LabPage from './pages/LabOrdersPage.jsx';
+import InventoryPage from './pages/InventoryPage.jsx';
+import ReportsPage from './pages/ReportsPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
+import WhatsAppPage from './pages/WhatsAppPage.jsx';
+import LoginPage from './pages/LoginPage.jsx';
+import RegisterPage from './pages/RegisterPage.jsx';
 
 // Context
-import { TreatmentProvider } from './Context/TreatmentContext';
-import { AuthProvider, useAuth } from './Context/AuthContext';
-import { UserProvider } from './Context/UserContext';
+import { TreatmentProvider } from './Context/TreatmentContext.jsx';
+import { AuthProvider, useAuth } from './Context/AuthContext.jsx';
+import { UserProvider } from './Context/UserContext.jsx';
 
 // Redirect to /login if not authenticated
 function ProtectedRoute() {
