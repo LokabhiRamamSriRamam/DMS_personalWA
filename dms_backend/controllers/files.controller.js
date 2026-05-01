@@ -5,7 +5,40 @@ import {
   deleteFileFromDrive,
   SUBFOLDER_KEY,
   DRIVE_SUBFOLDERS,
+  getDriveStorageInfo,
 } from '../services/googleDrive.service.js';
+
+// GET /api/files/all
+export async function getAllFiles(req, res) {
+  try {
+    const { Patient } = req.tenantModels;
+    
+    // Find all patients that have files
+    const patients = await Patient.find({ 'files.0': { $exists: true } })
+      .select('first_name last_name files')
+      .lean();
+
+    let allFiles = [];
+
+    patients.forEach(p => {
+      const patientName = `${p.first_name} ${p.last_name || ''}`.trim();
+      p.files.forEach(file => {
+        allFiles.push({
+          ...file,
+          patient_name: patientName,
+          patient_id: p._id,
+        });
+      });
+    });
+
+    // Sort by most recent (assuming uploaded_at exists or falling back to creation time if possible, but actually we have uploaded_at in the model. Let's just sort by uploaded_at)
+    allFiles.sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
+
+    res.json(allFiles);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
 
 // POST /api/files/upload
 export async function uploadFile(req, res) {
@@ -147,6 +180,51 @@ export async function setupPatientFolder(req, res) {
 
     res.json({ success: true, drive_folders: patient.drive_folders });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /api/files/storage
+export async function getStorageInfo(req, res) {
+  try {
+    const credentials = req.tenantConfig;
+    const storageInfo = await getDriveStorageInfo(credentials);
+    res.json(storageInfo);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/files/bulk-delete
+export async function bulkDeleteFile(req, res) {
+  try {
+    const { fileRecords } = req.body; // Array of { fileRecordId, patient_id }
+    const { Patient } = req.tenantModels;
+    const credentials = req.tenantConfig;
+
+    if (!fileRecords || !Array.isArray(fileRecords)) {
+      return res.status(400).json({ error: 'fileRecords array is required' });
+    }
+
+    for (const record of fileRecords) {
+      const patient = await Patient.findById(record.patient_id);
+      if (patient) {
+        const fileRecord = patient.files.id(record.fileRecordId);
+        if (fileRecord) {
+          try {
+            await deleteFileFromDrive(credentials, fileRecord.drive_file_id);
+          } catch (driveErr) {
+            console.error(`Drive delete failed for ${fileRecord.drive_file_id}:`, driveErr.message);
+          }
+          patient.files.pull(record.fileRecordId);
+          await patient.save();
+        }
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Files] Bulk Delete error:', err.message);
     res.status(500).json({ error: err.message });
   }
 }

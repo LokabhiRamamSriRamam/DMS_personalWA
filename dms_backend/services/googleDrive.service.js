@@ -132,3 +132,12 @@ export async function createSubfolder(credentials, parentId, folderName) {
   });
   return res.data.id;
 }
+
+/**
+ * Gets storage quota information from Google Drive.
+ */
+export async function getDriveStorageInfo(credentials) {
+  const d = drive(credentials);
+  const res = await d.about.get({ fields: 'storageQuota' });
+  return res.data.storageQuota;
+}

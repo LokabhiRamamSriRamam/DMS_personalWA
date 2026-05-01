@@ -10,6 +10,7 @@ import TreatmentPage from './pages/TreatmentPage';
 import InvoicesPage from './pages/InvoicePage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import PatientsPage from './pages/PatientsPage';
+import PatientFilesPage from './pages/PatientFilesPage';
 import TransactionsPage from './pages/TransactionsPage';
 import LabPage from './pages/LabOrdersPage';
 import InventoryPage from './pages/InventoryPage';
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
       { path: 'treatment/:id', element: <TreatmentPage /> },
       { path: 'invoices', element: <InvoicesPage /> },
       { path: 'patients', element: <PatientsPage /> },
+      { path: 'files', element: <PatientFilesPage /> },
       { path: 'transactions', element: <TransactionsPage /> },
       { path: 'lab', element: <LabPage /> },
       { path: 'inventory', element: <InventoryPage /> },

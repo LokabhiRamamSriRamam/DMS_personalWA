@@ -18,9 +18,8 @@ export const TreatmentProvider = ({ children }) => {
     setActiveTreatment(prev => prev ? { ...prev, minimized: false } : null);
   };
 
-  const closeTreatment = () => {
-    // Optional: Add confirmation if unsaved changes exist
-    if (window.confirm("Are you sure you want to close this session? Any unsaved chart data might be lost.")) {
+  const closeTreatment = (force = false) => {
+    if (force || window.confirm("Are you sure you want to close this session? Any unsaved chart data might be lost.")) {
       setActiveTreatment(null);
     }
   };

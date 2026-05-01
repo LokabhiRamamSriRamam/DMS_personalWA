@@ -8,7 +8,7 @@ import {
   testSend,
   getTreatmentNames,
   getJourneys,    createJourney,   updateJourney,   deleteJourney,
-  getFeedback, sendFeedbackPoll, createFollowUpTemplate,
+  getFeedback, sendFeedbackPoll,
 } from '../controllers/whatsapp.controller.js';
 
 const router = express.Router();
@@ -49,8 +49,5 @@ router.post('/test-send', testSend);
 // Feedback / Poll Responses (protected)
 router.post('/feedback/send', sendFeedbackPoll);
 router.get('/feedback', getFeedback);
-
-// Follow-up Templates
-router.post('/feedback/followup-templates', createFollowUpTemplate);
 
 export default router;

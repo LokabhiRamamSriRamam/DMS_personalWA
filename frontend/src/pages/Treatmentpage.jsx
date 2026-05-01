@@ -8,6 +8,7 @@ import {
 // --- IMPORTS ---
 import API from '../services/api';
 import { useAuth } from '../Context/AuthContext';
+import { useTreatment } from '../Context/TreatmentContext';
 import PatientProfileModal from '../modals/PatientProfileModal';
 import RichTextEditorModal from '../modals/RichTextEditorModal';
 import PrescriptionModal from '../modals/PrescriptionModal';
@@ -868,6 +869,7 @@ export default function TreatmentPage({ patientIdProp }) {
   const id = patientIdProp || paramId;
 
   const { user } = useAuth();
+  const { closeTreatment } = useTreatment();
 
   const [patient, setPatient]               = useState(null);
   const [visits, setVisits]                 = useState([]);
@@ -935,6 +937,7 @@ export default function TreatmentPage({ patientIdProp }) {
       setShowConcludeModal(false);
       setConcludingAppointment(null);
       alert('Appointment marked as completed');
+      closeTreatment(true);
     } catch (err) {
       console.error('Error concluding appointment:', err);
       alert('Failed to conclude appointment: ' + err.message);

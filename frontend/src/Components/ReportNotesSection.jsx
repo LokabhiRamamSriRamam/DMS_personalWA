@@ -110,14 +110,6 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
   // --- RENDERERS ---
   const renderDashboard = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-center py-8 px-6 bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl border-2 border-dashed border-amber-300">
-        <div className="text-center">
-          <div className="text-4xl mb-2">🔜</div>
-          <h3 className="text-xl font-bold text-slate-800 mb-1">Reports & File Management Coming Soon</h3>
-          <p className="text-sm text-slate-600">We're working on integrating file storage and document management.</p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
         {CATEGORIES.map((cat) => {
           const stats = getCategoryStats(cat.id);
@@ -125,7 +117,11 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
           return (
             <div
               key={cat.id}
-              className={`p-5 rounded-xl border ${cat.border} ${cat.bg} cursor-not-allowed transition-all flex flex-col justify-between h-32 group opacity-60 relative`}
+              onClick={() => {
+                setActiveCategory(cat.id);
+                setView('LIST');
+              }}
+              className={`p-5 rounded-xl border ${cat.border} ${cat.bg} cursor-pointer hover:shadow-md transition-all flex flex-col justify-between h-32 group relative`}
             >
               <div className="flex justify-between items-start">
                 <div className={`p-2 bg-white rounded-lg shadow-sm ${cat.color}`}><Icon size={20} /></div>
@@ -135,7 +131,6 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
                 <h4 className={`font-bold text-lg ${cat.color.replace('600', '800')}`}>{cat.label}</h4>
                 <p className={`text-xs ${cat.color} opacity-70`}>Updated: {stats.lastUpdated}</p>
               </div>
-              <div className="absolute inset-0 rounded-xl bg-black/5"></div>
             </div>
           );
         })}
@@ -252,18 +247,12 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
         </button>
       </div>
       <div className="flex-1 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
-        {selectedFile.mime_type?.startsWith('image/') && selectedFile.web_view_link ? (
-          <img src={selectedFile.web_view_link} alt="Preview" className="max-h-full max-w-full object-contain shadow-lg" />
-        ) : selectedFile.web_view_link ? (
-          <a
-            href={selectedFile.web_view_link}
-            target="_blank"
-            rel="noreferrer"
-            className="flex flex-col items-center gap-3 text-[#137fec] hover:underline"
-          >
-            <FileText size={48} />
-            <span className="text-sm font-medium">Open in Google Drive</span>
-          </a>
+        {selectedFile.web_view_link ? (
+          <iframe 
+            src={selectedFile.web_view_link.replace(/\/view.*/, '/preview')} 
+            className="w-full h-full border-0"
+            title="Preview"
+          ></iframe>
         ) : (
           <div className="text-slate-400 flex flex-col items-center">
             <FileText size={48} className="mb-2" />
@@ -287,13 +276,13 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
         <div className="flex-1 bg-black/90 flex flex-col border-r border-slate-700">
           <div className="p-2 bg-black text-white text-xs text-center opacity-70 border-b border-slate-800">{selectedFile?.file_name}</div>
           <div className="flex-1 flex items-center justify-center p-4">
-            {selectedFile?.web_view_link && <img src={selectedFile.web_view_link} className="max-w-full max-h-full object-contain" alt={selectedFile.file_name} />}
+            {selectedFile?.web_view_link && <iframe src={selectedFile.web_view_link.replace(/\/view.*/, '/preview')} className="w-full h-full border-0" title="Selected File" />}
           </div>
         </div>
         <div className="flex-1 bg-black/90 flex flex-col">
           <div className="p-2 bg-black text-white text-xs text-center opacity-70 border-b border-slate-800">{compareFile?.file_name}</div>
           <div className="flex-1 flex items-center justify-center p-4">
-            {compareFile?.web_view_link && <img src={compareFile.web_view_link} className="max-w-full max-h-full object-contain" alt={compareFile.file_name} />}
+            {compareFile?.web_view_link && <iframe src={compareFile.web_view_link.replace(/\/view.*/, '/preview')} className="w-full h-full border-0" title="Compare File" />}
           </div>
         </div>
       </div>

@@ -164,6 +164,12 @@ const NavigationLayout = ({ children }) => {
                 active={isActive('/patients')} 
               />
               <SidebarItem 
+                icon="folder" 
+                label="Files" 
+                to="/files" 
+                active={isActive('/files')} 
+              />
+              <SidebarItem 
                 icon="credit_card" 
                 label="Transactions" 
                 to="/transactions" 

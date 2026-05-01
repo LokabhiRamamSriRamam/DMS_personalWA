@@ -254,7 +254,7 @@ export async function sendToWAAPI(payload, waapiBaseUrl) {
   console.log(`[WhatsApp] WAAPI payload:`, JSON.stringify(waapiPayload, null, 2));
 
   try {
-    const res = await fetch(`${waapiBaseUrl}/messages/send`, {
+    const res = await fetch(`${waapiBaseUrl}/dms/sendmessage`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify(waapiPayload),

@@ -499,16 +499,17 @@ export async function sendFeedbackPoll(req, res) {
       return res.status(500).json({ error: 'WAAPI_BASE_URL is not configured' });
     }
 
-    const messageId = `poll_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const payload = {
       tenantId: req.user.tenantId,
       to: patient.contact.mobile,
-      message: JSON.stringify({
+      messageType: 'feedbackPoll',
+      contentType: 'poll',
+      content: {
         name: question,
         values: options,
-      }),
-      messageType: 'feedback',
-      scheduledAt: scheduledAt || new Date().toISOString(),
+        selectableCount: 1,
+      },
+      scheduledAt: scheduledAt || null,
     };
 
     let waapiResponse = null;
@@ -534,7 +535,6 @@ export async function sendFeedbackPoll(req, res) {
 
     res.status(201).json({
       ok: true,
-      messageId,
       status,
       scheduledFor: scheduledAt || new Date().toISOString(),
     });
