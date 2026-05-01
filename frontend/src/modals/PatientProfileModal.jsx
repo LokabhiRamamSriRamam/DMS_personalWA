@@ -5,9 +5,9 @@ import {
   ArrowRight, Stethoscope
 } from 'lucide-react';
 import API from '../services/api';
-import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
-import ReportsNotesSection from '../components/ReportNotesSection';
-import AppointmentTimeline from '../components/AppointmentTimeline';
+import TreatmentPlanBoard from '../components/TreatmentPlanBoard.jsx';
+import ReportsNotesSection from '../components/ReportNotesSection.jsx';
+import AppointmentTimeline from '../components/AppointmentTimeline.jsx';
 
 
 const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {

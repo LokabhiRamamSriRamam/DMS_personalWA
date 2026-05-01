@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Info, Plus, Check, MoreVertical, AlertCircle } from 'lucide-react';
-import AddTreatmentModal from '../modals/AddTreatmentModal';
+import AddTreatmentModal from '../modals/AddTreatmentModal.jsx';
 import { useParams } from 'react-router-dom';
 import API from '../services/api';
 

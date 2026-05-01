@@ -7,18 +7,18 @@ import {
 
 // --- IMPORTS ---
 import API from '../services/api';
-import { useAuth } from '../Context/AuthContext';
-import { useTreatment } from '../Context/TreatmentContext';
-import PatientProfileModal from '../modals/PatientProfileModal';
-import RichTextEditorModal from '../modals/RichTextEditorModal';
-import PrescriptionModal from '../modals/PrescriptionModal';
-import NewInvoiceModal from '../modals/NewInvoiceModal';
-import ClinicalReportModal from '../modals/ClinicalReportModal';
-import TreatmentTabs from '../components/TreatmentTabs';
-import TreatmentPlanBoard from '../components/TreatmentPlanBoard';
-import ReportsNotesSection from '../components/ReportNotesSection';
-import AppointmentTimeline from '../components/AppointmentTimeline';
-import InventoryConsumption from '../components/InventoryConsumption';
+import { useAuth } from '../Context/AuthContext.jsx';
+import { useTreatment } from '../Context/TreatmentContext.jsx';
+import PatientProfileModal from '../modals/PatientProfileModal.jsx';
+import RichTextEditorModal from '../modals/RichTextEditorModal.jsx';
+import PrescriptionModal from '../modals/PrescriptionModal.jsx';
+import NewInvoiceModal from '../modals/NewInvoiceModal.jsx';
+import ClinicalReportModal from '../modals/ClinicalReportModal.jsx';
+import TreatmentTabs from '../components/TreatmentTabs.jsx';
+import TreatmentPlanBoard from '../components/TreatmentPlanBoard.jsx';
+import ReportsNotesSection from '../components/ReportNotesSection.jsx';
+import AppointmentTimeline from '../components/AppointmentTimeline.jsx';
+import InventoryConsumption from '../components/InventoryConsumption.jsx';
 
 // --- Sub-Components ---
 

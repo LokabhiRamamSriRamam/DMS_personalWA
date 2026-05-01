@@ -6,11 +6,11 @@ import {
   ChevronDown, TrendingUp
 } from 'lucide-react';
 
-import ReportSummary from '../components/ReportSummary';
-import ReportFinancials from '../components/ReportFinancials';
-import ReportClinical from '../components/ReportClinical';
-import ReportPatients from '../components/ReportPatients';
-import ReportInventory from '../components/ReportInventory';
+import ReportSummary from '../components/ReportSummary.jsx';
+import ReportFinancials from '../components/ReportFinancials.jsx';
+import ReportClinical from '../components/ReportClinical.jsx';
+import ReportPatients from '../components/ReportPatients.jsx';
+import ReportInventory from '../components/ReportInventory.jsx';
 
 // ── Date preset helpers ──────────────────────────────────────────────────────
 function toIso(d) { return d.toISOString().slice(0, 10); }

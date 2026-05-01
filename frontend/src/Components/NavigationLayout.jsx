@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../Context/AuthContext';
-import { useUser } from '../Context/UserContext';
+import { useAuth } from '../Context/AuthContext.jsx';
+import { useUser } from '../Context/UserContext.jsx';
 
 const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
   return (

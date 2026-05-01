@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, X, Printer, Eye, Mail, Share2, Loader2, CreditCard } from 'lucide-react';
 import API from '../services/api';
-import NewInvoiceModal from '../modals/NewInvoiceModal';
+import NewInvoiceModal from '../modals/NewInvoiceModal.jsx';
 
 // --- VIEW INVOICE MODAL ---
 const ViewInvoiceModal = ({ invoice, onClose }) => {

@@ -3,8 +3,8 @@ import {
   Search, Plus, Download, User, Eye, Edit, Trash2, 
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2
 } from 'lucide-react';
-import PatientProfileModal from '../modals/PatientProfileModal.jsx';
-import AddPatientModal from '../modals/AddPatientModal.jsx';
+import PatientProfileModal from '../modals/PatientProfileModal.jsx.jsx';
+import AddPatientModal from '../modals/AddPatientModal.jsx.jsx';
 import API from '../services/api.js'; 
 
 const PatientsPage = () => {

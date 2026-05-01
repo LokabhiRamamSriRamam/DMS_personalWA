@@ -8,10 +8,10 @@ import {
 import { useNavigate } from 'react-router-dom'; 
 
 // --- IMPORTS ---
-import NewAppointmentModal from '../modals/NewAppointmentModal'; 
-import PatientProfileModal from '../modals/PatientProfileModal'; 
-import CashTransactionModal from '../modals/CashTransactionModal';
-import { useTreatment } from '../Context/TreatmentContext'; // IMPORT CONTEXT
+import NewAppointmentModal from '../modals/NewAppointmentModal.jsx'; 
+import PatientProfileModal from '../modals/PatientProfileModal.jsx'; 
+import CashTransactionModal from '../modals/CashTransactionModal.jsx';
+import { useTreatment } from '../Context/TreatmentContext.jsx'; // IMPORT CONTEXT
 
 // --- HELPER: Calendar Math ---
 const START_HOUR = 9; 

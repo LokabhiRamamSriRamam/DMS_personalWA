@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { Search, Plus, Filter } from 'lucide-react';
 
 // --- IMPORT SUB-COMPONENTS ---
-import InventoryStock from '../components/InventoryStocks';
-import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders'; 
-import InventoryItemList, { AddItemModal } from '../components/InventoryItems';   
-import InventoryLogs, { AddLogModal } from '../components/InventoryLogs';         
-import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors'; 
+import InventoryStock from '../components/InventoryStocks.jsx';
+import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders.jsx'; 
+import InventoryItemList, { AddItemModal } from '../components/InventoryItems.jsx';   
+import InventoryLogs, { AddLogModal } from '../components/InventoryLogs.jsx';         
+import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors.jsx'; 
 
 // --- SHARED COMPONENTS DEFINED HERE ---
 

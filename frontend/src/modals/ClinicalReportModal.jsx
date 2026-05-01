@@ -5,7 +5,7 @@ import {
   Sparkles, Save, SendHorizonal,
 } from 'lucide-react';
 import API from '../services/api';
-import { useAuth } from '../Context/AuthContext';
+import { useAuth } from '../Context/AuthContext.jsx';
 
 const REPORT_TABS = [
   { key: 'short_report',   label: 'Short Report',   icon: FileText      },

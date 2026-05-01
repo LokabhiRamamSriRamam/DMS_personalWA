@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, User, FileText, Plus, Loader2, Stethoscope, X } from 'lucide-react';
 import API from '../services/api';
-import NewAppointmentModal from '../modals/NewAppointmentModal';
+import NewAppointmentModal from '../modals/NewAppointmentModal.jsx';
 
 const STATUS_STYLES = {
   'Completed':  'bg-green-50  text-green-700  border-green-200',
