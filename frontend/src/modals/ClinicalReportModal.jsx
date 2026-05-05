@@ -382,7 +382,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
               </div>
 
               {/* ── Text input for testing (only in idle) ── */}
-              {/* Commented out — testing feature
               {stage === 'idle' && (
                 <div className="w-full max-w-lg">
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -404,7 +403,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
                   </div>
                 </div>
               )}
-              */}
 
               {/* ── Save options (only in idle) ── */}
               {stage === 'idle' && (

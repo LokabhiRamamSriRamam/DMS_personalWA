@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
-  Search, Calendar, ChevronDown, Upload, FileText,
+  Search, Calendar, ChevronDown, Download, FileText,
   ArrowUpRight, Wallet, Building2,
   Printer
 } from 'lucide-react';
@@ -167,6 +167,39 @@ const TransactionsPage = () => {
     setDateFilterLabel(label);
     setShowDateMenu(false);
     setShowCustomInput(false);
+  };
+
+  // Handle Export to CSV
+  const handleExportCSV = () => {
+    if (filteredTransactions.length === 0) {
+      alert("No transactions to export.");
+      return;
+    }
+
+    const headers = ['No.', 'Date', 'Party', 'Type', 'Category', 'Mode', 'Amount'];
+    const rows = filteredTransactions.map((txn, index) => [
+      index + 1,
+      `"${txn.date}"`,
+      `"${txn.party}"`,
+      `"${txn.type}"`,
+      `"${txn.category}"`,
+      `"${txn.method}"`,
+      txn.amount
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Transactions_${activeTab}_${dateFilterLabel.replace(/[\s\-]/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -390,18 +423,15 @@ const TransactionsPage = () => {
           </div>
         </div>
 
-        {/* FABs (Unchanged) */}
+        {/* FABs */}
         <div className="absolute bottom-8 right-8 flex flex-col gap-4 z-30 items-end">
           <div className="group flex items-center justify-end">
-            <button className="flex items-center justify-center bg-[#137fec] hover:bg-blue-700 text-white h-12 w-12 group-hover:w-auto group-hover:px-4 rounded-full transition-all duration-300 shadow-lg overflow-hidden whitespace-nowrap">
-              <Upload size={20} className="flex-shrink-0" />
-              <span className="w-0 group-hover:w-auto opacity-0 group-hover:opacity-100 transition-all duration-300 font-medium text-sm">Import CSV</span>
-            </button>
-          </div>
-          <div className="group flex items-center justify-end">
-            <button className="flex items-center justify-center bg-orange-100 dark:bg-card-dark border border-orange-400 dark:border-slate-700 text-orange-600 dark:text-white hover:border-orange-500 hover:text-orange-600 h-12 w-12 group-hover:w-auto group-hover:px-4 rounded-full transition-all duration-300 shadow-lg overflow-hidden whitespace-nowrap">
-              <FileText size={20} className="flex-shrink-0" />
-              <span className="w-0 group-hover:w-auto opacity-0 group-hover:opacity-100 transition-all duration-300 font-medium text-sm">Report</span>
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center justify-center bg-[#137fec] hover:bg-blue-700 text-white h-12 w-12 group-hover:w-auto group-hover:px-4 rounded-full transition-all duration-300 shadow-lg overflow-hidden whitespace-nowrap"
+            >
+              <Download size={20} className="flex-shrink-0" />
+              <span className="w-0 group-hover:w-auto opacity-0 group-hover:opacity-100 group-hover:ml-2 transition-all duration-300 font-medium text-sm">Export CSV</span>
             </button>
           </div>
         </div>

@@ -17,6 +17,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
   // Data States
   const [patientData, setPatientData] = useState(null);
   const [visits, setVisits] = useState([]);
+  const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   
   // Notes State
@@ -38,6 +39,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
     if (isOpen && initialPatient?._id) {
       fetchPatientDetails();
       fetchVisits(); // Needed for Treatment Board & Records
+      fetchInvoices();
     }
   }, [isOpen, initialPatient]);
 
@@ -60,6 +62,13 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
       try {
           const res = await API.get(`/visits/patient/${initialPatient._id}`);
           setVisits(res.data);
+      } catch (err) { console.error(err); }
+  };
+
+  const fetchInvoices = async () => {
+      try {
+          const res = await API.get(`/invoices?patient_id=${initialPatient._id}`);
+          setInvoices(res.data);
       } catch (err) { console.error(err); }
   };
 
@@ -281,6 +290,67 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
                   patientId={initialPatient._id}
                   patient={patientData || initialPatient}
                 />
+              )}
+
+              {/* === FINANCIALS TAB === */}
+              {activeTab === 'Financials' && (
+                <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                  <h4 className="font-bold text-slate-800 mb-4">Financial Overview</h4>
+                  
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg">
+                      <p className="text-sm text-blue-600 font-semibold">Total Billed</p>
+                      <h2 className="text-2xl font-bold text-blue-900">
+                        ₹{invoices.reduce((sum, inv) => sum + (inv.total_amount || 0), 0).toLocaleString()}
+                      </h2>
+                    </div>
+                    <div className="p-4 bg-orange-50 border border-orange-100 rounded-lg">
+                      <p className="text-sm text-orange-600 font-semibold">Total Pending</p>
+                      <h2 className="text-2xl font-bold text-orange-900">
+                        ₹{invoices.reduce((sum, inv) => sum + (inv.pending_amount || 0), 0).toLocaleString()}
+                      </h2>
+                    </div>
+                  </div>
+
+                  {/* Transactions / Invoices List */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50 text-sm">
+                          <th className="p-3 font-semibold text-slate-600">Date</th>
+                          <th className="p-3 font-semibold text-slate-600">Invoice ID</th>
+                          <th className="p-3 font-semibold text-slate-600">Total Bill</th>
+                          <th className="p-3 font-semibold text-slate-600">Paid Amount</th>
+                          <th className="p-3 font-semibold text-slate-600">Pending Amount</th>
+                          <th className="p-3 font-semibold text-slate-600">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {invoices.length > 0 ? (
+                          invoices.map((inv) => (
+                            <tr key={inv._id} className="border-b border-slate-100 text-sm hover:bg-slate-50">
+                              <td className="p-3 text-slate-800">{formatDate(inv.date)}</td>
+                              <td className="p-3 font-mono text-slate-600">{inv.invoice_id}</td>
+                              <td className="p-3 font-medium text-slate-800">₹{inv.total_amount?.toLocaleString() || 0}</td>
+                              <td className="p-3 text-green-600 font-medium">₹{inv.paid_amount?.toLocaleString() || 0}</td>
+                              <td className="p-3 text-orange-600 font-medium">₹{inv.pending_amount?.toLocaleString() || 0}</td>
+                              <td className="p-3">
+                                <span className={`px-2 py-1 text-xs font-bold rounded-full ${inv.status === 'Paid' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                  {inv.status}
+                                </span>
+                              </td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan="6" className="p-4 text-center text-slate-500 italic">No transactions found.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               )}
 
             </div>
