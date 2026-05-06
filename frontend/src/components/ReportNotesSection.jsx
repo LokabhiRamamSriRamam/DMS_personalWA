@@ -2,23 +2,36 @@ import React, { useState, useEffect } from 'react';
 import {
   FileText, Image as ImageIcon, FileBarChart, HardDrive,
   ChevronLeft, Plus, Calendar, UploadCloud, X,
-  SplitSquareHorizontal, ArrowLeft, Loader2
+  SplitSquareHorizontal, ArrowLeft, Loader2, Sparkles, ExternalLink, Copy, CheckCheck,
 } from 'lucide-react';
 import API from '../services/api';
+import { openExternal } from '../utils/openExternal';
 
 const CATEGORIES = [
   { id: 'Clinical Notes', label: 'Clinical Notes', icon: FileText,     color: 'text-yellow-600', bg: 'bg-yellow-50', border: 'border-yellow-100' },
   { id: 'Photographs',    label: 'Photographs',    icon: ImageIcon,     color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-100' },
   { id: 'Lab Reports',    label: 'Lab Reports',    icon: FileBarChart,  color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100'   },
   { id: 'Scans',          label: 'X-Rays & Scans', icon: HardDrive,     color: 'text-slate-600',  bg: 'bg-slate-50',  border: 'border-slate-100'  },
+  { id: 'AI Reports',     label: 'AI Reports',     icon: Sparkles,      color: 'text-violet-600', bg: 'bg-violet-50', border: 'border-violet-100' },
 ];
+
+// Prefixes used in Drive filenames for AI-generated reports
+const AI_REPORT_PREFIXES = [
+  'Short_Report_', 'Clinical_Template_', 'Patient_Letter_',
+  'Patient Letter_', 'Short Report_', 'Clinical Template_',
+];
+
+function isAiReport(file) {
+  return AI_REPORT_PREFIXES.some(prefix => file.file_name?.startsWith(prefix))
+    || file.file_name?.match(/^[A-Za-z ]+_[A-Za-z ]+_\d{4}-\d{2}-\d{2}\.txt$/);
+}
 
 const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
   const [view, setView] = useState('DASHBOARD');
   const [activeCategory, setActiveCategory] = useState(null);
 
   const [data, setData] = useState({
-    'Clinical Notes': [], 'Photographs': [], 'Lab Reports': [], 'Scans': []
+    'Clinical Notes': [], 'Photographs': [], 'Lab Reports': [], 'Scans': [], 'AI Reports': [],
   });
   const [loading, setLoading] = useState(true);
 
@@ -39,8 +52,10 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
       const res = await API.get(`/files/patient/${patientId}`);
       // Backend returns { files: { 'Clinical Notes': [], 'Scans': [], ... } }
       const grouped = res.data.files || {
-        'Clinical Notes': [], 'Photographs': [], 'Lab Reports': [], 'Scans': []
+        'Clinical Notes': [], 'Photographs': [], 'Lab Reports': [], 'Scans': [],
       };
+      // Derive AI Reports from Clinical Notes files that match AI naming patterns
+      grouped['AI Reports'] = (grouped['Clinical Notes'] || []).filter(isAiReport);
       setData(grouped);
     } catch (err) {
       console.error('Error fetching files:', err);
@@ -93,7 +108,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
     const sorted = [...files].sort((a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at));
     return {
       count: files.length,
-      lastUpdated: new Date(sorted[0].uploaded_at).toLocaleDateString(),
+      lastUpdated: new Date(sorted[0].uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     };
   };
 
@@ -105,6 +120,112 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
       setSelectedFile(file);
       setView('PREVIEW');
     }
+  };
+
+  const [copiedId, setCopiedId] = useState(null);
+
+  function copyLink(file) {
+    navigator.clipboard.writeText(file.web_view_link || '').then(() => {
+      setCopiedId(file._id);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+  }
+
+  // ─── AI Reports timeline renderer ─────────────────────────────────────────────
+  const renderAiReports = () => {
+    const files = [...(data['AI Reports'] || [])].sort(
+      (a, b) => new Date(b.uploaded_at) - new Date(a.uploaded_at)
+    );
+
+    const todayKey = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+
+    const grouped = files.reduce((acc, file) => {
+      const dateKey = new Date(file.uploaded_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+      if (!acc[dateKey]) acc[dateKey] = [];
+      acc[dateKey].push(file);
+      return acc;
+    }, {});
+
+    return (
+      <div className="animate-in fade-in duration-300">
+        <div className="flex items-center gap-3 mb-5 pb-2 border-b border-slate-100">
+          <button
+            onClick={() => setView('DASHBOARD')}
+            className="p-1.5 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"
+          >
+            <ChevronLeft size={20} />
+          </button>
+          <div className="p-1.5 rounded-md bg-violet-50 text-violet-600"><Sparkles size={16} /></div>
+          <h3 className="font-bold text-md text-slate-800">AI Reports</h3>
+          <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{files.length} report{files.length !== 1 ? 's' : ''}</span>
+        </div>
+
+        {files.length === 0 ? (
+          <div className="text-center py-12 bg-violet-50 rounded-xl border-2 border-dashed border-violet-100">
+            <Sparkles size={32} className="text-violet-300 mx-auto mb-2" />
+            <p className="text-slate-400 text-sm">No AI reports generated yet.</p>
+            <p className="text-slate-400 text-xs mt-1">Use the AI Report button on the treatment page to generate one.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-6">
+            {Object.entries(grouped).map(([dateKey, dateFiles]) => {
+              const isToday = dateKey === todayKey;
+              return (
+                <div key={dateKey}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Sparkles size={12} className="text-violet-500" />
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                      {isToday ? `Today — ${dateKey}` : dateKey}
+                    </span>
+                    <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                      {dateFiles.length} file{dateFiles.length !== 1 ? 's' : ''}
+                    </span>
+                    <div className="flex-1 h-px bg-slate-100" />
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    {dateFiles.map(file => (
+                      <div key={file._id} className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-xl hover:border-violet-200 hover:shadow-sm transition-all">
+                        <div className="size-9 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center flex-shrink-0">
+                          <FileText size={16} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-800 truncate" title={file.file_name}>
+                            {file.file_name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                            <Calendar size={10} />
+                            {new Date(file.uploaded_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => copyLink(file)}
+                            title="Copy Drive link"
+                            className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+                          >
+                            {copiedId === file._id ? <CheckCheck size={15} className="text-green-500" /> : <Copy size={15} />}
+                          </button>
+                          {file.web_view_link && (
+                            <button
+                              onClick={() => openExternal(file.web_view_link)}
+                              title="Open in Drive"
+                              className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
+                            >
+                              <ExternalLink size={15} /> Open
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // --- RENDERERS ---
@@ -119,7 +240,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
               key={cat.id}
               onClick={() => {
                 setActiveCategory(cat.id);
-                setView('LIST');
+                setView(cat.id === 'AI Reports' ? 'AI_REPORTS' : 'LIST');
               }}
               className={`p-5 rounded-xl border ${cat.border} ${cat.bg} cursor-pointer hover:shadow-md transition-all flex flex-col justify-between h-32 group relative`}
             >
@@ -308,6 +429,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
       ) : (
         <>
           {view === 'DASHBOARD' && renderDashboard()}
+          {view === 'AI_REPORTS' && renderAiReports()}
           {(view === 'LIST' || view === 'COMPARE_SELECT') && renderFileList(view === 'LIST' ? 'VIEW' : 'COMPARE')}
           {view === 'PREVIEW' && renderFilePreview()}
           {view === 'COMPARE_VIEW' && renderCompareView()}
@@ -343,7 +465,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
                   value={uploadCategory}
                   onChange={(e) => setUploadCategory(e.target.value)}
                 >
-                  {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  {CATEGORIES.filter(c => c.id !== 'AI Reports').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
 

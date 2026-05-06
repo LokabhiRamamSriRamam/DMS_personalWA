@@ -9,6 +9,7 @@ import {
   getTreatmentNames,
   getJourneys,    createJourney,   updateJourney,   deleteJourney,
   getFeedback, sendFeedbackPoll,
+  sendReportWhatsApp,
 } from '../controllers/whatsapp.controller.js';
 
 const router = express.Router();
@@ -45,6 +46,9 @@ router.get('/logs',           getLogs);
 
 // Test send
 router.post('/test-send', testSend);
+
+// AI Report document send
+router.post('/send-report', sendReportWhatsApp);
 
 // Feedback / Poll Responses (protected)
 router.post('/feedback/send', sendFeedbackPoll);

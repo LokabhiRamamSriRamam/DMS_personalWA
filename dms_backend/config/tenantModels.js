@@ -22,6 +22,10 @@ import { TreatmentJourneySchema }   from '../models/TreatmentJourney.model.js';
 import { PollResponseSchema }       from '../models/PollResponse.model.js';
 
 import { PollTemplateSchema }       from '../models/PollTemplate.model.js';
+import { EmailSettingsSchema }      from '../models/EmailSettings.model.js';
+import { EmailTemplateSchema }      from '../models/EmailTemplate.model.js';
+import { EmailLogSchema }           from '../models/EmailLog.model.js';
+import { ReportJobSchema }          from '../models/ReportJob.model.js';
 
 /**
  * Returns all clinic Mongoose models bound to the given tenant connection.
@@ -58,6 +62,10 @@ export function getTenantModels(conn) {
     PollResponse:       getOrCreate('PollResponse',       PollResponseSchema),
 
     PollTemplate:       getOrCreate('PollTemplate',       PollTemplateSchema),
+    EmailSettings:      getOrCreate('EmailSettings',      EmailSettingsSchema),
+    EmailTemplate:      getOrCreate('EmailTemplate',      EmailTemplateSchema),
+    EmailLog:           getOrCreate('EmailLog',           EmailLogSchema),
+    ReportJob:          getOrCreate('ReportJob',          ReportJobSchema),
   };
 
   return conn._dmsModels;

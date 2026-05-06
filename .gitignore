@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Capacitor Android build outputs
+frontend/android/.gradle
+frontend/android/build
+frontend/android/app/build
+frontend/android/local.properties
+frontend/android/.idea

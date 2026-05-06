@@ -54,6 +54,9 @@ const VisitSchema = new mongoose.Schema({
   // --- 6. VISIT NOTES ---
   notes: { type: String, default: '' },
 
+  // --- 7. AI TRANSCRIPT CACHE ---
+  ai_transcript: { type: String, default: '' },
+
 }, { timestamps: true });
 
 export { VisitSchema };

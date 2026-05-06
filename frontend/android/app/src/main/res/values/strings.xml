@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Dental DMS</string>
+    <string name="title_activity_main">Dental DMS</string>
+    <string name="package_name">com.connectgenai.dentaldms</string>
+    <string name="custom_url_scheme">com.connectgenai.dentaldms</string>
+</resources>

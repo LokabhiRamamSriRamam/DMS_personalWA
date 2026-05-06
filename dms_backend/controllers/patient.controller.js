@@ -102,14 +102,23 @@ export async function createPatient(req, res) {
   const { Patient } = req.tenantModels;
   const credentials = req.tenantConfig;
   try {
-    // Find the highest existing patientId and increment from there
-    const lastPatient = await Patient.findOne({}, { patientId: 1 }).sort({ patientId: -1 });
+    // Patient ID format: PID-YYYY-NNNN (year-scoped, resets each calendar year)
+    // - Doctor-readable: year tells when the patient was first registered
+    // - 4-digit counter supports 9,999 patients per year per tenant
+    // - Backwards compatible: legacy "PID-001" rows are ignored when computing next NNNN for the year
+    const year      = new Date().getFullYear();
+    const yearPrefix = `PID-${year}-`;
+    const lastForYear = await Patient.findOne(
+      { patientId: { $regex: `^${yearPrefix}` } },
+      { patientId: 1 }
+    ).sort({ patientId: -1 });
+
     let nextNum = 1;
-    if (lastPatient && lastPatient.patientId) {
-      const match = lastPatient.patientId.match(/PID-(\d+)/);
-      if (match) nextNum = parseInt(match[1], 10) + 1;
+    if (lastForYear && lastForYear.patientId) {
+      const m = lastForYear.patientId.match(/^PID-\d{4}-(\d+)$/);
+      if (m) nextNum = parseInt(m[1], 10) + 1;
     }
-    const patientId = `PID-${String(nextNum).padStart(3, '0')}`;
+    const patientId = `${yearPrefix}${String(nextNum).padStart(4, '0')}`;
 
     // Format phone number for WhatsApp (ensure country code)
     const patientData = { ...req.body, patientId };

@@ -3,7 +3,11 @@ import { API_BASE_URL, API_FALLBACK_URL, API_MAX_RETRIES } from '../config/env.j
 
 const api = axios.create({ baseURL: API_BASE_URL });
 
-// Attach JWT token to every request
+// Axios interceptors are synchronous — read from localStorage directly.
+// On native Capacitor, AuthContext pre-loads the token into localStorage via
+// storage.js (which writes localStorage on web and Preferences on native).
+// The sync read here is safe because the token is mirrored to localStorage
+// by storage.set() on all platforms.
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('dms_token');
   if (token) {

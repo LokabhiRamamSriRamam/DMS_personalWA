@@ -1,0 +1,17 @@
+{
+  "appId": "com.connectgenai.dentaldms",
+  "appName": "Dental DMS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "Preferences": {
+      "group": "DentalDMS"
+    }
+  }
+}

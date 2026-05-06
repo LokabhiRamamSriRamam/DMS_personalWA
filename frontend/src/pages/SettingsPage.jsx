@@ -1,6 +1,502 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Download, Upload } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import API from '../services/api';
+import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
+
+// ─── Email Tab ────────────────────────────────────────────────────────────────
+
+const EVENT_LABELS = {
+  aiReportReady:     'AI Report Ready',
+  appointmentBooked: 'Appointment Booked',
+  invoiceGenerated:  'Invoice Generated',
+};
+
+const LANG_LABELS = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
+
+function EmailTab() {
+  const [emailSubTab, setEmailSubTab] = useState('connection');
+
+  // Settings state
+  const [settings, setSettings] = useState(null);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [smtpForm, setSmtpForm] = useState({
+    mode: 'gmail', enabled: false, automationEnabled: false,
+    fromName: '', fromEmail: '', replyTo: '',
+    smtp: { host: 'smtp.gmail.com', port: 465, secure: true, user: '', password: '' },
+    events: {
+      aiReportReady:     { enabled: false, delayMinutes: 0 },
+      appointmentBooked: { enabled: false, delayMinutes: 0 },
+      invoiceGenerated:  { enabled: false, delayMinutes: 0 },
+    },
+  });
+  const [testEmail, setTestEmail] = useState('');
+  const [testStatus, setTestStatus] = useState(null); // null | 'sending' | 'ok' | 'fail'
+  const [testError, setTestError] = useState('');
+
+  // Templates state
+  const [templates, setTemplates] = useState([]);
+  const [templateModal, setTemplateModal] = useState(null); // null | template obj | 'new'
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+
+  // Logs state
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsFilter, setLogsFilter] = useState({ event: '', status: '' });
+  const [expandedLog, setExpandedLog] = useState(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    if (emailSubTab === 'templates') fetchTemplates();
+    if (emailSubTab === 'logs') fetchLogs();
+  }, [emailSubTab]);
+
+  async function fetchSettings() {
+    try {
+      const res = await API.get('/email/settings');
+      setSettings(res.data);
+      setSmtpForm({
+        mode:             res.data.mode || 'gmail',
+        enabled:          res.data.enabled || false,
+        automationEnabled: res.data.automationEnabled || false,
+        fromName:         res.data.fromName || '',
+        fromEmail:        res.data.fromEmail || '',
+        replyTo:          res.data.replyTo || '',
+        smtp: {
+          host:     res.data.smtp?.host || 'smtp.gmail.com',
+          port:     res.data.smtp?.port || 465,
+          secure:   res.data.smtp?.secure !== false,
+          user:     res.data.smtp?.user || '',
+          password: '', // never pre-fill password
+        },
+        events: res.data.events || {
+          aiReportReady:     { enabled: false, delayMinutes: 0 },
+          appointmentBooked: { enabled: false, delayMinutes: 0 },
+          invoiceGenerated:  { enabled: false, delayMinutes: 0 },
+        },
+      });
+    } catch (err) {
+      console.error('Failed to load email settings:', err);
+    }
+  }
+
+  async function saveSettings() {
+    setSettingsSaving(true);
+    try {
+      await API.put('/email/settings', smtpForm);
+      await fetchSettings();
+      alert('Email settings saved.');
+    } catch (err) {
+      alert('Failed to save: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSettingsSaving(false);
+    }
+  }
+
+  async function sendTestEmail() {
+    if (!testEmail.trim()) return;
+    setTestStatus('sending');
+    setTestError('');
+    try {
+      await API.post('/email/test', { to: testEmail.trim() });
+      setTestStatus('ok');
+    } catch (err) {
+      setTestStatus('fail');
+      setTestError(err.response?.data?.error || err.message);
+    }
+  }
+
+  function handleModeSwitch(mode) {
+    setSmtpForm(f => ({
+      ...f,
+      mode,
+      smtp: {
+        ...f.smtp,
+        host:   mode === 'gmail' ? 'smtp.gmail.com' : '',
+        port:   mode === 'gmail' ? 465 : 587,
+        secure: mode === 'gmail',
+      },
+    }));
+  }
+
+  async function fetchTemplates() {
+    setTemplatesLoading(true);
+    try {
+      const res = await API.get('/email/templates');
+      setTemplates(res.data);
+    } catch (err) {
+      console.error('Failed to load email templates:', err);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  }
+
+  async function handleSaveTemplate(form, id) {
+    if (id) {
+      await API.put(`/email/templates/${id}`, form);
+    } else {
+      await API.post('/email/templates', form);
+    }
+    await fetchTemplates();
+  }
+
+  async function handleDeleteTemplate(id) {
+    if (!window.confirm('Delete this template?')) return;
+    await API.delete(`/email/templates/${id}`);
+    setTemplates(ts => ts.filter(t => t._id !== id));
+  }
+
+  async function fetchLogs() {
+    setLogsLoading(true);
+    try {
+      const params = {};
+      if (logsFilter.event)  params.event  = logsFilter.event;
+      if (logsFilter.status) params.status = logsFilter.status;
+      const res = await API.get('/email/logs', { params });
+      setLogs(res.data);
+    } catch (err) {
+      console.error('Failed to load email logs:', err);
+    } finally {
+      setLogsLoading(false);
+    }
+  }
+
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+        <Mail size={22} /> Email
+      </h2>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
+        {['connection', 'automation', 'templates', 'logs'].map(t => (
+          <button
+            key={t}
+            onClick={() => setEmailSubTab(t)}
+            className={`px-4 py-2.5 text-sm font-semibold capitalize transition-all ${
+              emailSubTab === t
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+            }`}
+          >
+            {t}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Connection ── */}
+      {emailSubTab === 'connection' && (
+        <div className="max-w-lg space-y-5">
+          {/* Mode toggle */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Mode</label>
+            <div className="flex rounded-xl overflow-hidden border border-slate-300 dark:border-slate-700 w-fit">
+              {['gmail', 'custom'].map(m => (
+                <button
+                  key={m}
+                  onClick={() => handleModeSwitch(m)}
+                  className={`px-5 py-2 text-sm font-semibold capitalize transition-colors ${
+                    smtpForm.mode === m
+                      ? 'bg-[#137fec] text-white'
+                      : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-50'
+                  }`}
+                >
+                  {m === 'gmail' ? 'Gmail' : 'Custom SMTP'}
+                </button>
+              ))}
+            </div>
+            {smtpForm.mode === 'gmail' && (
+              <p className="mt-2 text-xs text-slate-500">
+                Gmail requires 2FA + an App Password (not your normal password).
+                Generate one at <span className="font-mono">myaccount.google.com/apppasswords</span>.
+              </p>
+            )}
+          </div>
+
+          {/* Enable toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => setSmtpForm(f => ({ ...f, enabled: !f.enabled }))}
+              className={`w-10 h-5 rounded-full relative transition-colors ${smtpForm.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
+            >
+              <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.enabled ? 'left-5' : 'left-0.5'}`} />
+            </div>
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Email Delivery</span>
+          </label>
+
+          {/* SMTP fields */}
+          {smtpForm.mode === 'custom' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">SMTP Host</label>
+                <input type="text" value={smtpForm.smtp.host} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, host: e.target.value } }))} placeholder="smtp.example.com" className={inputCls} />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Port</label>
+                <input type="number" value={smtpForm.smtp.port} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, port: Number(e.target.value) } }))} className={inputCls} />
+              </div>
+              <div className="flex items-end">
+                <label className="flex items-center gap-2 cursor-pointer pb-1">
+                  <input type="checkbox" checked={smtpForm.smtp.secure} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, secure: e.target.checked } }))} className="w-4 h-4" />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-300">TLS (port 465)</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Email / SMTP Username</label>
+            <input type="email" value={smtpForm.smtp.user} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, user: e.target.value } }))} placeholder="you@gmail.com" className={inputCls} />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">
+              {smtpForm.mode === 'gmail' ? 'App Password' : 'SMTP Password'}
+            </label>
+            <input type="password" value={smtpForm.smtp.password} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, password: e.target.value } }))} placeholder={settings?.smtp?.user ? '••••••••  (leave blank to keep existing)' : 'Password'} className={inputCls} />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">From Name</label>
+              <input type="text" value={smtpForm.fromName} onChange={e => setSmtpForm(f => ({ ...f, fromName: e.target.value }))} placeholder="Dr. Name" className={inputCls} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">From Email</label>
+              <input type="email" value={smtpForm.fromEmail} onChange={e => setSmtpForm(f => ({ ...f, fromEmail: e.target.value }))} placeholder="clinic@example.com" className={inputCls} />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Reply-To (optional)</label>
+              <input type="email" value={smtpForm.replyTo} onChange={e => setSmtpForm(f => ({ ...f, replyTo: e.target.value }))} placeholder="replies@example.com" className={inputCls} />
+            </div>
+          </div>
+
+          <button onClick={saveSettings} disabled={settingsSaving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+            {settingsSaving ? 'Saving...' : 'Save Settings'}
+          </button>
+
+          {/* Test send */}
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-5">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Send a Test Email</p>
+            <div className="flex gap-2">
+              <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="recipient@example.com" className={`${inputCls} flex-1`} />
+              <button onClick={sendTestEmail} disabled={testStatus === 'sending'} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-60">
+                {testStatus === 'sending' ? 'Sending…' : 'Send Test'}
+              </button>
+            </div>
+            {testStatus === 'ok' && <p className="mt-2 text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Test email sent.</p>}
+            {testStatus === 'fail' && <p className="mt-2 text-sm text-red-600 flex items-center gap-1"><XCircle size={14} /> {testError}</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Automation ── */}
+      {emailSubTab === 'automation' && (
+        <div className="max-w-lg space-y-6">
+          {/* Master toggles */}
+          <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div onClick={() => setSmtpForm(f => ({ ...f, automationEnabled: !f.automationEnabled }))} className={`w-10 h-5 rounded-full relative transition-colors ${smtpForm.automationEnabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}>
+                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.automationEnabled ? 'left-5' : 'left-0.5'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Automation Master Switch</p>
+                <p className="text-xs text-slate-500">When OFF, doctor sends manually from the report modal.</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Per-event toggles */}
+          <div className="space-y-4">
+            {Object.keys(EVENT_LABELS).map(event => (
+              <div key={event} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <div
+                      onClick={() => setSmtpForm(f => ({
+                        ...f,
+                        events: { ...f.events, [event]: { ...f.events[event], enabled: !f.events[event]?.enabled } }
+                      }))}
+                      className={`w-8 h-4 rounded-full relative transition-colors ${smtpForm.events?.[event]?.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    >
+                      <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${smtpForm.events?.[event]?.enabled ? 'left-4' : 'left-0.5'}`} />
+                    </div>
+                    <span className="text-xs text-slate-500">{smtpForm.events?.[event]?.enabled ? 'On' : 'Off'}</span>
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-slate-500 whitespace-nowrap">Delay (minutes):</label>
+                  <input
+                    type="number" min="0"
+                    value={smtpForm.events?.[event]?.delayMinutes || 0}
+                    onChange={e => setSmtpForm(f => ({
+                      ...f,
+                      events: { ...f.events, [event]: { ...f.events[event], delayMinutes: Number(e.target.value) } }
+                    }))}
+                    className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none"
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <button onClick={saveSettings} disabled={settingsSaving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+            {settingsSaving ? 'Saving...' : 'Save Automation Settings'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Templates ── */}
+      {emailSubTab === 'templates' && (
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm text-slate-500">Manage per-event email templates with <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">{'{{variable}}'}</code> substitution.</p>
+            <button onClick={() => setTemplateModal('new')} className="flex items-center gap-2 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors">
+              <Plus size={16} /> New Template
+            </button>
+          </div>
+
+          {templatesLoading ? (
+            <div className="text-center py-8 text-slate-500">Loading...</div>
+          ) : templates.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">No templates yet. Create one to get started.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50 dark:bg-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Event</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Language</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Subject</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Status</th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {templates.map(t => (
+                    <tr key={t._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                      <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{EVENT_LABELS[t.event] || t.event}</td>
+                      <td className="px-4 py-3 text-sm text-slate-500">{LANG_LABELS[t.language] || t.language}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 max-w-xs truncate">{t.subject}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${t.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                          {t.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-center gap-2">
+                          <button onClick={() => setTemplateModal(t)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDeleteTemplate(t._id)} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Logs ── */}
+      {emailSubTab === 'logs' && (
+        <div>
+          <div className="flex flex-wrap gap-3 mb-4 items-end">
+            <select value={logsFilter.event} onChange={e => setLogsFilter(f => ({ ...f, event: e.target.value }))} className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none">
+              <option value="">All Events</option>
+              {Object.entries(EVENT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              <option value="manual">Manual</option>
+            </select>
+            <select value={logsFilter.status} onChange={e => setLogsFilter(f => ({ ...f, status: e.target.value }))} className="px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none">
+              <option value="">All Statuses</option>
+              <option value="sent">Sent</option>
+              <option value="failed">Failed</option>
+            </select>
+            <button onClick={fetchLogs} className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-700 dark:text-slate-300 font-semibold rounded-lg text-sm transition-colors">
+              <RefreshCw size={14} /> Refresh
+            </button>
+            <span className="text-xs text-slate-400 ml-auto">{logs.length} record{logs.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {logsLoading ? (
+            <div className="text-center py-8 text-slate-500">Loading...</div>
+          ) : logs.length === 0 ? (
+            <div className="text-center py-12 text-slate-400">No email logs found.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-700">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Patient</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Subject</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">To</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {logs.map(log => (
+                    <React.Fragment key={log._id}>
+                      <tr
+                        onClick={() => setExpandedLog(expandedLog === log._id ? null : log._id)}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer"
+                      >
+                        <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
+                          {new Date(log.sentAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                          {log.patientId ? `${log.patientId.first_name} ${log.patientId.last_name || ''}` : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300 max-w-xs truncate" title={log.subject}>{log.subject || '—'}</td>
+                        <td className="px-4 py-3 text-slate-500 max-w-[12rem] truncate">{log.to}</td>
+                        <td className="px-4 py-3">
+                          {log.status === 'sent'
+                            ? <span className="flex items-center gap-1 text-green-600 font-semibold text-xs"><CheckCircle size={13} /> Sent</span>
+                            : <span className="flex items-center gap-1 text-red-500 font-semibold text-xs" title={log.errorMessage}><XCircle size={13} /> Failed</span>}
+                        </td>
+                      </tr>
+                      {expandedLog === log._id && (
+                        <tr className="bg-slate-50 dark:bg-slate-900">
+                          <td colSpan={5} className="px-6 py-4">
+                            <div className="text-xs space-y-1 text-slate-600 dark:text-slate-400">
+                              <p><span className="font-semibold">Event:</span> {EVENT_LABELS[log.event] || log.event || 'Manual'}</p>
+                              <p><span className="font-semibold">Subject:</span> {log.subject}</p>
+                              <p><span className="font-semibold">To:</span> {log.to}</p>
+                              {log.messageId && <p><span className="font-semibold">Message ID:</span> {log.messageId}</p>}
+                              {log.attachments?.length > 0 && <p><span className="font-semibold">Attachments:</span> {log.attachments.map(a => a.filename).join(', ')}</p>}
+                              {log.errorMessage && <p className="text-red-500"><span className="font-semibold">Error:</span> {log.errorMessage}</p>}
+                              <p><span className="font-semibold">Sent at:</span> {new Date(log.sentAt).toLocaleString()}</p>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Template editor modal */}
+      {templateModal && (
+        <EmailTemplateEditorModal
+          template={templateModal === 'new' ? null : templateModal}
+          onClose={() => setTemplateModal(null)}
+          onSave={handleSaveTemplate}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Main Settings Page ───────────────────────────────────────────────────────
 
 const SettingsPage = () => {
   const [activeTab, setActiveTab] = useState('doctors');
@@ -377,6 +873,16 @@ const SettingsPage = () => {
             }`}
           >
             Clinical Data
+          </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={`px-6 py-3 font-semibold transition-all ${
+              activeTab === 'email'
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            Email
           </button>
         </div>
 
@@ -764,6 +1270,8 @@ const SettingsPage = () => {
             )}
           </div>
         )}
+        {/* Email Tab */}
+        {activeTab === 'email' && <EmailTab />}
       </div>
 
       {/* Service Modal */}

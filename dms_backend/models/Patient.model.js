@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 
 const PatientSchema = new mongoose.Schema({
   // --- IDENTIFIERS ---
-  patientId: { type: String, required: true, unique: true, index: true }, // e.g. "PID-2025-001"
+  patientId: { type: String, required: true, unique: true, index: true }, // e.g. "PID-2026-0001" (year-scoped, 4-digit counter resets annually)
   
   // --- DEMOGRAPHICS ---
   first_name: { type: String, required: true },

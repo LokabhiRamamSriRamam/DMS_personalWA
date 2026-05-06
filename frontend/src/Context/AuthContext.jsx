@@ -1,27 +1,52 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import { storage } from '../utils/storage';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(() => localStorage.getItem('dms_token'));
-  const [user, setUser] = useState(() => {
-    const stored = localStorage.getItem('dms_user');
-    return stored ? JSON.parse(stored) : null;
-  });
+  const [token, setToken] = useState(null);
+  const [user, setUser]   = useState(null);
+  const [ready, setReady] = useState(false);
 
-  function login(token, userData) {
-    localStorage.setItem('dms_token', token);
-    localStorage.setItem('dms_user', JSON.stringify(userData));
-    setToken(token);
+  // On mount, restore persisted auth from storage (async on native, sync on web)
+  useEffect(() => {
+    async function restore() {
+      try {
+        const [t, u] = await Promise.all([
+          storage.get('dms_token'),
+          storage.get('dms_user'),
+        ]);
+        if (t) setToken(t);
+        if (u) {
+          try { setUser(JSON.parse(u)); } catch {}
+        }
+      } finally {
+        setReady(true);
+      }
+    }
+    restore();
+  }, []);
+
+  async function login(newToken, userData) {
+    await Promise.all([
+      storage.set('dms_token', newToken),
+      storage.set('dms_user', JSON.stringify(userData)),
+    ]);
+    setToken(newToken);
     setUser(userData);
   }
 
-  function logout() {
-    localStorage.removeItem('dms_token');
-    localStorage.removeItem('dms_user');
+  async function logout() {
+    await Promise.all([
+      storage.remove('dms_token'),
+      storage.remove('dms_user'),
+    ]);
     setToken(null);
     setUser(null);
   }
+
+  // Show nothing while restoring persisted state (avoids flash-of-unauthenticated)
+  if (!ready) return null;
 
   return (
     <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated: !!token }}>

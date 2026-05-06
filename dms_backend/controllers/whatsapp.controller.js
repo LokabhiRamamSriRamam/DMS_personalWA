@@ -1,5 +1,6 @@
 import { uploadFile, deleteFile } from '../services/cloudinary.service.js';
 import { buildMessage, sendToWAAPI } from '../services/whatsapp.service.js';
+import { generateReportPdf } from '../services/email.service.js';
 
 // ─── Treatment Journey CRUD ───────────────────────────────────────────────────
 
@@ -543,3 +544,109 @@ export async function sendFeedbackPoll(req, res) {
   }
 }
 
+// ─── Send AI Report via WhatsApp ──────────────────────────────────────────
+
+export async function sendReportWhatsApp(req, res) {
+  const { Patient, WhatsAppLog } = req.tenantModels;
+  const { patient_id, to, caption, report_text, template_name } = req.body;
+
+  if (!patient_id || !to || !report_text) {
+    return res.status(400).json({
+      error: 'patient_id, to, and report_text are required',
+    });
+  }
+
+  try {
+    const patient = await Patient.findById(patient_id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const waapiBaseUrl = process.env.WAAPI_BASE_URL || 'https://api.example.com';
+    const doctorName = req.user?.name || 'Attending Doctor';
+    const today = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    // Generate PDF
+    const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
+    const pdfBuffer = await generateReportPdf(report_text, {
+      patientName,
+      doctorName,
+      date: today,
+      templateName: template_name || 'Clinical Report',
+    });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `${template_name || 'Report'}_${patientName}_${dateStr}.pdf`;
+
+    // Upload PDF to Cloudinary
+    const cloudinaryUrl = req.tenantConfig?.cloudinaryCloudName;
+    if (!cloudinaryUrl) {
+      return res.status(400).json({ error: 'Cloudinary not configured for this tenant' });
+    }
+
+    const uploaded = await uploadFile(
+      pdfBuffer,
+      filename,
+      'dms/ai-reports',
+      ['ai-report', template_name],
+      req.tenantConfig
+    );
+
+    if (!uploaded || !uploaded.secure_url) {
+      return res.status(500).json({ error: 'Failed to upload PDF to Cloudinary' });
+    }
+
+    // Build WAAPI payload
+    const payload = {
+      tenantId: req.user.tenantId,
+      to,
+      messageType: 'aiReport',
+      contentType: 'document',
+      content: {
+        url: uploaded.secure_url,
+        mimetype: 'application/pdf',
+        fileName: filename,
+        caption: caption || `Here is your clinical report: ${template_name || 'Patient Letter'}`,
+      },
+    };
+
+    let waapiResponse = null;
+    let status = 'sent';
+    let errorMessage;
+
+    try {
+      waapiResponse = await sendToWAAPI(payload, waapiBaseUrl);
+    } catch (sendErr) {
+      status = 'failed';
+      errorMessage = sendErr.message;
+    }
+
+    // Log the message
+    await WhatsAppLog.create({
+      event: 'aiReportReady',
+      to,
+      payload,
+      status,
+      errorMessage,
+      sentAt: new Date(),
+    });
+
+    if (status === 'failed') {
+      return res.status(500).json({ error: errorMessage });
+    }
+
+    res.json({
+      status: 'sent',
+      to,
+      cloudinaryUrl: uploaded.secure_url,
+      filename,
+    });
+  } catch (err) {
+    console.error('[WhatsApp Report] Error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
