@@ -173,7 +173,9 @@ export async function updateStatus(req, res) {
             patient.contact.mobile,
             baseData,
             patient._id.toString(),
-            appt.whatsapp_language || null
+            appt.whatsapp_language || null,
+            null,
+            appt._id.toString()
           );
 
           // 2. Trigger post-care journeys for each treatment in the visit
