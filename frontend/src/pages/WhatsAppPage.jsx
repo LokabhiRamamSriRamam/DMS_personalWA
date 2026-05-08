@@ -25,7 +25,7 @@ const EVENTS = [
       "doctorName",
       "appointmentType",
     ],
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
   {
     key: "appointmentReminder",
@@ -34,7 +34,7 @@ const EVENTS = [
     icon: "alarm",
     color: "indigo",
     variables: ["name", "firstName", "date", "time", "doctorName"],
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
   {
     key: "appointmentRescheduled",
@@ -50,7 +50,7 @@ const EVENTS = [
       "doctorName",
       "appointmentType",
     ],
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
   {
     key: "treatmentCompleted",
@@ -66,7 +66,7 @@ const EVENTS = [
       "date",
       "doctorName",
     ],
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
   {
     key: "feedbackMessage",
@@ -75,7 +75,7 @@ const EVENTS = [
     icon: "feedback",
     color: "teal",
     variables: ["name", "firstName", "date", "doctorName"],
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
   {
     key: "feedbackPoll",
@@ -85,8 +85,7 @@ const EVENTS = [
     color: "cyan",
     variables: ["name", "firstName", "date", "doctorName"],
     isFeedbackPoll: true,
-    isSupported: true,
-    contentType: "poll",
+    allowedContentTypes: ["poll"],
   },
   {
     key: "postCare",
@@ -103,7 +102,7 @@ const EVENTS = [
       "doctorName",
     ],
     isJourney: true,
-    isSupported: false,
+    allowedContentTypes: ["text"],
   },
 ];
 
@@ -1487,7 +1486,7 @@ function LangEditor({ lang, event, template, onSaved }) {
           ?
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-          {CONTENT_TYPES.filter((ct) => ct.type === "text").map((ct) => (
+          {CONTENT_TYPES.filter((ct) => event.allowedContentTypes?.includes(ct.type)).map((ct) => (
             <button
               key={ct.type}
               type="button"
@@ -1967,7 +1966,7 @@ function StepLangEditor({ lang, event, existing, onSaved }) {
           :
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-          {CONTENT_TYPES.map((ct) => (
+          {CONTENT_TYPES.filter((ct) => event.allowedContentTypes?.includes(ct.type)).map((ct) => (
             <button
               key={ct.type}
               type="button"
@@ -2743,7 +2742,6 @@ function EventCard({
         type="button"
         onClick={() => onConfigure(event.key)}
         className="flex-1 min-w-0 text-left"
-        disabled={event.isSupported === false}
       >
         <div className="flex items-center gap-2 flex-wrap">
           <p
@@ -2754,11 +2752,6 @@ function EventCard({
           {enabled && (
             <span className="text-[10px] px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full font-medium">
               Active
-            </span>
-          )}
-          {event.isSupported === false && (
-            <span className="text-[10px] px-2 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full font-medium">
-              Requires Personal WhatsApp
             </span>
           )}
         </div>
@@ -2804,12 +2797,7 @@ function EventCard({
       <button
         type="button"
         onClick={() => onConfigure(event.key)}
-        disabled={event.isSupported === false}
-        className={`flex-shrink-0 ${
-          event.isSupported === false
-            ? "text-slate-200 dark:text-slate-700 cursor-not-allowed"
-            : "text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400"
-        }`}
+        className="text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 flex-shrink-0"
       >
         <span className="material-symbols-outlined text-sm">settings</span>
       </button>
@@ -2818,13 +2806,8 @@ function EventCard({
       <button
         type="button"
         onClick={() => onToggle(event.key, !enabled)}
-        disabled={event.isSupported === false}
         className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-          event.isSupported === false
-            ? "bg-slate-200 dark:bg-slate-700 cursor-not-allowed"
-            : enabled
-              ? "bg-[#137fec]"
-              : "bg-slate-300 dark:bg-slate-600"
+          enabled ? "bg-[#137fec]" : "bg-slate-300 dark:bg-slate-600"
         }`}
       >
         <span
@@ -3919,7 +3902,7 @@ function MessagesTab({
   onToggle,
   onConfigure,
 }) {
-  const appointmentEvents = events.filter((e) => !e.isJourney && e.key !== "postCare" && e.isSupported !== false);
+  const appointmentEvents = events.filter((e) => !e.isJourney && e.key !== "postCare");
   const journeyEvent = events.find((e) => e.isJourney);
 
   return (
