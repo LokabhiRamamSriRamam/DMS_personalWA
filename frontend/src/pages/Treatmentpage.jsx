@@ -19,6 +19,7 @@ import TreatmentPlanBoard from '../components/TreatmentPlanBoard.jsx';
 import ReportsNotesSection from '../components/ReportNotesSection.jsx';
 import AppointmentTimeline from '../components/AppointmentTimeline.jsx';
 import InventoryConsumption from '../components/InventoryConsumption.jsx';
+import { useInventorySettings } from '../Context/SettingsContext.jsx';
 
 // --- Sub-Components ---
 
@@ -95,7 +96,7 @@ const PatientInfoCard = ({ patient, onViewProfile, appointments = [] }) => {
   );
 };
 
-const ClinicalHistory = ({ patient, onSaveHistory }) => {
+const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComplaint }) => {
   // Local state for editing fields
   const [formData, setFormData] = useState({
     chief_complaint: '',
@@ -104,19 +105,28 @@ const ClinicalHistory = ({ patient, onSaveHistory }) => {
   });
   const [isEditing, setIsEditing] = useState(false);
 
-  // Initialize data from patient prop
+  // Initialize data from patient prop and current visit
   useEffect(() => {
     if (patient) {
       setFormData({
-        chief_complaint: patient.chief_complaint || '',
+        // chief_complaint comes from the current visit, not the patient
+        chief_complaint: currentVisit?.chief_complaint || '',
         medical_history: patient.medical_history || [],
         dental_history: patient.dental_history || ''
       });
     }
-  }, [patient]);
+  }, [patient, currentVisit]);
 
-  const handleSave = () => {
-    onSaveHistory(formData);
+  const handleSave = async () => {
+    // 1. Save medical_history & dental_history to patient
+    onSaveHistory({
+      medical_history: formData.medical_history,
+      dental_history: formData.dental_history
+    });
+    // 2. Save chief_complaint to current visit (if a visit exists)
+    if (currentVisit?._id) {
+      await onSaveVisitComplaint(currentVisit._id, formData.chief_complaint);
+    }
     setIsEditing(false);
   };
 
@@ -144,9 +154,12 @@ const ClinicalHistory = ({ patient, onSaveHistory }) => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="flex flex-col gap-5">
           
-          {/* 1. Chief Complaint */}
+          {/* 1. Chief Complaint — per visit */}
           <div className="flex flex-col gap-2">
-            <label className="font-semibold text-gray-700">Chief Complaints</label>
+            <div className="flex items-center gap-2">
+              <label className="font-semibold text-gray-700">Chief Complaints</label>
+              <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-500 border border-blue-100 rounded font-medium">This Visit</span>
+            </div>
             {isEditing ? (
                 <textarea 
                     className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec] resize-none"
@@ -511,13 +524,20 @@ const Medications = ({ visits = [], patientId, onRefresh }) => {
                   <td className="py-2 text-slate-600">{p.instructions || '-'}</td>
                   <td className="py-2 text-slate-400 text-xs">{formatVisitDate(p.visitDate)}</td>
                   <td className="py-2">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                      p.invoice_id
-                        ? 'bg-green-50 text-green-600 border-green-100'
-                        : 'bg-orange-50 text-orange-500 border-orange-100'
-                    }`}>
-                      {p.invoice_id ? 'Paid' : 'Unpaid'}
-                    </span>
+                    {(() => {
+                      const inv = p.invoice_id;
+                      const isPaid    = inv?.status === 'Paid';
+                      const isPartial = inv && !isPaid;
+                      return (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          isPaid    ? 'bg-green-50 text-green-600 border-green-100'
+                          : isPartial ? 'bg-yellow-50 text-yellow-600 border-yellow-100'
+                          : 'bg-orange-50 text-orange-500 border-orange-100'
+                        }`}>
+                          {isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
+                        </span>
+                      );
+                    })()}
                   </td>
                   <td className="py-2">
                     <button
@@ -719,13 +739,20 @@ const LabOrders = ({ patientId, onRefresh, onOrdersLoaded }) => {
                   {order.cost_to_clinic > 0 && (
                     <span className="text-xs text-slate-500">₹{order.cost_to_clinic}</span>
                   )}
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
-                    order.invoice_id
-                      ? 'bg-green-50 text-green-600 border-green-100'
-                      : 'bg-orange-50 text-orange-500 border-orange-100'
-                  }`}>
-                    {order.invoice_id ? 'Paid' : 'Unpaid'}
-                  </span>
+                  {(() => {
+                    const inv = order.invoice_id;
+                    const isPaid    = inv?.status === 'Paid';
+                    const isPartial = inv && !isPaid;
+                    return (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                        isPaid    ? 'bg-green-50 text-green-600 border-green-100'
+                        : isPartial ? 'bg-yellow-50 text-yellow-600 border-yellow-100'
+                        : 'bg-orange-50 text-orange-500 border-orange-100'
+                      }`}>
+                        {isPaid ? 'Paid' : isPartial ? 'Partial' : 'Unpaid'}
+                      </span>
+                    );
+                  })()}
                   <select
                     value={order.status}
                     onChange={e => handleStatusChange(order._id, e.target.value)}
@@ -870,6 +897,7 @@ export default function TreatmentPage({ patientIdProp }) {
 
   const { user } = useAuth();
   const { closeTreatment } = useTreatment();
+  const { inventorySettings } = useInventorySettings();
 
   const [patient, setPatient]               = useState(null);
   const [visits, setVisits]                 = useState([]);
@@ -913,13 +941,24 @@ export default function TreatmentPage({ patientIdProp }) {
 
   const handleSaveHistory = async (updatedData) => {
       try {
+          // Only patient-level fields (NO chief_complaint)
           await API.put(`/patients/${id}`, updatedData);
-          // Optimistic update or refresh
           setPatient(prev => ({ ...prev, ...updatedData }));
           alert("Clinical History Updated");
       } catch (err) {
           console.error("Failed to update history", err);
           alert("Update failed");
+      }
+  };
+
+  const handleSaveVisitComplaint = async (visitId, chief_complaint) => {
+      try {
+          await API.patch(`/visits/${visitId}`, { chief_complaint });
+          // Optimistically update local visits state
+          setVisits(prev => prev.map(v => v._id === visitId ? { ...v, chief_complaint } : v));
+      } catch (err) {
+          console.error("Failed to update visit chief complaint", err);
+          alert("Failed to save Chief Complaint");
       }
   };
 
@@ -992,7 +1031,9 @@ export default function TreatmentPage({ patientIdProp }) {
 
         <ClinicalHistory
             patient={patient}
+            currentVisit={visits[visits.length - 1] || null}
             onSaveHistory={handleSaveHistory}
+            onSaveVisitComplaint={handleSaveVisitComplaint}
         />
 
         <ReportsNotesSection
@@ -1017,7 +1058,9 @@ export default function TreatmentPage({ patientIdProp }) {
 
         {/* 3. Other Sections — use displayVisits so they reflect the selected date */}
         <ConsultationNotes visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
-        <InventoryConsumption visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
+        {inventorySettings.consumableEnabled && (
+          <InventoryConsumption visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
+        )}
         <Medications visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <LabOrders patientId={id} onRefresh={fetchPageData} onOrdersLoaded={setLabOrders} />
         <AdvicesRecall visits={displayVisits} patientId={id} patient={patient} onRefresh={fetchPageData} onSelectDate={setViewingDate} />
@@ -1094,7 +1137,11 @@ export default function TreatmentPage({ patientIdProp }) {
           // Unpaid treatments
           ...visits.flatMap(v =>
             (v.treatments || [])
-              .filter(t => !t.invoice_id && t.status !== 'Cancelled' && t.treatment_name !== 'Missing')
+              .filter(t => {
+                  const inv = t.invoice_id;
+                  // Exclude only if fully paid; partial-payment or no invoice → still include
+                  return inv?.status !== 'Paid' && t.status !== 'Cancelled' && t.treatment_name !== 'Missing';
+              })
               .map(t => ({
                 name:           t.treatment_name,
                 type:           'Service',
@@ -1108,7 +1155,7 @@ export default function TreatmentPage({ patientIdProp }) {
           // Unpaid prescriptions
           ...visits.flatMap(v =>
             (v.prescriptions || [])
-              .filter(p => !p.invoice_id)
+              .filter(p => p.invoice_id?.status !== 'Paid')
               .map(p => ({
                 name:               p.drug_name,
                 type:               'Pharmacy',
@@ -1121,7 +1168,7 @@ export default function TreatmentPage({ patientIdProp }) {
           ),
           // Unpaid lab orders
           ...labOrders
-            .filter(o => !o.invoice_id)
+            .filter(o => o.invoice_id?.status !== 'Paid')
             .map(o => ({
               name:     o.items?.[0]?.item_name || 'Lab Order',
               type:     'Lab',

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext.jsx';
 import { useUser } from '../Context/UserContext.jsx';
+import { useInventorySettings } from '../Context/SettingsContext.jsx';
 
 const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
   return (
@@ -116,7 +117,10 @@ const NavigationLayout = ({ children }) => {
   const navigate = useNavigate();
   const { user: authUser, logout } = useAuth();
   const { user, tenant } = useUser();
+  const { inventorySettings } = useInventorySettings();
   const [showClinicModal, setShowClinicModal] = React.useState(false);
+  const showInventoryNav =
+    inventorySettings.medicineEnabled || inventorySettings.consumableEnabled;
 
   function handleLogout() {
     logout();
@@ -187,12 +191,14 @@ const NavigationLayout = ({ children }) => {
                 to="/lab" 
                 active={isActive('/lab')} 
               />
-              <SidebarItem 
-                icon="inventory" 
-                label="Inventory" 
-                to="/inventory" 
-                active={isActive('/inventory')} 
-              />
+              {showInventoryNav && (
+                <SidebarItem
+                  icon="inventory"
+                  label="Inventory"
+                  to="/inventory"
+                  active={isActive('/inventory')}
+                />
+              )}
               <SidebarItem 
                 icon="dashboard" 
                 label="Insights" 

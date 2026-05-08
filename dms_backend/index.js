@@ -30,6 +30,7 @@ import analyticsRoutes from './routes/analytics.routes.js';
 import whatsappRoutes from './routes/whatsapp.routes.js';
 import feedbackRoutes from './routes/feedback.routes.js';
 import emailRoutes from './routes/email.routes.js';
+import { startAppointmentStatusJob } from './services/appointmentStatusJob.js';
 
 dotenv.config();
 
@@ -92,6 +93,8 @@ async function startServer() {
     await connectAnalyticsDb();
     app.listen(PORT, () => {
       console.log(`🚀 DMS Multi-Tenant Backend running on port ${PORT}`);
+      // Start background appointment status transitions
+      startAppointmentStatusJob();
     });
   } catch (err) {
     console.error('❌ PANIC: Could not connect to Analytics DB. Server aborted.', err.message);

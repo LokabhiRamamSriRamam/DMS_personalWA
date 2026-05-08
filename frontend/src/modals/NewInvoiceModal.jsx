@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Trash2, Stethoscope, Pill, TestTube, Search, Loader2 } from 'lucide-react';
 import API from '../services/api';
+import { useInventorySettings } from '../Context/SettingsContext';
 
 // ── Patient search (used when no initialPatient is provided) ──────────────────
 const PatientSearchInput = ({ onSelect, onAddNew }) => {
@@ -196,6 +197,8 @@ export default function NewInvoiceModal({
   visitRefs = null,
 }) {
   const today = new Date().toISOString().split('T')[0];
+  const { inventorySettings } = useInventorySettings();
+  const medicineEnabled = inventorySettings.medicineEnabled;
 
   const [patientInfo, setPatientInfo] = useState({ name: '', phone: '', id: null });
   const [items, setItems] = useState([]);
@@ -227,7 +230,12 @@ export default function NewInvoiceModal({
     }
 
     if (initialItems && initialItems.length > 0) {
-      setItems(initialItems.map(it => ({
+      // Drop Pharmacy items when medicine inventory is off — they should not
+      // be billed in that mode.
+      const filtered = medicineEnabled
+        ? initialItems
+        : initialItems.filter(it => it.type !== 'Pharmacy');
+      setItems(filtered.map(it => ({
         name:               it.name || '',
         type:               it.type || 'Service',
         quantity:           it.quantity || 1,
@@ -409,9 +417,11 @@ export default function NewInvoiceModal({
                   <button onClick={() => addItem('Service')} className="text-xs flex items-center gap-1 text-slate-600 hover:text-blue-600 font-bold border px-2 py-1 rounded">
                     <Stethoscope size={12} /> Service
                   </button>
-                  <button onClick={() => addItem('Pharmacy')} className="text-xs flex items-center gap-1 text-slate-600 hover:text-green-600 font-bold border px-2 py-1 rounded">
-                    <Pill size={12} /> Medicine
-                  </button>
+                  {medicineEnabled && (
+                    <button onClick={() => addItem('Pharmacy')} className="text-xs flex items-center gap-1 text-slate-600 hover:text-green-600 font-bold border px-2 py-1 rounded">
+                      <Pill size={12} /> Medicine
+                    </button>
+                  )}
                   <button onClick={() => addItem('Lab')} className="text-xs flex items-center gap-1 text-slate-600 hover:text-purple-600 font-bold border px-2 py-1 rounded">
                     <TestTube size={12} /> Lab
                   </button>

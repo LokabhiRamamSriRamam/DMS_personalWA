@@ -99,7 +99,7 @@ const AppointmentsPage = () => {
   const dropdownRef = useRef(null);
   const [editingAppointment, setEditingAppointment] = useState(null);
 
-  const ALL_STATUSES = ['Confirmed', 'Checked In', 'Completed', 'Cancelled'];
+  const ALL_STATUSES = ['Scheduled', 'Checked In', 'Completed', 'Cancelled'];
 
   // Click Outside Hook
   useEffect(() => {
@@ -149,21 +149,22 @@ const AppointmentsPage = () => {
         const doctor = doctorsMap.find(d => d._id === doctorId);
         const doctorName = doctor ? doctor.name : 'Unassigned';
 
-        // Convert UTC to IST (UTC+5:30) for display
+        // start_time / end_time are UTC ISO strings. Parse as real instants and
+        // format/display via the explicit Asia/Kolkata timezone — DO NOT manually
+        // add +5:30 to the millisecond value, otherwise toLocaleTimeString (which
+        // applies the browser's local timezone) double-shifts the result.
         const utcStart = new Date(apt.start_time);
-        const istStart = new Date(utcStart.getTime() + (5.5 * 60 * 60 * 1000));
         const utcEnd = new Date(apt.end_time);
-        const istEnd = new Date(utcEnd.getTime() + (5.5 * 60 * 60 * 1000));
-        const duration = (istEnd - istStart) / 60000;
+        const duration = (utcEnd - utcStart) / 60000;
 
         return {
           id: apt._id,
-          rawTime: istStart,
+          rawTime: utcStart,           // Real Date instant — safe to compare with new Date()
+          utcStartIso: apt.start_time, // Raw UTC ISO string — used for edit modal (must NOT be shifted again)
           duration: duration || 30,
-          time: istStart.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+          time: utcStart.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
           patient: patientName,
 
-          // --- FIX 1: Store FULL patient object for "Details" button ---
           rawPatient: apt.patient_id,
 
           patientId: apt.patient_id?._id,
@@ -247,10 +248,11 @@ const AppointmentsPage = () => {
   const handleEdit = (appointment) => {
     const apptForEdit = {
         _id: appointment.id,
-        // Fallback if rawPatient is missing
         patient: appointment.rawPatient || { first_name: 'Unknown', last_name: '' }, 
         doctor_id: appointment.doctorId,
-        start_time: appointment.rawTime,
+        // Use utcStartIso (raw UTC string from DB) so the modal can convert IST correctly.
+        // Do NOT use rawTime — it's already IST-shifted and would cause a double +5:30 offset.
+        start_time: appointment.utcStartIso,
         type: appointment.treatment,
         notes: appointment.notes,
         status: appointment.status
@@ -318,7 +320,7 @@ const AppointmentsPage = () => {
           <StatCard icon={<Calendar />} colorClass="text-[#137fec]" title="Total Appointments" value={appointments.length} subtext="For selected date" />
           <StatCard icon={<Users />} colorClass="text-orange-500" title="Pending Check-ins" value={appointments.filter(a => !['Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'].includes(a.status)).length} subtext={`${appointments.filter(a => a.status === 'Checked In' || a.status === 'In Progress').length} Checked in`} />
           <StatCard icon={<CreditCard />} colorClass="text-[#137fec]" title="Today's Revenue" value={`₹${dashStats.todays_revenue.toLocaleString('en-IN')}`} subtext="Services + Labs for the day" />
-          <StatCard icon={<FileText />} colorClass="text-red-500" title="Outstanding" value={`₹${dashStats.outstanding_amount.toLocaleString('en-IN')}`} trend={`${dashStats.outstanding_count} Invoice${dashStats.outstanding_count !== 1 ? 's' : ''}`} trendUp={false} subtext="Pending this month" />
+          <StatCard icon={<FileText />} colorClass="text-red-500" title="Outstanding" value={`₹${dashStats.outstanding_amount.toLocaleString('en-IN')}`} trend={`${dashStats.outstanding_count} Invoice${dashStats.outstanding_count !== 1 ? 's' : ''}`} trendUp={false} subtext="Overall pending" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -417,8 +419,11 @@ const AppointmentsPage = () => {
                                       ))}
                                     </div>
 
-                                    {/* 3. EDIT BUTTON */}
+                                    {/* 3. EDIT & PROFILE BUTTONS */}
                                     <div className="sticky bottom-0 bg-white border-t border-slate-100 p-1">
+                                      <button onClick={() => handleViewProfile(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2">
+                                        <Users size={14} className="text-[#137fec]" /> Patient Profile
+                                      </button>
                                       <button onClick={() => handleEdit(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2">
                                         <Edit size={14} className="text-[#137fec]" /> Edit Appointment
                                       </button>

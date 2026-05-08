@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { Search, Plus, Filter } from 'lucide-react';
+import { Search, Plus, Filter, PackageX, Settings as SettingsIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // --- IMPORT SUB-COMPONENTS ---
 import InventoryStock from '../components/InventoryStocks.jsx';
-import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders.jsx'; 
-import InventoryItemList, { AddItemModal } from '../components/InventoryItems.jsx';   
-import InventoryLogs, { AddLogModal } from '../components/InventoryLogs.jsx';         
-import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors.jsx'; 
+import InventoryOrders, { CreateOrderModal } from '../components/InventoryOrders.jsx';
+import InventoryItemList, { AddItemModal } from '../components/InventoryItems.jsx';
+import InventoryLogs, { AddLogModal } from '../components/InventoryLogs.jsx';
+import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors.jsx';
+import { useInventorySettings } from '../Context/SettingsContext.jsx';
 
 // --- SHARED COMPONENTS DEFINED HERE ---
 
@@ -41,6 +43,10 @@ const SectionHeader = ({ title, icon: Icon, colorClass, count }) => (
 // --- MAIN PAGE COMPONENT ---
 
 const InventoryPage = () => {
+  const { inventorySettings } = useInventorySettings();
+  const { medicineEnabled, consumableEnabled } = inventorySettings;
+  const bothDisabled = !medicineEnabled && !consumableEnabled;
+
   const [activeTab, setActiveTab] = useState('Stock');
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -66,7 +72,7 @@ const InventoryPage = () => {
     else if (activeTab === 'Vendors') setActiveModal('vendor');
   };
 
-  const sharedProps = { StockBadge, SectionHeader };
+  const sharedProps = { StockBadge, SectionHeader, medicineEnabled, consumableEnabled };
 
   const TABS = [
     { id: 'Stock', label: 'Stock Overview', component: InventoryStock },
@@ -77,6 +83,29 @@ const InventoryPage = () => {
   ];
 
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component || InventoryStock;
+
+  if (bothDisabled) {
+    return (
+      <div className="flex flex-col h-full bg-slate-50 p-6 items-center justify-center">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-10 max-w-md text-center">
+          <div className="mx-auto mb-4 size-16 rounded-full bg-slate-100 flex items-center justify-center">
+            <PackageX size={32} className="text-slate-400" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">Inventory is disabled</h2>
+          <p className="text-sm text-slate-500 mb-6">
+            Both Medicine and Consumable inventory tracking are turned off.
+            Enable them in Settings to use this page.
+          </p>
+          <Link
+            to="/settings"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#137fec] text-white text-sm font-bold rounded-lg hover:bg-blue-600 shadow-md"
+          >
+            <SettingsIcon size={16} /> Go to Settings
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-50 p-6 gap-6 relative">

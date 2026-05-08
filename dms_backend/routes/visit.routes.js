@@ -6,6 +6,7 @@ import {
   getVisits,
   getVisitById,
   getPatientHistory,
+  updateVisit,
   updateTreatmentStatus,
   markInvoiced,
   addConsultationNote,
@@ -25,6 +26,7 @@ import {
 router.post('/', createVisit);
 router.get('/', getVisits);
 router.get('/:id', getVisitById);
+router.patch('/:id', updateVisit);  // generic top-level field updates (chief_complaint, notes, etc.)
 router.get('/patient/:id', getPatientHistory);
 router.patch('/:visitId/treatments/:treatmentId/status', updateTreatmentStatus);
 router.post('/mark-invoiced', markInvoiced);

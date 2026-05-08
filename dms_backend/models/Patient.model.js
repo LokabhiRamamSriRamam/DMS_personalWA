@@ -29,7 +29,6 @@ const PatientSchema = new mongoose.Schema({
   // Matches the "Medical History" tags in Profile Modal
   medical_history: [{ type: String }], // e.g. ["Diabetes", "BP High"]
   allergies: [{ type: String }],       // e.g. ["Penicillin", "Latex"]
-  chief_complaint: { type: String, default: '' },
   dental_history:  { type: String, default: '' },
   
   // --- META ---

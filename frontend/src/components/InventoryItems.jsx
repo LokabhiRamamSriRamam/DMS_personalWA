@@ -1,6 +1,228 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pill, Syringe, Plus, X, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Pill, Syringe, Plus, X, Edit, Trash2, Loader2, Upload, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
 import API from '../services/api';
+
+// ─── Shared internal result/error display ─────────────────────────────────
+const UploadResult = ({ result }) => (
+  <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex flex-col gap-2">
+    <div className="flex items-center gap-2">
+      <CheckCircle size={16} className="text-green-600" />
+      <p className="text-sm font-bold text-green-700">Upload Complete</p>
+    </div>
+    <div className="grid grid-cols-3 gap-2 text-center">
+      {[
+        { label: 'Total Rows', val: result.total,    color: 'text-slate-700'  },
+        { label: 'Inserted',   val: result.inserted, color: 'text-green-700'  },
+        { label: 'Skipped',    val: result.skipped,  color: 'text-orange-600' },
+      ].map(s => (
+        <div key={s.label} className="bg-white rounded-lg p-2 border border-green-100">
+          <p className={`text-xl font-bold ${s.color}`}>{s.val}</p>
+          <p className="text-[11px] text-slate-400">{s.label}</p>
+        </div>
+      ))}
+    </div>
+    {result.skippedDetails?.length > 0 && (
+      <details className="text-xs text-slate-500 mt-1">
+        <summary className="cursor-pointer font-medium text-slate-600">View skipped ({result.skippedDetails.length})</summary>
+        <ul className="mt-1 pl-3 list-disc">
+          {result.skippedDetails.slice(0, 20).map((s, i) => (
+            <li key={i}><span className="font-medium">{s.name || '(empty)'}</span> — {s.reason}</li>
+          ))}
+        </ul>
+      </details>
+    )}
+  </div>
+);
+
+// ─── BULK UPLOAD — MEDICINES (Pharmacy) ────────────────────────────────────
+export const BulkUploadMedicinesModal = ({ isOpen, onClose, onSuccess }) => {
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState(null);
+  const [error, setError]     = useState('');
+
+  useEffect(() => { if (isOpen) { setSheetUrl(''); setResult(null); setError(''); } }, [isOpen]);
+
+  const handleUpload = async () => {
+    if (!sheetUrl.trim()) { setError('Please enter a Google Sheets URL.'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const res = await API.post('/inventory/bulk-upload-medicines', { sheetUrl });
+      setResult(res.data);
+      if (res.data.inserted > 0 && onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+    } finally { setLoading(false); }
+  };
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#137fec]/10 rounded-lg"><Upload size={18} className="text-[#137fec]" /></div>
+            <div>
+              <h3 className="font-bold text-slate-800">Bulk Upload Medicines</h3>
+              <p className="text-xs text-slate-500">Import Pharmacy items from Google Sheets</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 flex flex-col gap-5">
+          {/* Format */}
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p className="text-xs font-bold text-blue-700 uppercase mb-2">Required Column Headers</p>
+            <div className="overflow-x-auto">
+              <table className="text-[11px] w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-100">
+                    {['Name', 'Composition', 'Manufacturer', 'Category', 'Cost Price', 'Selling Price'].map(h => (
+                      <th key={h} className="px-2 py-1.5 text-left font-bold text-blue-800 border border-blue-200 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    {['Amoxicillin 500mg', 'Amoxicillin', 'Cipla', 'Antibiotic', '12', '20'].map((v, i) => (
+                      <td key={i} className="px-2 py-1 text-slate-500 italic border border-blue-100 whitespace-nowrap">{v}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-blue-600 mt-2">⚠️ Sheet must be <strong>"Anyone with the link can view"</strong>. Duplicates are auto-skipped.</p>
+          </div>
+
+          {/* URL */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase">Google Sheets URL</label>
+            <input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              className="w-full border border-slate-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none" />
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg p-3">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          {result && <UploadResult result={result} />}
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">
+              {result ? 'Done' : 'Cancel'}
+            </button>
+            {!result && (
+              <button onClick={handleUpload} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                {loading ? <><Loader2 size={16} className="animate-spin" /> Importing...</> : <><Upload size={16} /> Upload Medicines</>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── BULK UPLOAD — CONSUMABLES ─────────────────────────────────────────────
+export const BulkUploadConsumablesModal = ({ isOpen, onClose, onSuccess }) => {
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState('');
+
+  useEffect(() => { if (isOpen) { setSheetUrl(''); setResult(null); setError(''); } }, [isOpen]);
+
+  const handleUpload = async () => {
+    if (!sheetUrl.trim()) { setError('Please enter a Google Sheets URL.'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const res = await API.post('/inventory/bulk-upload-consumables', { sheetUrl });
+      setResult(res.data);
+      if (res.data.inserted > 0 && onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+    } finally { setLoading(false); }
+  };
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+        {/* Header — teal theme */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-teal-600/10 rounded-lg"><Upload size={18} className="text-teal-600" /></div>
+            <div>
+              <h3 className="font-bold text-slate-800">Bulk Upload Consumables</h3>
+              <p className="text-xs text-slate-500">Import Consumable items from Google Sheets</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+        </div>
+
+        <div className="p-6 flex flex-col gap-5">
+          {/* Format */}
+          <div className="bg-teal-50 border border-teal-100 rounded-xl p-4">
+            <p className="text-xs font-bold text-teal-700 uppercase mb-2">Required Column Headers</p>
+            <div className="overflow-x-auto">
+              <table className="text-[11px] w-full border-collapse">
+                <thead>
+                  <tr className="bg-teal-100">
+                    {['Name', 'Category', 'Cost Price', 'Min Consumption'].map(h => (
+                      <th key={h} className="px-2 py-1.5 text-left font-bold text-teal-800 border border-teal-200 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    {['Dental Gloves (S)', 'Protective Gear', '3', '2'].map((v, i) => (
+                      <td key={i} className="px-2 py-1 text-slate-500 italic border border-teal-100 whitespace-nowrap">{v}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-teal-600 mt-2">⚠️ Sheet must be <strong>"Anyone with the link can view"</strong>. <strong>Min Consumption</strong> = units used per treatment. Duplicates are auto-skipped.</p>
+          </div>
+
+          {/* URL */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase">Google Sheets URL</label>
+            <input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              className="w-full border border-slate-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
+          </div>
+
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg p-3">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          {result && <UploadResult result={result} />}
+
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">
+              {result ? 'Done' : 'Cancel'}
+            </button>
+            {!result && (
+              <button onClick={handleUpload} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                {loading ? <><Loader2 size={16} className="animate-spin" /> Importing...</> : <><Upload size={16} /> Upload Consumables</>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // --- ADD/EDIT ITEM MODAL ---
 export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
@@ -163,12 +385,14 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
 };
 
 // --- MAIN COMPONENT ---
-const InventoryItems = ({ SectionHeader }) => {
+const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true }) => {
   const [items, setItems] = useState({ pharmacy: [], consumables: [] });
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [contextMenu, setContextMenu] = useState(null); 
+  const [isModalOpen, setIsModalOpen]             = useState(false);
+  const [editingItem, setEditingItem]             = useState(null);
+  const [isBulkMedOpen, setIsBulkMedOpen]         = useState(false);
+  const [isBulkConOpen, setIsBulkConOpen]         = useState(false);
+  const [contextMenu, setContextMenu] = useState(null);
   const contextMenuRef = useRef(null);
 
   const fetchInventory = async () => {
@@ -211,19 +435,46 @@ const InventoryItems = ({ SectionHeader }) => {
   };
 
   const SECTIONS = [
-    { type: 'pharmacy', t: 'Pharmacy Items', i: Pill, d: items.pharmacy, c: 'bg-blue-50/50' },
-    { type: 'consumable', t: 'Consumable Items', i: Syringe, d: items.consumables, c: 'bg-teal-50/50' }
-  ];
+    medicineEnabled && { type: 'pharmacy', t: 'Pharmacy Items', i: Pill, d: items.pharmacy, c: 'bg-blue-50/50' },
+    consumableEnabled && { type: 'consumable', t: 'Consumable Items', i: Syringe, d: items.consumables, c: 'bg-teal-50/50' }
+  ].filter(Boolean);
 
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
   return (
     <>
       <div className="h-full flex flex-col relative" onClick={() => setContextMenu(null)}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
+        <div className={`grid grid-cols-1 ${SECTIONS.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 flex-1 min-h-0`}>
           {SECTIONS.map((sec, idx) => (
             <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-              <SectionHeader title={sec.t} icon={sec.i} colorClass={sec.c} count={sec.d.length} />
+              {/* Section header with Bulk Upload button for pharmacy */}
+              <div className={`flex items-center justify-between p-3 border-b border-slate-200 ${sec.c}`}>
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-white/60 rounded-lg shadow-sm">
+                    <sec.i size={16} className="text-slate-700" />
+                  </div>
+                  <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  {sec.type === 'pharmacy' && (
+                    <button
+                      onClick={() => setIsBulkMedOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-[#137fec] hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors"
+                    >
+                      <Upload size={12} /> Bulk Upload
+                    </button>
+                  )}
+                  {sec.type === 'consumable' && (
+                    <button
+                      onClick={() => setIsBulkConOpen(true)}
+                      className="flex items-center gap-1.5 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors"
+                    >
+                      <Upload size={12} /> Bulk Upload
+                    </button>
+                  )}
+                  <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-semibold text-slate-600">{sec.d.length} Items</span>
+                </div>
+              </div>
               <div className="overflow-auto flex-1">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
@@ -273,6 +524,16 @@ const InventoryItems = ({ SectionHeader }) => {
         )}
       </div>
       <AddItemModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} editItem={editingItem} onSave={fetchInventory} />
+      <BulkUploadMedicinesModal
+        isOpen={isBulkMedOpen}
+        onClose={() => setIsBulkMedOpen(false)}
+        onSuccess={fetchInventory}
+      />
+      <BulkUploadConsumablesModal
+        isOpen={isBulkConOpen}
+        onClose={() => setIsBulkConOpen(false)}
+        onSuccess={fetchInventory}
+      />
     </>
   );
 };

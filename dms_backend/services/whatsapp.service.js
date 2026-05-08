@@ -13,17 +13,20 @@
 // ─── Timezone helpers ─────────────────────────────────────────────────────────
 
 function formatDateIST(date) {
-  // Convert UTC date to IST (UTC+5:30) for display in message templates
-  const utcDate = new Date(date);
-  const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
-  return istDate.toLocaleDateString('en-IN', { year: 'numeric', month: 'long', day: 'numeric' });
+  // Format the UTC instant in IST using an explicit timeZone — do NOT manually
+  // shift the millisecond value, otherwise toLocaleString applies the host's
+  // own timezone on top and the result becomes host-dependent.
+  return new Date(date).toLocaleDateString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
 }
 
 function formatTimeIST(date) {
-  // Convert UTC date to IST (UTC+5:30) for display in message templates
-  const utcDate = new Date(date);
-  const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
-  return istDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return new Date(date).toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Kolkata',
+    hour: '2-digit', minute: '2-digit', hour12: false
+  });
 }
 
 // ─── Placeholder replacement ──────────────────────────────────────────────────

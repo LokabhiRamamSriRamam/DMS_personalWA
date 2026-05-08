@@ -10,7 +10,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
     name: '',
     mobile: '',
     gender: '',
-    age: '',
+    dob: '',
     location: '',
     reference: '',
     history: '', // Comma separated string
@@ -36,9 +36,8 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
       const firstName = nameParts[0];
       const lastName = nameParts.slice(1).join(' ') || '';
 
-      // 2. Convert Age to Approximate DOB (Backend requirement)
-      const dobDate = new Date();
-      dobDate.setFullYear(dobDate.getFullYear() - parseInt(formData.age || 0));
+      // 2. Parse DOB
+      const dobDate = formData.dob ? new Date(formData.dob) : new Date();
 
       // 3. Prepare Payload matching Mongoose Schema
       // Strip non-digits from mobile (user types just 10 digits, +91 is fixed prefix)
@@ -68,7 +67,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
       
       // Reset & Close
       setFormData({
-        name: '', mobile: '', gender: '', age: '', 
+        name: '', mobile: '', gender: '', dob: '', 
         location: '', reference: '', history: '', notes: ''
       });
       onClose();
@@ -169,13 +168,12 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Age</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Date of Birth</label>
                 <input 
-                  name="age"
-                  value={formData.age}
+                  name="dob"
+                  value={formData.dob}
                   onChange={handleChange}
-                  type="number" 
-                  placeholder="Enter patient age" 
+                  type="date" 
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                 />
               </div>
