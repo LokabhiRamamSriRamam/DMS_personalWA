@@ -975,7 +975,6 @@ export default function TreatmentPage({ patientIdProp }) {
       await fetchPageData();
       setShowConcludeModal(false);
       setConcludingAppointment(null);
-      alert('Appointment marked as completed');
       closeTreatment(true);
     } catch (err) {
       console.error('Error concluding appointment:', err);
