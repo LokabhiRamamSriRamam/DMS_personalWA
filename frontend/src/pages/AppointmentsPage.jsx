@@ -71,7 +71,7 @@ const AppointmentBlock = ({ style, statusColor, time, patient, type, cancelled =
 };
 
 const AppointmentsPage = () => {
-  const { startTreatment } = useTreatment(); // Use Context Hook
+  const { startTreatment, activeTreatment } = useTreatment(); // Use Context Hook
   const [view, setView] = useState('list');
   const navigate = useNavigate();
   const [isNewApptOpen, setIsNewApptOpen] = useState(false);
@@ -190,6 +190,15 @@ const AppointmentsPage = () => {
   useEffect(() => {
     fetchData();
   }, [selectedDate]);
+
+  // Re-fetch when treatment session closes so concluded appointments show as Completed
+  const prevActiveTreatment = useRef(activeTreatment);
+  useEffect(() => {
+    if (prevActiveTreatment.current !== null && activeTreatment === null) {
+      fetchData();
+    }
+    prevActiveTreatment.current = activeTreatment;
+  }, [activeTreatment]);
 
   // --- HANDLERS ---
 
