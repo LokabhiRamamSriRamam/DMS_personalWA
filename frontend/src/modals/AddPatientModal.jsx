@@ -10,6 +10,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
     name: '',
     mobile: '',
     gender: '',
+    bloodGroup: '',
     dob: '',
     location: '',
     reference: '',
@@ -49,6 +50,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
         last_name: lastName,
         dob: dobDate,
         gender: formData.gender,
+        blood_group: formData.bloodGroup,
         contact: {
           mobile: fullMobile,
           city: formData.location
@@ -67,7 +69,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
       
       // Reset & Close
       setFormData({
-        name: '', mobile: '', gender: '', dob: '', 
+        name: '', mobile: '', gender: '', bloodGroup: '', dob: '',
         location: '', reference: '', history: '', notes: ''
       });
       onClose();
@@ -148,12 +150,12 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
               </div>
             </div>
 
-            {/* Row 2: Gender & Age */}
+            {/* Row 2: Gender & Blood Group */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 xl:gap-6">
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Gender</label>
                 <div className="relative">
-                  <select 
+                  <select
                     name="gender"
                     value={formData.gender}
                     onChange={handleChange}
@@ -168,15 +170,39 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Date of Birth</label>
-                <input 
-                  name="dob"
-                  value={formData.dob}
-                  onChange={handleChange}
-                  type="date" 
-                  className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
-                />
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Blood Group</label>
+                <div className="relative">
+                  <select
+                    name="bloodGroup"
+                    value={formData.bloodGroup}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-500 dark:text-slate-400 appearance-none focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all cursor-pointer"
+                  >
+                    <option value="">Select blood group</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O-</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A-</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B-</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB-</option>
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18} />
+                </div>
               </div>
+            </div>
+
+            {/* Row 2b: Date of Birth */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Date of Birth</label>
+              <input
+                name="dob"
+                value={formData.dob}
+                onChange={handleChange}
+                type="date"
+                className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
+              />
             </div>
 
             {/* Row 3: Location & Reference */}

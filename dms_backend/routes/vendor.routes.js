@@ -1,16 +1,17 @@
 import express from 'express';
 const router = express.Router();
-import { 
-    getVendors, 
-    createVendor, 
-    updateVendor, // <--- Import this
-    deleteVendor  // <--- Import this
+import {
+    getVendors,
+    createVendor,
+    updateVendor,
+    deleteVendor,
+    bulkUploadVendors
 } from '../controllers/vendor.controller.js';
 
 router.get('/', getVendors);
 router.post('/', createVendor);
+router.post('/bulk-upload', bulkUploadVendors);
 
-// New Routes
 router.put('/:id', updateVendor);
 router.delete('/:id', deleteVendor);
 

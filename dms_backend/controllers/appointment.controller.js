@@ -68,7 +68,8 @@ export async function createAppointment(req, res) {
             return;
           }
 
-          const phone = patient.contact.mobile;
+          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
+          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
           const firstName = patient.first_name;
           const name = `${firstName} ${patient.last_name || ''}`.trim();
           const lang = saved.whatsapp_language || null;
@@ -140,17 +141,24 @@ export async function updateStatus(req, res) {
           const firstName = patient.first_name;
           const name = `${firstName} ${patient.last_name || ''}`.trim();
 
+          // Normalize phone: prepend 91 if not already present
+          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
+          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
+
           // Format UTC appointment time in IST via explicit timeZone (host-tz independent).
           const startInstant = new Date(appt.start_time);
           const baseData = {
             name,
             firstName,
             patientId: patient.patientId,
-            mobile: patient.contact.mobile,
+            mobile: phone,
             date: startInstant.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'long', day: 'numeric' }),
             time: startInstant.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
             doctorName: doctor?.name || 'Doctor',
           };
+
+          const patientMongoId  = patient._id.toString();
+          const appointmentId   = appt._id.toString();
 
           // 1. Send feedback message if enabled (scheduled with delayMinutes from settings)
           triggerWhatsApp(
@@ -158,9 +166,9 @@ export async function updateStatus(req, res) {
             req.user.tenantId,
             process.env.WAAPI_BASE_URL,
             'feedbackMessage',
-            patient.contact.mobile,
+            phone,
             baseData,
-            patient._id.toString(),
+            patientMongoId,
             appt.whatsapp_language || null
           );
 
@@ -170,12 +178,12 @@ export async function updateStatus(req, res) {
             req.user.tenantId,
             process.env.WAAPI_BASE_URL,
             'feedbackPoll',
-            patient.contact.mobile,
+            phone,
             baseData,
-            patient._id.toString(),
+            patientMongoId,
             appt.whatsapp_language || null,
             null,
-            appt._id.toString()
+            appointmentId
           );
 
           // 2. Trigger post-care journeys for each treatment in the visit
@@ -186,7 +194,7 @@ export async function updateStatus(req, res) {
                   req.tenantModels,
                   req.user.tenantId,
                   process.env.WAAPI_BASE_URL,
-                  patient.contact.mobile,
+                  phone,
                   treatment.treatment_name,
                   new Date(),
                   {
@@ -232,6 +240,8 @@ export async function updateAppointment(req, res) {
           if (!patient?.contact?.mobile) return;
           const firstName = patient.first_name;
           const name = `${firstName} ${patient.last_name || ''}`.trim();
+          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
+          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
 
           // Format UTC appointment time in IST via explicit timeZone (host-tz independent).
           const startInstant = new Date(appt.start_time);
@@ -240,12 +250,12 @@ export async function updateAppointment(req, res) {
             req.user.tenantId,
             process.env.WAAPI_BASE_URL,
             'appointmentRescheduled',
-            patient.contact.mobile,
+            phone,
             {
               name,
               firstName,
               patientId: patient.patientId,
-              mobile: patient.contact.mobile,
+              mobile: phone,
               date: startInstant.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'long', day: 'numeric' }),
               time: startInstant.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
               doctorName: doctor?.name || 'Doctor',

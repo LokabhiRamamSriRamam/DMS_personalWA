@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowRight, Plus, X, User, Phone, Briefcase, Mail, MapPin, FileText, Edit, Trash2, Loader2 } from 'lucide-react';
+import { ArrowRight, Plus, X, User, Phone, Briefcase, Mail, MapPin, FileText, Edit, Trash2, Loader2, Upload } from 'lucide-react';
 import API from '../services/api';
 
 // --- ADD VENDOR MODAL ---
@@ -140,17 +140,143 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
   );
 };
 
+// --- BULK UPLOAD MODAL ---
+export const BulkUploadVendorsModal = ({ isOpen, onClose, onUpload }) => {
+  const [loading, setLoading] = useState(false);
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const handleUpload = async () => {
+    setError('');
+    setResult(null);
+    if (!sheetUrl.trim()) { setError('Please enter a Google Sheets URL or ID'); return; }
+
+    setLoading(true);
+    try {
+      const res = await API.post('/vendors/bulk-upload', { sheetUrl });
+      setResult(res.data);
+      setSheetUrl('');
+      if (onUpload) onUpload();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100">
+          <h3 className="font-bold text-lg text-slate-800">Bulk Upload Vendors</h3>
+          <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-6">
+          {!result ? (
+            <>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-bold text-blue-900 mb-3">Google Sheets Instructions</h4>
+                <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside">
+                  <li>Create a Google Sheet with vendors data</li>
+                  <li>Column headers: Name, Type, Contact Person, Phone, Email, Address, GST Number</li>
+                  <li>Type values: Pharmacy, Consumable, Lab, or General</li>
+                  <li>Go to <strong>Share</strong> → Set to <strong>"Anyone with the link can view"</strong></li>
+                  <li>Copy the sheet URL or ID and paste below</li>
+                </ol>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <label className="text-sm font-bold text-slate-700">Google Sheets URL or Sheet ID</label>
+                <input
+                  type="text"
+                  value={sheetUrl}
+                  onChange={(e) => setSheetUrl(e.target.value)}
+                  placeholder="https://docs.google.com/spreadsheets/d/1ABC...  or  1ABC..."
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] focus:outline-none"
+                />
+              </div>
+
+              {error && (
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-700"><strong>Error:</strong> {error}</p>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={onClose}
+                  className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpload}
+                  disabled={loading || !sheetUrl.trim()}
+                  className="px-4 py-2 rounded-lg bg-[#137fec] hover:bg-blue-600 text-white font-medium flex items-center gap-2 disabled:opacity-50 transition-colors"
+                >
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+                  {loading ? 'Uploading...' : 'Upload Vendors'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <p className="text-sm font-bold text-green-700 mb-2">Upload Summary</p>
+                  <div className="space-y-1 text-sm text-green-800">
+                    <p>✓ <strong>Inserted:</strong> {result.inserted} vendors</p>
+                    <p>⊘ <strong>Skipped:</strong> {result.skipped} rows</p>
+                    <p>📄 <strong>Total Rows:</strong> {result.total}</p>
+                  </div>
+                </div>
+
+                {result.skippedDetails && result.skippedDetails.length > 0 && (
+                  <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg max-h-[200px] overflow-y-auto">
+                    <p className="text-sm font-bold text-orange-700 mb-2">Skipped Rows</p>
+                    <div className="space-y-1">
+                      {result.skippedDetails.map((skip, i) => (
+                        <p key={i} className="text-xs text-orange-700"><strong>{skip.name || '(empty)'}</strong> — {skip.reason}</p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={onClose}
+                  className="px-6 py-2 rounded-lg bg-[#137fec] hover:bg-blue-600 text-white font-medium transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- MAIN COMPONENT ---
 const InventoryVendors = () => {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal & Edit State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingVendor, setEditingVendor] = useState(null);
-  
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
+
   // Context Menu State
-  const [contextMenu, setContextMenu] = useState(null); 
+  const [contextMenu, setContextMenu] = useState(null);
   const contextMenuRef = useRef(null);
 
   // --- FETCH DATA ---
@@ -208,9 +334,28 @@ const InventoryVendors = () => {
   return (
     <>
       <div className="h-full flex flex-col" onClick={() => setContextMenu(null)}>
-        
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 min-h-0">
-          <div className="overflow-auto h-full">
+
+        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
+          <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
+            <h3 className="font-bold text-slate-700">Vendors</h3>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setEditingVendor(null); setIsModalOpen(true); }}
+                className="flex items-center gap-2 text-sm text-white bg-[#137fec] hover:bg-blue-600 px-3 py-2 rounded-lg font-semibold transition-colors"
+              >
+                <Plus size={16} />
+                Add Vendor
+              </button>
+              <button
+                onClick={() => setIsBulkUploadOpen(true)}
+                className="flex items-center gap-2 text-sm text-white bg-slate-600 hover:bg-slate-700 px-3 py-2 rounded-lg font-semibold transition-colors"
+              >
+                <Upload size={16} />
+                Bulk Upload
+              </button>
+            </div>
+          </div>
+          <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
               <thead className="bg-[#F7F2F2] sticky top-0 z-10 text-xs font-semibold text-slate-500 uppercase">
                 <tr>
@@ -279,11 +424,17 @@ const InventoryVendors = () => {
 
       </div>
 
-      <AddVendorModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <AddVendorModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
         editVendor={editingVendor}
-        onSave={fetchVendors} 
+        onSave={fetchVendors}
+      />
+
+      <BulkUploadVendorsModal
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        onUpload={fetchVendors}
       />
     </>
   );
