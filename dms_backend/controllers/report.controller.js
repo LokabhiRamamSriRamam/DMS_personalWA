@@ -115,11 +115,6 @@ async function generateFromTemplate(apiKey, transcript, patientName, patientGend
     detailed: 'Expand each section thoroughly. Include clinical reasoning and context where appropriate. Target 600 or more words.',
   };
 
-  // Only include example for detailed runs — saves tokens for brief/standard
-  const exampleSection = detailLevel === 'detailed'
-    ? `\nEXAMPLE OF EXPECTED OUTPUT:\n${template.example}`
-    : '';
-
   const systemPrompt = `${template.systemInstruction}
 
 Detail level instructions:
@@ -127,7 +122,7 @@ ${detailInstructions[detailLevel] || detailInstructions.standard}
 The current detail level is: ${detailLevel}
 
 STRUCTURE TO FOLLOW:
-${template.structure}${exampleSection}`;
+${template.structure}`;
 
   const userPrompt = `Patient: ${patientName} (${salutation})
 Doctor: ${doctorName}
@@ -174,10 +169,6 @@ async function streamFromTemplate(apiKey, transcript, patientName, patientGender
     detailed: 'Expand each section thoroughly. Include clinical reasoning and context where appropriate. Target 600 or more words.',
   };
 
-  const exampleSection = detailLevel === 'detailed'
-    ? `\nEXAMPLE OF EXPECTED OUTPUT:\n${template.example}`
-    : '';
-
   const systemPrompt = `${template.systemInstruction}
 
 Detail level instructions:
@@ -185,7 +176,7 @@ ${detailInstructions[detailLevel] || detailInstructions.standard}
 The current detail level is: ${detailLevel}
 
 STRUCTURE TO FOLLOW:
-${template.structure}${exampleSection}`;
+${template.structure}`;
 
   const userPrompt = `Patient: ${patientName} (${salutation})
 Doctor: ${doctorName}
@@ -412,10 +403,48 @@ export async function getJobStatus(req, res) {
   }
 }
 
+// ─── PATCH /api/report/jobs/:jobId/transcript ──────────────────────────────────
+// Allow user to edit/review transcript before proceeding to generation
+export async function editTranscript(req, res) {
+  const { ReportJob } = req.tenantModels;
+  try {
+    const { jobId } = req.params;
+    const { transcript } = req.body;
+
+    if (!transcript || typeof transcript !== 'string') {
+      return res.status(400).json({ error: 'transcript (string) is required' });
+    }
+
+    const job = await ReportJob.findById(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    // Allow editing only if job is in transcribed state (before generation)
+    if (job.status !== 'transcribed') {
+      return res.status(400).json({
+        error: `Cannot edit transcript in status: ${job.status}. Job must be in 'transcribed' state.`,
+      });
+    }
+
+    // Update transcript
+    await ReportJob.findByIdAndUpdate(jobId, { transcript: transcript.trim() });
+
+    res.json({
+      jobId,
+      status: 'transcribed',
+      transcript: transcript.trim(),
+      message: 'Transcript updated successfully. Ready for report generation.',
+    });
+  } catch (err) {
+    console.error('[Report] editTranscript error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 // ─── POST /api/report/generate ─────────────────────────────────────────────────
-// Accepts { jobId, template_id, detail_level, save_report, autofill }
+// Accepts { jobId, template_id OR template_ids, detail_level, save_report, autofill }
 // OR legacy { patient_id, template_id, transcript_text, ... } for backwards compat.
 // Streams the LLM response via SSE.
+// Supports single template (backward compat) or multiple templates (sequential generation)
 export async function generateReport(req, res) {
   const { Patient, ReportJob, Visit } = req.tenantModels;
   const credentials = req.tenantConfig;
@@ -436,13 +465,23 @@ export async function generateReport(req, res) {
       const transcript = transcriptOverride || job.transcript;
       if (!transcript) return res.status(422).json({ error: 'Transcript is empty.' });
 
-      const templateId  = req.body.template_id  || job.templateId;
+      // Support both single template_id and multiple template_ids
       const detailLevel = req.body.detail_level  || job.detailLevel;
       const saveReport  = req.body.save_report !== undefined ? req.body.save_report !== 'false' : job.saveReport;
       const runAutofill = req.body.autofill !== undefined ? req.body.autofill === 'true' : job.runAutofill;
 
-      const template = getTemplateById(templateId);
-      if (!template) return res.status(400).json({ error: `Unknown template_id: ${templateId}` });
+      const templateIds = req.body.template_ids || (req.body.template_id ? [req.body.template_id] : [job.templateId]);
+      if (!Array.isArray(templateIds) || templateIds.length === 0) {
+        return res.status(400).json({ error: 'template_id or template_ids required' });
+      }
+
+      // Validate all templates exist
+      const templates = [];
+      for (const tId of templateIds) {
+        const tpl = getTemplateById(tId);
+        if (!tpl) return res.status(400).json({ error: `Unknown template_id: ${tId}` });
+        templates.push(tpl);
+      }
 
       const patient = await Patient.findById(job.patientId);
       if (!patient) return res.status(404).json({ error: 'Patient not found' });
@@ -459,20 +498,26 @@ export async function generateReport(req, res) {
       res.setHeader('Connection', 'keep-alive');
       res.flushHeaders();
 
-      let reportText = '';
-      try {
-        reportText = await streamFromTemplate(
-          credentials.nvidiaApiKey, transcript, patientName, patient.gender,
-          doctorName, today, template, detailLevel, res,
-        );
-      } catch (streamErr) {
-        res.write(`data: ${JSON.stringify({ error: streamErr.message })}\n\n`);
-        await ReportJob.findByIdAndUpdate(jobId, { status: 'failed', errorMessage: streamErr.message });
-        res.end();
-        return;
+      // Generate reports sequentially for each template
+      const reports = {};
+      for (const template of templates) {
+        try {
+          res.write(`data: ${JSON.stringify({ progress: `Generating ${template.name}...` })}\n\n`);
+          const reportText = await streamFromTemplate(
+            credentials.nvidiaApiKey, transcript, patientName, patient.gender,
+            doctorName, today, template, detailLevel, res,
+          );
+          reports[template.id] = reportText;
+          res.write(`data: ${JSON.stringify({ completed: template.id })}\n\n`);
+        } catch (err) {
+          res.write(`data: ${JSON.stringify({ error: `Failed to generate ${template.name}: ${err.message}` })}\n\n`);
+          await ReportJob.findByIdAndUpdate(jobId, { status: 'failed', errorMessage: err.message });
+          res.end();
+          return;
+        }
       }
 
-      // Autofill (parallel with Drive save)
+      // Autofill (once, parallel with Drive save)
       let autofill_v2 = null;
       const drive_links = {};
       const fileRecords = [];
@@ -490,17 +535,23 @@ export async function generateReport(req, res) {
           const dateFolderName = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
           const dateFolderId   = await createSubfolder(credentials, clinicalNotesFolderId, dateFolderName);
           const dateStr  = new Date().toISOString().slice(0, 10);
-          const filename = `${template.name}_${patientName}_${dateStr}.txt`;
-          const uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
-          if (uploaded) {
-            drive_links[template.id] = uploaded.webViewLink;
-            fileRecords.push({
-              file_name:     uploaded.name,
-              category:      'Clinical Notes',
-              drive_file_id: uploaded.id,
-              web_view_link: uploaded.webViewLink,
-              mime_type:     'text/plain',
-            });
+
+          // Upload each report to Drive
+          for (const template of templates) {
+            const reportText = reports[template.id];
+            if (!reportText) continue;
+            const filename = `${template.name}_${patientName}_${dateStr}.txt`;
+            const uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
+            if (uploaded) {
+              drive_links[template.id] = uploaded.webViewLink;
+              fileRecords.push({
+                file_name:     uploaded.name,
+                category:      'Clinical Notes',
+                drive_file_id: uploaded.id,
+                web_view_link: uploaded.webViewLink,
+                mime_type:     'text/plain',
+              });
+            }
           }
         })(),
       ]);
@@ -512,15 +563,15 @@ export async function generateReport(req, res) {
       }
 
       await ReportJob.findByIdAndUpdate(jobId, {
-        status: 'done', reportText, driveLinks: drive_links,
+        status: 'done', reportText: reports[templateIds[0]], driveLinks: drive_links,
         autofillData: autofill_v2, transcript,
       });
 
       // Send final metadata event
       res.write(`data: ${JSON.stringify({
         done: true,
-        jobId, transcript, template_id: template.id,
-        reports: { [template.id]: reportText },
+        jobId, transcript,
+        reports,
         drive_links,
         autofill_v2,
       })}\n\n`);
@@ -529,15 +580,24 @@ export async function generateReport(req, res) {
     }
 
     // ── Legacy path: direct transcript_text (no jobId) ──
-    const { patient_id, template_id, detail_level, save_report, autofill, transcript_text } = req.body;
+    const { patient_id, template_id, template_ids, detail_level, save_report, autofill, transcript_text } = req.body;
     if (!patient_id)  return res.status(400).json({ error: 'patient_id required' });
-    if (!template_id) return res.status(400).json({ error: 'template_id required' });
+
+    const templateIds = template_ids || (template_id ? [template_id] : []);
+    if (templateIds.length === 0) {
+      return res.status(400).json({ error: 'template_id or template_ids required' });
+    }
 
     const directText = (transcript_text || '').trim();
     if (!req.file && !directText) return res.status(400).json({ error: 'No audio file or transcript_text provided' });
 
-    const template = getTemplateById(template_id);
-    if (!template) return res.status(400).json({ error: `Unknown template_id: ${template_id}` });
+    // Validate all templates exist
+    const templates = [];
+    for (const tId of templateIds) {
+      const tpl = getTemplateById(tId);
+      if (!tpl) return res.status(400).json({ error: `Unknown template_id: ${tId}` });
+      templates.push(tpl);
+    }
 
     const patient = await Patient.findById(patient_id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
@@ -562,13 +622,19 @@ export async function generateReport(req, res) {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    let reportText = '';
-    try {
-      reportText = await streamFromTemplate(credentials.nvidiaApiKey, transcript, patientName, patient.gender, doctorName, today, template, detailLevel, res);
-    } catch (streamErr) {
-      res.write(`data: ${JSON.stringify({ error: streamErr.message })}\n\n`);
-      res.end();
-      return;
+    // Generate reports sequentially for each template
+    const reports = {};
+    for (const template of templates) {
+      try {
+        res.write(`data: ${JSON.stringify({ progress: `Generating ${template.name}...` })}\n\n`);
+        const reportText = await streamFromTemplate(credentials.nvidiaApiKey, transcript, patientName, patient.gender, doctorName, today, template, detailLevel, res);
+        reports[template.id] = reportText;
+        res.write(`data: ${JSON.stringify({ completed: template.id })}\n\n`);
+      } catch (err) {
+        res.write(`data: ${JSON.stringify({ error: `Failed to generate ${template.name}: ${err.message}` })}\n\n`);
+        res.end();
+        return;
+      }
     }
 
     let autofill_v2 = null;
@@ -588,14 +654,20 @@ export async function generateReport(req, res) {
         const dateFolderName = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
         const dateFolderId   = await createSubfolder(credentials, clinicalNotesFolderId, dateFolderName);
         const dateStr  = new Date().toISOString().slice(0, 10);
-        const filename = `${template.name}_${patientName}_${dateStr}.txt`;
-        const uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
-        if (uploaded) {
-          drive_links[template.id] = uploaded.webViewLink;
-          fileRecords.push({
-            file_name: uploaded.name, category: 'Clinical Notes',
-            drive_file_id: uploaded.id, web_view_link: uploaded.webViewLink, mime_type: 'text/plain',
-          });
+
+        // Upload each report to Drive
+        for (const template of templates) {
+          const reportText = reports[template.id];
+          if (!reportText) continue;
+          const filename = `${template.name}_${patientName}_${dateStr}.txt`;
+          const uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
+          if (uploaded) {
+            drive_links[template.id] = uploaded.webViewLink;
+            fileRecords.push({
+              file_name: uploaded.name, category: 'Clinical Notes',
+              drive_file_id: uploaded.id, web_view_link: uploaded.webViewLink, mime_type: 'text/plain',
+            });
+          }
         }
       })(),
     ]);
@@ -604,8 +676,8 @@ export async function generateReport(req, res) {
     if (fileRecords.length > 0) { patient.files.push(...fileRecords); await patient.save(); }
 
     res.write(`data: ${JSON.stringify({
-      done: true, transcript, template_id: template.id,
-      reports: { [template.id]: reportText }, drive_links, autofill_v2,
+      done: true, transcript,
+      reports, drive_links, autofill_v2,
     })}\n\n`);
     res.end();
 

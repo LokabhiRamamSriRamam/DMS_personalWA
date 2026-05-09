@@ -17,7 +17,7 @@ import { getAnalyticsDb } from '../config/analyticsDb.js';
 import { getTenantConnection } from '../config/tenantDb.js';
 import { getTenantModels }    from '../config/tenantModels.js';
 
-const JOB_INTERVAL_MS       = 5 * 60 * 1000;      // every 5 minutes
+const JOB_INTERVAL_MS       = 60 * 60 * 1000;     // every 1 hour
 const NO_SHOW_THRESHOLD_MS  = 24 * 60 * 60 * 1000; // 24 hours
 const COMPLETE_THRESHOLD_MS = 10 * 60 * 60 * 1000; // 10 hours
 
