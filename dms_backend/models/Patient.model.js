@@ -30,6 +30,12 @@ const PatientSchema = new mongoose.Schema({
   medical_history: [{ type: String }], // e.g. ["Diabetes", "BP High"]
   allergies: [{ type: String }],       // e.g. ["Penicillin", "Latex"]
   dental_history:  { type: String, default: '' },
+
+  // --- LIFESTYLE HABITS ---
+  tobacco_smoking: { type: Boolean, default: false },
+  tobacco_smokeless: { type: Boolean, default: false },
+  tea_consumption: { type: String, default: '' }, // e.g. "None", "1 cup", "2-3 cups", etc.
+  coffee_consumption: { type: String, default: '' }, // e.g. "None", "1 cup", "2-3 cups", etc.
   
   // --- META ---
   reference_source: { type: String }, // Who referred them?

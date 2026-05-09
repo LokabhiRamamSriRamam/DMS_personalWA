@@ -104,7 +104,11 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
   const [formData, setFormData] = useState({
     chief_complaint: '',
     medical_history: [],
-    dental_history: ''
+    dental_history: '',
+    tobacco_smoking: false,
+    tobacco_smokeless: false,
+    tea_consumption: '',
+    coffee_consumption: ''
   });
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
@@ -116,16 +120,24 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
         // chief_complaint comes from the current visit, not the patient
         chief_complaint: currentVisit?.chief_complaint || '',
         medical_history: patient.medical_history || [],
-        dental_history: patient.dental_history || ''
+        dental_history: patient.dental_history || '',
+        tobacco_smoking: patient.tobacco_smoking || false,
+        tobacco_smokeless: patient.tobacco_smokeless || false,
+        tea_consumption: patient.tea_consumption || '',
+        coffee_consumption: patient.coffee_consumption || ''
       });
     }
   }, [patient, currentVisit]);
 
   const handleSave = async () => {
-    // 1. Save medical_history & dental_history to patient
+    // 1. Save medical_history, dental_history, and lifestyle habits to patient
     onSaveHistory({
       medical_history: formData.medical_history,
-      dental_history: formData.dental_history
+      dental_history: formData.dental_history,
+      tobacco_smoking: formData.tobacco_smoking,
+      tobacco_smokeless: formData.tobacco_smokeless,
+      tea_consumption: formData.tea_consumption,
+      coffee_consumption: formData.coffee_consumption
     });
     // 2. Save chief_complaint to current visit (if a visit exists)
     if (currentVisit?._id) {
@@ -212,7 +224,7 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
           <div className="flex flex-col gap-2">
             <label className="font-semibold text-gray-700">Dental History</label>
             {isEditing ? (
-                <textarea 
+                <textarea
                     className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec] resize-none"
                     rows={2}
                     value={formData.dental_history}
@@ -222,6 +234,83 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
             ) : (
                 <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
                     {formData.dental_history || <span className="text-gray-400 italic">No record</span>}
+                </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Right Column: Lifestyle Habits */}
+        <div className="flex flex-col gap-5">
+
+          {/* 4. Tobacco Consumption */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Tobacco Consumption</label>
+            {isEditing ? (
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.tobacco_smoking}
+                      onChange={(e) => setFormData({...formData, tobacco_smoking: e.target.checked})}
+                      className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-700">Smoking</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.tobacco_smokeless}
+                      onChange={(e) => setFormData({...formData, tobacco_smokeless: e.target.checked})}
+                      className="w-4 h-4 rounded border-gray-300 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-700">Smokeless (Chewing/Snuff)</span>
+                  </label>
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2 min-h-[40px] items-center">
+                  {formData.tobacco_smoking || formData.tobacco_smokeless ? (
+                    <>
+                      {formData.tobacco_smoking && <span className="px-2 py-1 bg-orange-50 text-orange-600 rounded text-xs border border-orange-100 font-medium">Smoking</span>}
+                      {formData.tobacco_smokeless && <span className="px-2 py-1 bg-orange-50 text-orange-600 rounded text-xs border border-orange-100 font-medium">Smokeless</span>}
+                    </>
+                  ) : <span className="text-gray-400 italic text-sm">None</span>}
+                </div>
+            )}
+          </div>
+
+          {/* 5. Tea Consumption */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Tea Consumption</label>
+            {isEditing ? (
+                <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec]"
+                    value={formData.tea_consumption}
+                    onChange={(e) => setFormData({...formData, tea_consumption: e.target.value})}
+                    placeholder="e.g. 1-2 cups daily, None, Occasional"
+                />
+            ) : (
+                <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                    {formData.tea_consumption || <span className="text-gray-400 italic">No record</span>}
+                </div>
+            )}
+          </div>
+
+          {/* 6. Coffee Consumption */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Coffee Consumption</label>
+            {isEditing ? (
+                <input
+                    type="text"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec]"
+                    value={formData.coffee_consumption}
+                    onChange={(e) => setFormData({...formData, coffee_consumption: e.target.value})}
+                    placeholder="e.g. 1 cup daily, None, Occasional"
+                />
+            ) : (
+                <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                    {formData.coffee_consumption || <span className="text-gray-400 italic">No record</span>}
                 </div>
             )}
           </div>
