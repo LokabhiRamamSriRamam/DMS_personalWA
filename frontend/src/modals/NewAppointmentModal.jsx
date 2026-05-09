@@ -11,7 +11,7 @@ import API from '../services/api';
 import AddPatientModal from './AddPatientModal'; 
 
 const TREATMENT_TYPES = [
-  'Consultation', 'Follow-up', 'Cleaning', 'Whitening'
+  'Consultation', 'Follow-up'
 ];
 
 const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defaultPatient }) => {
@@ -26,32 +26,59 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Helper: Get today's date in IST (UTC+5:30)
+  // ── IST Timezone Helpers ──────────────────────────────────────────────────
+  // All times in the form are IST. The DB stores UTC ISO strings.
+  // Rule: never use new Date("YYYY-MM-DDTHH:mm") without a Z/offset suffix
+  //       because the result is browser-locale-dependent.
+  const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // +05:30 in milliseconds
+
+  /** Returns the current date string in IST as "YYYY-MM-DD" */
   const getIndiaDate = () => {
-    const now = new Date();
-    // Convert to UTC first, then add 5.5 hours for IST
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-    const istTime = new Date(utcTime + (5.5 * 60 * 60 * 1000));
-    return istTime.toISOString().split('T')[0];
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+    // en-CA gives ISO date format YYYY-MM-DD natively
   };
 
-  // Helper: Get current time in IST (UTC+5:30)
+  /** Returns the current time string in IST as "HH:mm" */
   const getIndiaTime = () => {
-    const now = new Date();
-    // Convert to UTC first, then add 5.5 hours for IST
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
-    const istTime = new Date(utcTime + (5.5 * 60 * 60 * 1000));
-    return istTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    }).format(new Date());
   };
 
-  // Helper: Convert UTC date string + time to IST time string
-  const utcToIndiaTime = (dateStr, timeStr) => {
-    if (!dateStr || !timeStr) return getIndiaTime();
-    const [hours, minutes] = timeStr.split(':');
-    const utcDate = new Date(`${dateStr}T${timeStr}:00Z`);
-    const istTime = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
-    return istTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  /**
+   * Convert a UTC ISO string from the DB → IST date ("YYYY-MM-DD") and time ("HH:mm")
+   * Uses explicit epoch math — NOT browser local time.
+   */
+  const utcIsoToIst = (isoStr) => {
+    const utcMs = new Date(isoStr).getTime(); // parse as UTC always
+    const istMs = utcMs + IST_OFFSET_MS;
+    const istDate = new Date(istMs);
+    // Build YYYY-MM-DD from the IST instant
+    const pad = (n) => String(n).padStart(2, '0');
+    const dateStr = `${istDate.getUTCFullYear()}-${pad(istDate.getUTCMonth() + 1)}-${pad(istDate.getUTCDate())}`;
+    const timeStr = `${pad(istDate.getUTCHours())}:${pad(istDate.getUTCMinutes())}`;
+    return { dateStr, timeStr };
   };
+
+  /**
+   * Convert IST date ("YYYY-MM-DD") + time ("HH:mm") → UTC ISO string for the DB.
+   * Treats the input as wall-clock IST and subtracts +05:30.
+   */
+  const istFormToUtcIso = (date, time) => {
+    const [y, mo, d] = date.split('-').map(Number);
+    const [h, mi] = time.split(':').map(Number);
+    const utcMs = Date.UTC(y, mo - 1, d, h, mi, 0) - IST_OFFSET_MS;
+    return new Date(utcMs).toISOString();
+  };
+
+  /** Returns true if the chosen IST date+time is not more than 1 hour in the past. */
+  const validateNotBackdated = (date, time) => {
+    const apptUtcMs = istFormToUtcIso(date, time);
+    const oneHourAgoMs = Date.now() - 60 * 60 * 1000;
+    return new Date(apptUtcMs).getTime() >= oneHourAgoMs;
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   // --- Form State ---
   const [formData, setFormData] = useState({
@@ -68,11 +95,8 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
   // --- Populate Form on Edit ---
   useEffect(() => {
     if (isOpen && appointmentToEdit) {
-        const utcDate = new Date(appointmentToEdit.start_time);
-        // Convert UTC to IST (UTC+5:30)
-        const istDate = new Date(utcDate.getTime() + (5.5 * 60 * 60 * 1000));
-        const dateStr = istDate.toISOString().split('T')[0];
-        const timeStr = istDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        // start_time is a UTC ISO string from the DB — convert to IST for display
+        const { dateStr, timeStr } = utcIsoToIst(appointmentToEdit.start_time);
 
         // Handle doctor_id - could be a string ID or an object with _id
         const doctorId = typeof appointmentToEdit.doctor_id === 'object'
@@ -80,18 +104,18 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
           : appointmentToEdit.doctor_id;
 
         setFormData({
-            selectedPatient: appointmentToEdit.patient, // Assuming this is the patient object
+            selectedPatient: appointmentToEdit.patient,
             doctorId: doctorId || '',
             date: dateStr,
             time: timeStr,
-            duration: '30', // You might need to calculate this from start/end time if stored
+            duration: '30',
             type: appointmentToEdit.type,
-            notes: appointmentToEdit.notes || ''
+            notes: appointmentToEdit.notes || '',
+            whatsapp_language: appointmentToEdit.whatsapp_language || '',
         });
 
-        // Pre-fill search term for UI consistency
         if (appointmentToEdit.patient) {
-            setSearchTerm(`${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name}`);
+            setSearchTerm(`${appointmentToEdit.patient.first_name} ${appointmentToEdit.patient.last_name || ''}`.trim());
         }
     } else if (isOpen && !appointmentToEdit) {
         setFormData({
@@ -150,20 +174,11 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
 
   // --- Handlers ---
 
-  // 3. Handle New Patient (Fixed: No Duplicate API Call)
+  // 3. Handle New Patient
   const handleNewPatientCreated = (createdPatient) => {
-    // The patient is already saved in DB by AddPatientModal.
-    // We just select them in the UI.
-    setFormData(prev => ({ 
-      ...prev, 
-      selectedPatient: createdPatient 
-    }));
-    
-    // Construct full name for search input
+    setFormData(prev => ({ ...prev, selectedPatient: createdPatient }));
     const fullName = `${createdPatient.first_name} ${createdPatient.last_name || ''}`.trim();
     setSearchTerm(fullName);
-    
-    // Close modal & dropdown
     setIsAddPatientOpen(false); 
     setShowDropdown(false);
   };
@@ -180,20 +195,23 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
       return;
     }
 
+    if (!validateNotBackdated(formData.date, formData.time)) {
+      alert("Cannot book an appointment more than 1 hour in the past. Please choose a future time.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Form date/time are in IST; convert to UTC for backend
-      const istDateTime = new Date(`${formData.date}T${formData.time}`);
-      // Subtract IST offset (5.5 hours) to get UTC
-      const utcStartTime = new Date(istDateTime.getTime() - (5.5 * 60 * 60 * 1000));
-      const utcEndTime = new Date(utcStartTime.getTime() + parseInt(formData.duration) * 60000);
+      // Form date/time are always in IST — convert to UTC for the backend
+      const utcStartIso = istFormToUtcIso(formData.date, formData.time);
+      const utcEndIso = new Date(new Date(utcStartIso).getTime() + parseInt(formData.duration) * 60000).toISOString();
 
       const appointmentPayload = {
         patient_id: formData.selectedPatient?._id,
         doctor_id: formData.doctorId,
-        start_time: utcStartTime.toISOString(),
-        end_time: utcEndTime.toISOString(),
+        start_time: utcStartIso,
+        end_time: utcEndIso,
         title: `${formData.type} - ${formData.selectedPatient?.first_name}`,
         type: formData.type,
         status: appointmentToEdit ? appointmentToEdit.status : 'Scheduled',
@@ -202,26 +220,20 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
         ...(formData.whatsapp_language ? { whatsapp_language: formData.whatsapp_language } : {}),
       };
 
-      console.log("SENDING PAYLOAD:", appointmentPayload); 
-
-if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
-  alert("Error: Patient ID or Doctor ID is missing. Check console.");
-  setLoading(false);
-  return;
-}
+      if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
+        alert("Error: Patient ID or Doctor ID is missing.");
+        setLoading(false);
+        return;
+      }
 
       let res;
       if (appointmentToEdit) {
-          // UPDATE EXISTING
-          // You'll need an update endpoint, e.g., PUT /appointments/:id
           res = await API.put(`/appointments/${appointmentToEdit._id}`, appointmentPayload);
       } else {
-          // CREATE NEW
           res = await API.post('/appointments', appointmentPayload);
       }
       
-      // Notify parent to refresh calendar
-      if(onSave) onSave(res.data);
+      if (onSave) onSave(res.data);
       onClose();
     } catch (err) {
       console.error("Booking failed", err);
@@ -270,14 +282,21 @@ if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
                     }}
                     onFocus={() => setShowDropdown(true)}
                   />
-                  <button 
-                    type="button"
-                    onClick={() => setIsAddPatientOpen(true)}
-                    className="absolute right-2 top-1.5 p-1.5 bg-slate-100 hover:bg-[#137fec] hover:text-white rounded-lg text-slate-500 transition-colors"
-                    title="Add New Patient"
-                  >
-                    <Plus size={16} />
-                  </button>
+                  <div className="absolute right-2 top-1.5 group/addbtn">
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddPatientOpen(true)}
+                      className="p-1.5 bg-[#137fec] hover:bg-blue-600 text-white rounded-lg shadow-sm shadow-blue-400/40 hover:shadow-md hover:shadow-blue-500/40 hover:scale-110 transition-all duration-150"
+                    >
+                      <Plus size={16} />
+                    </button>
+                    {/* Tooltip */}
+                    <div className="pointer-events-none absolute right-0 top-full mt-1.5 origin-top-right scale-90 opacity-0 group-hover/addbtn:scale-100 group-hover/addbtn:opacity-100 transition-all duration-150 z-50">
+                      <div className="bg-slate-800 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg shadow-lg whitespace-nowrap flex items-center gap-1.5">
+                        Add New Patient
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Dropdown Results */}
@@ -357,9 +376,10 @@ if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="sm:col-span-1 flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-500 uppercase">Date</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     required
+                    min={getIndiaDate()}
                     className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
                     value={formData.date}
                     onChange={(e) => setFormData({...formData, date: e.target.value})}

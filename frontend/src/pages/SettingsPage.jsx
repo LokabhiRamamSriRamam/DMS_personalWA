@@ -1,7 +1,438 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2 } from 'lucide-react';
 import API from '../services/api';
 import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
+import { useInventorySettings } from '../Context/SettingsContext';
+
+// ─── Inventory Tab ────────────────────────────────────────────────────────────
+
+function ToggleSwitch({ enabled, onChange, disabled }) {
+  return (
+    <button
+      type="button"
+      onClick={() => !disabled && onChange(!enabled)}
+      disabled={disabled}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+        enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      <span
+        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+          enabled ? 'translate-x-6' : 'translate-x-1'
+        }`}
+      />
+    </button>
+  );
+}
+
+function MedicineFormModal({ medicine, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: medicine?.name || '',
+    composition: medicine?.composition || '',
+    manufacturer: medicine?.manufacturer || '',
+    category: medicine?.category || '',
+  });
+  const [saving, setSaving] = useState(false);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      if (medicine?._id) {
+        await API.put(`/inventory/${medicine._id}`, form);
+      } else {
+        await API.post('/inventory', { ...form, type: 'Pharmacy' });
+      }
+      onSave();
+      onClose();
+    } catch (err) {
+      alert('Failed to save: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+          <h3 className="font-bold text-lg text-slate-800 dark:text-white">
+            {medicine?._id ? 'Edit Medicine' : 'Add Medicine'}
+          </h3>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={submit} className="p-6 space-y-4">
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Name <span className="text-red-500">*</span></label>
+            <input
+              required
+              autoFocus
+              type="text"
+              value={form.name}
+              onChange={e => setForm({ ...form, name: e.target.value })}
+              className="w-full mt-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase">Composition</label>
+            <input
+              type="text"
+              value={form.composition}
+              onChange={e => setForm({ ...form, composition: e.target.value })}
+              className="w-full mt-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Manufacturer</label>
+              <input
+                type="text"
+                value={form.manufacturer}
+                onChange={e => setForm({ ...form, manufacturer: e.target.value })}
+                className="w-full mt-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-500 uppercase">Category</label>
+              <input
+                type="text"
+                value={form.category}
+                onChange={e => setForm({ ...form, category: e.target.value })}
+                placeholder="e.g. Antibiotic"
+                className="w-full mt-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-4">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+            <button type="submit" disabled={saving} className="px-5 py-2 rounded-lg bg-[#137fec] text-white text-sm font-bold hover:bg-blue-600 disabled:opacity-60">
+              {saving ? 'Saving…' : medicine?._id ? 'Update' : 'Add Medicine'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function BulkUploadModal({ onClose, onSuccess }) {
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!sheetUrl.trim()) return;
+    setUploading(true);
+    setError('');
+    setResult(null);
+    try {
+      const res = await API.post('/inventory/bulk-upload-medicines', { sheetUrl: sheetUrl.trim() });
+      setResult(res.data);
+      onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <FileSpreadsheet size={20} className="text-green-600" />
+            <h3 className="font-bold text-lg text-slate-800 dark:text-white">Bulk Upload via Google Sheets</h3>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700">
+            <X size={20} />
+          </button>
+        </div>
+        <div className="p-6 space-y-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm">
+            <p className="font-semibold text-slate-800 dark:text-slate-100 mb-2">How to use:</p>
+            <ol className="list-decimal pl-5 space-y-1 text-slate-700 dark:text-slate-300">
+              <li>Create a Google Sheet with these column headers in row 1:
+                <div className="mt-1 font-mono text-xs bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700">
+                  name | composition | manufacturer | category
+                </div>
+                <span className="text-xs text-slate-500">Only <b>name</b> is required.</span>
+              </li>
+              <li>Click <b>Share → General access</b> → set to <b>"Anyone with the link"</b> (Viewer).</li>
+              <li>Copy the URL and paste it below.</li>
+            </ol>
+            <a
+              href="https://docs.google.com/spreadsheets/create"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 mt-3 text-[#137fec] font-semibold text-xs hover:underline"
+            >
+              <ExternalLink size={12} /> Create a new Google Sheet
+            </a>
+          </div>
+
+          {!result && (
+            <form onSubmit={submit}>
+              <label className="text-xs font-bold text-slate-500 uppercase">Google Sheets URL</label>
+              <input
+                autoFocus
+                required
+                type="url"
+                value={sheetUrl}
+                onChange={e => setSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                className="w-full mt-1 px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+              />
+              {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+              <div className="flex justify-end gap-2 pt-4">
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800">Cancel</button>
+                <button type="submit" disabled={uploading} className="px-5 py-2 rounded-lg bg-[#137fec] text-white text-sm font-bold hover:bg-blue-600 disabled:opacity-60 flex items-center gap-2">
+                  {uploading ? <><Loader2 size={14} className="animate-spin" /> Importing…</> : <><Upload size={14} /> Import</>}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {result && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-green-700">{result.inserted}</p>
+                  <p className="text-xs text-slate-500 uppercase">Imported</p>
+                </div>
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-yellow-700">{result.skipped}</p>
+                  <p className="text-xs text-slate-500 uppercase">Skipped</p>
+                </div>
+                <div className="bg-slate-50 dark:bg-slate-800 border border-slate-200 rounded-lg p-3 text-center">
+                  <p className="text-2xl font-bold text-slate-700 dark:text-slate-300">{result.total}</p>
+                  <p className="text-xs text-slate-500 uppercase">Total Rows</p>
+                </div>
+              </div>
+              {result.skippedDetails?.length > 0 && (
+                <details className="bg-slate-50 dark:bg-slate-800 rounded-lg p-3 text-sm">
+                  <summary className="font-semibold cursor-pointer text-slate-700 dark:text-slate-300">
+                    View skipped rows ({result.skippedDetails.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto pl-2">
+                    {result.skippedDetails.map((s, i) => (
+                      <li key={i} className="text-xs text-slate-500">
+                        <b>{s.name || '(no name)'}</b> — {s.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              <div className="flex justify-end pt-2">
+                <button onClick={onClose} className="px-5 py-2 rounded-lg bg-[#137fec] text-white text-sm font-bold hover:bg-blue-600">
+                  Done
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InventoryTab() {
+  const { inventorySettings, refreshInventorySettings } = useInventorySettings();
+  const [savingToggle, setSavingToggle] = useState(false);
+  const [medicines, setMedicines] = useState([]);
+  const [loadingMeds, setLoadingMeds] = useState(false);
+  const [search, setSearch] = useState('');
+  const [editingMedicine, setEditingMedicine] = useState(null); // null | {} | object
+  const [showBulkModal, setShowBulkModal] = useState(false);
+
+  const updateToggle = async (key, value) => {
+    setSavingToggle(true);
+    try {
+      await API.put('/inventory/settings', { [key]: value });
+      await refreshInventorySettings();
+    } catch (err) {
+      alert('Failed to save: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setSavingToggle(false);
+    }
+  };
+
+  const fetchMedicines = async () => {
+    setLoadingMeds(true);
+    try {
+      const res = await API.get('/inventory');
+      setMedicines((res.data || []).filter(i => i.type === 'Pharmacy'));
+    } catch (err) {
+      console.error('Failed to load medicines', err);
+    } finally {
+      setLoadingMeds(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!inventorySettings.medicineEnabled) fetchMedicines();
+  }, [inventorySettings.medicineEnabled]);
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this medicine?')) return;
+    try {
+      await API.delete(`/inventory/${id}`);
+      fetchMedicines();
+    } catch (err) {
+      alert('Failed to delete: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const filteredMedicines = medicines.filter(m =>
+    !search || `${m.name} ${m.composition || ''} ${m.manufacturer || ''} ${m.category || ''}`
+      .toLowerCase()
+      .includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Toggles */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">Inventory Modules</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+          Disable modules you don't track. Disabling Medicine Inventory hides stock tracking and
+          invoice charges, but the medicine list below is still used for prescriptions.
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                <Pill size={20} className="text-[#137fec]" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 dark:text-white">Medicine Inventory</p>
+                <p className="text-xs text-slate-500">Track pharmacy stock & charge in invoices</p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={inventorySettings.medicineEnabled}
+              onChange={(v) => updateToggle('medicineEnabled', v)}
+              disabled={savingToggle}
+            />
+          </div>
+          <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-50 dark:bg-orange-900/30 rounded-lg">
+                <FileSpreadsheet size={20} className="text-orange-500" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-800 dark:text-white">Consumable Inventory</p>
+                <p className="text-xs text-slate-500">Track consumables used per treatment</p>
+              </div>
+            </div>
+            <ToggleSwitch
+              enabled={inventorySettings.consumableEnabled}
+              onChange={(v) => updateToggle('consumableEnabled', v)}
+              disabled={savingToggle}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Medicine List — only visible when Medicine Inventory is OFF */}
+      {!inventorySettings.medicineEnabled && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Medicine List</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Used for prescriptions in the Treatment page. ({medicines.length} medicines)
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowBulkModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-bold shadow-md"
+              >
+                <FileSpreadsheet size={16} /> Bulk Upload
+              </button>
+              <button
+                onClick={() => setEditingMedicine({})}
+                className="flex items-center gap-2 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md"
+              >
+                <Plus size={16} /> Add Medicine
+              </button>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, composition, manufacturer or category…"
+            className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 mb-4"
+          />
+
+          {loadingMeds ? (
+            <div className="flex justify-center py-8"><Loader2 className="animate-spin text-[#137fec]" /></div>
+          ) : filteredMedicines.length === 0 ? (
+            <div className="text-center py-12 text-slate-500">
+              {medicines.length === 0 ? 'No medicines yet. Add one or bulk-upload via Google Sheets.' : 'No medicines match your search.'}
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-900 text-xs text-slate-500 uppercase">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Name</th>
+                    <th className="px-4 py-3 text-left">Composition</th>
+                    <th className="px-4 py-3 text-left">Manufacturer</th>
+                    <th className="px-4 py-3 text-left">Category</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredMedicines.map(m => (
+                    <tr key={m._id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
+                      <td className="px-4 py-3 font-semibold text-slate-800 dark:text-white">{m.name}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{m.composition || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{m.manufacturer || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{m.category || '—'}</td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          <button onClick={() => setEditingMedicine(m)} className="p-1.5 rounded-md hover:bg-blue-50 text-slate-400 hover:text-[#137fec]">
+                            <Edit2 size={15} />
+                          </button>
+                          <button onClick={() => handleDelete(m._id)} className="p-1.5 rounded-md hover:bg-red-50 text-slate-400 hover:text-red-600">
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {editingMedicine && (
+        <MedicineFormModal
+          medicine={editingMedicine}
+          onClose={() => setEditingMedicine(null)}
+          onSave={fetchMedicines}
+        />
+      )}
+      {showBulkModal && (
+        <BulkUploadModal
+          onClose={() => setShowBulkModal(false)}
+          onSuccess={fetchMedicines}
+        />
+      )}
+    </div>
+  );
+}
 
 // ─── Email Tab ────────────────────────────────────────────────────────────────
 
@@ -875,6 +1306,16 @@ const SettingsPage = () => {
             Clinical Data
           </button>
           <button
+            onClick={() => setActiveTab('inventory')}
+            className={`px-6 py-3 font-semibold transition-all ${
+              activeTab === 'inventory'
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            Inventory
+          </button>
+          <button
             onClick={() => setActiveTab('email')}
             className={`px-6 py-3 font-semibold transition-all ${
               activeTab === 'email'
@@ -1270,6 +1711,9 @@ const SettingsPage = () => {
             )}
           </div>
         )}
+        {/* Inventory Tab */}
+        {activeTab === 'inventory' && <InventoryTab />}
+
         {/* Email Tab */}
         {activeTab === 'email' && <EmailTab />}
       </div>

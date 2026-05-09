@@ -6,7 +6,8 @@ const VisitSchema = new mongoose.Schema({
   appointment_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment' },
   date:           { type: Date, default: Date.now },
 
-  // --- 1. EXAMINATION FINDINGS ---
+  // --- 1. CHIEF COMPLAINT & EXAMINATION FINDINGS ---
+  chief_complaint: { type: String, default: '' }, // Reason for this specific visit
   findings: {
     clinical_findings: [{ type: String }],  // Clinical findings from examination
     soft_tissue:       [{ type: String }],

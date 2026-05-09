@@ -212,7 +212,9 @@ export async function updateInvoice(req, res) {
 export async function getTransactions(req, res) {
   const { Transaction } = req.tenantModels;
   try {
-      const transactions = await Transaction.find().sort({ date: -1 });
+      const filter = {};
+      if (req.query.invoice_id) filter.invoice_id = req.query.invoice_id;
+      const transactions = await Transaction.find(filter).sort({ date: -1 });
       res.json(transactions);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Download, Plus, Edit, X, Package, User, Loader2 } from 'lucide-react';
+import { Search, Download, Plus, Edit, X, Package, User, Loader2, Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import api from '../services/api';
 
 const STATUS_STYLES = {
@@ -368,11 +368,219 @@ function LabVendorModal({ isOpen, onClose, vendor, onSave }) {
   );
 }
 
+// ─── Shared Upload Result ─────────────────────────────────────────────────────
+function UploadResult({ result }) {
+  return (
+    <div className="bg-green-50 border border-green-100 rounded-xl p-4 flex flex-col gap-2">
+      <div className="flex items-center gap-2">
+        <CheckCircle size={16} className="text-green-600" />
+        <p className="text-sm font-bold text-green-700">Upload Complete</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        {[['Total Rows', result.total, 'text-slate-700'], ['Inserted', result.inserted, 'text-green-700'], ['Skipped', result.skipped, 'text-orange-600']].map(([label, val, color]) => (
+          <div key={label} className="bg-white rounded-lg p-2 border border-green-100">
+            <p className={`text-xl font-bold ${color}`}>{val}</p>
+            <p className="text-[11px] text-slate-400">{label}</p>
+          </div>
+        ))}
+      </div>
+      {result.skippedDetails?.length > 0 && (
+        <details className="text-xs text-slate-500 mt-1">
+          <summary className="cursor-pointer font-medium text-slate-600">View skipped ({result.skippedDetails.length})</summary>
+          <ul className="mt-1 pl-3 list-disc">
+            {result.skippedDetails.slice(0, 20).map((s, i) => (
+              <li key={i}><span className="font-medium">{s.name || '(empty)'}</span> — {s.reason}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
+// ─── Bulk Upload Lab Items Modal ──────────────────────────────────────────────
+function BulkUploadLabItemsModal({ isOpen, onClose, onSuccess }) {
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState('');
+
+  useEffect(() => { if (isOpen) { setSheetUrl(''); setResult(null); setError(''); } }, [isOpen]);
+
+  async function handleUpload() {
+    if (!sheetUrl.trim()) { setError('Please enter a Google Sheets URL.'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const res = await api.post('/labs/bulk-upload-items', { sheetUrl });
+      setResult(res.data);
+      if (res.data.inserted > 0 && onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+    } finally { setLoading(false); }
+  }
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#137fec]/10 rounded-lg"><Upload size={18} className="text-[#137fec]" /></div>
+            <div>
+              <h3 className="font-bold text-slate-800">Bulk Upload Lab Items</h3>
+              <p className="text-xs text-slate-500">Import catalog items from Google Sheets</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+        </div>
+        <div className="p-6 flex flex-col gap-5">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <p className="text-xs font-bold text-blue-700 uppercase mb-2">Required Column Headers</p>
+            <div className="overflow-x-auto">
+              <table className="text-[11px] w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-100">
+                    {['Name', 'Category', 'Cost', 'Turnaround'].map(h => (
+                      <th key={h} className="px-2 py-1.5 text-left font-bold text-blue-800 border border-blue-200 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    {['Zirconia Crown', 'Crown & Bridge', '3500', '4 Days'].map((v, i) => (
+                      <td key={i} className="px-2 py-1 text-slate-500 italic border border-blue-100 whitespace-nowrap">{v}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-blue-600 mt-2">⚠️ Sheet must be <strong>"Anyone with the link can view"</strong>. Duplicates are auto-skipped.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase">Google Sheets URL</label>
+            <input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              className="w-full border border-slate-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none" />
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg p-3">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          {result && <UploadResult result={result} />}
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">
+              {result ? 'Done' : 'Cancel'}
+            </button>
+            {!result && (
+              <button onClick={handleUpload} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 disabled:opacity-60">
+                {loading ? <><Loader2 size={16} className="animate-spin" /> Importing...</> : <><Upload size={16} /> Upload Items</>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bulk Upload Lab Vendors Modal ────────────────────────────────────────────
+function BulkUploadLabVendorsModal({ isOpen, onClose, onSuccess }) {
+  const [sheetUrl, setSheetUrl] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [result, setResult]     = useState(null);
+  const [error, setError]       = useState('');
+
+  useEffect(() => { if (isOpen) { setSheetUrl(''); setResult(null); setError(''); } }, [isOpen]);
+
+  async function handleUpload() {
+    if (!sheetUrl.trim()) { setError('Please enter a Google Sheets URL.'); return; }
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const res = await api.post('/labs/bulk-upload-vendors', { sheetUrl });
+      setResult(res.data);
+      if (res.data.inserted > 0 && onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Upload failed. Please try again.');
+    } finally { setLoading(false); }
+  }
+
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-50 to-violet-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-500/10 rounded-lg"><Upload size={18} className="text-purple-600" /></div>
+            <div>
+              <h3 className="font-bold text-slate-800">Bulk Upload Lab Vendors</h3>
+              <p className="text-xs text-slate-500">Import lab directory from Google Sheets</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors"><X size={20} /></button>
+        </div>
+        <div className="p-6 flex flex-col gap-5">
+          <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
+            <p className="text-xs font-bold text-purple-700 uppercase mb-2">Required Column Headers</p>
+            <div className="overflow-x-auto">
+              <table className="text-[11px] w-full border-collapse">
+                <thead>
+                  <tr className="bg-purple-100">
+                    {['Name', 'Contact Person', 'Phone', 'Email', 'Address'].map(h => (
+                      <th key={h} className="px-2 py-1.5 text-left font-bold text-purple-800 border border-purple-200 whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr className="bg-white">
+                    {['City Dental Lab', 'Ramesh Kumar', '9876543210', 'lab@city.com', 'Delhi'].map((v, i) => (
+                      <td key={i} className="px-2 py-1 text-slate-500 italic border border-purple-100 whitespace-nowrap">{v}</td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-purple-600 mt-2">⚠️ Sheet must be <strong>"Anyone with the link can view"</strong>. Duplicates are auto-skipped.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase">Google Sheets URL</label>
+            <input type="url" placeholder="https://docs.google.com/spreadsheets/d/..." value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              className="w-full border border-slate-300 p-2.5 rounded-xl text-sm focus:ring-2 focus:ring-purple-500 outline-none" />
+          </div>
+          {error && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-lg p-3">
+              <AlertCircle size={16} className="text-red-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          {result && <UploadResult result={result} />}
+          <div className="flex gap-3">
+            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition-colors">
+              {result ? 'Done' : 'Cancel'}
+            </button>
+            {!result && (
+              <button onClick={handleUpload} disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 disabled:opacity-60">
+                {loading ? <><Loader2 size={16} className="animate-spin" /> Importing...</> : <><Upload size={16} /> Upload Vendors</>}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function LabOrdersPage() {
   const [activeModule, setActiveModule] = useState('Lab Order');
   const [modalState, setModalState]     = useState({ type: null, data: null });
   const [searchQuery, setSearchQuery]   = useState('');
+  const [bulkItemsOpen, setBulkItemsOpen]     = useState(false);
+  const [bulkVendorsOpen, setBulkVendorsOpen] = useState(false);
 
   const [orders,     setOrders]     = useState([]);
   const [items,      setItems]      = useState([]);
@@ -669,6 +877,16 @@ export default function LabOrdersPage() {
         vendor={modalState.data}
         onSave={handleSaveVendor}
       />
+      <BulkUploadLabItemsModal
+        isOpen={bulkItemsOpen}
+        onClose={() => setBulkItemsOpen(false)}
+        onSuccess={fetchAll}
+      />
+      <BulkUploadLabVendorsModal
+        isOpen={bulkVendorsOpen}
+        onClose={() => setBulkVendorsOpen(false)}
+        onSuccess={fetchAll}
+      />
 
       {/* Tabs */}
       <div className="flex justify-between items-center mb-6">
@@ -705,6 +923,25 @@ export default function LabOrdersPage() {
               className="pl-10 pr-4 py-2 border rounded-xl text-sm w-64 focus:ring-1 focus:ring-[#137fec] outline-none"
             />
           </div>
+
+          {/* Bulk Upload — shown only for Lab Item and Vendor Labs tabs */}
+          {activeModule === 'Lab Item' && (
+            <button
+              onClick={() => setBulkItemsOpen(true)}
+              className="flex items-center gap-2 bg-[#137fec] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
+            >
+              <Upload size={16}/> Bulk Upload
+            </button>
+          )}
+          {activeModule === 'Vendor Labs' && (
+            <button
+              onClick={() => setBulkVendorsOpen(true)}
+              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 shadow-md transition-all"
+            >
+              <Upload size={16}/> Bulk Upload
+            </button>
+          )}
+
           <button onClick={handleAddNew}
             className="flex items-center gap-2 bg-[#137fec] text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md">
             <Plus size={18}/>

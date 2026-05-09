@@ -2,6 +2,9 @@ import mongoose from 'mongoose';
 
 const pool = new Map();
 
+/** Returns all active tenant DB connections (for background jobs). */
+export function getTenantPool() { return pool; }
+
 /**
  * Gets or creates a connection to a specific tenant's database.
  * @param {string} mongoUri

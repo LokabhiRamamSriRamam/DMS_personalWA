@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import api from "../services/api";
 import { WAHA_BASE_URL, WAHA_API_KEY } from "../config/env.js";
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  LineChart, Line, CartesianGrid, Cell,
+} from "recharts";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -25,6 +29,7 @@ const EVENTS = [
       "doctorName",
       "appointmentType",
     ],
+    allowedContentTypes: ["text"],
   },
   {
     key: "appointmentReminder",
@@ -33,6 +38,7 @@ const EVENTS = [
     icon: "alarm",
     color: "indigo",
     variables: ["name", "firstName", "date", "time", "doctorName"],
+    allowedContentTypes: ["text"],
   },
   {
     key: "appointmentRescheduled",
@@ -48,6 +54,7 @@ const EVENTS = [
       "doctorName",
       "appointmentType",
     ],
+    allowedContentTypes: ["text"],
   },
   {
     key: "treatmentCompleted",
@@ -63,6 +70,7 @@ const EVENTS = [
       "date",
       "doctorName",
     ],
+    allowedContentTypes: ["text"],
   },
   {
     key: "feedbackMessage",
@@ -71,6 +79,7 @@ const EVENTS = [
     icon: "feedback",
     color: "teal",
     variables: ["name", "firstName", "date", "doctorName"],
+    allowedContentTypes: ["text"],
   },
   {
     key: "feedbackPoll",
@@ -80,6 +89,7 @@ const EVENTS = [
     color: "cyan",
     variables: ["name", "firstName", "date", "doctorName"],
     isFeedbackPoll: true,
+    allowedContentTypes: ["poll"],
   },
   {
     key: "postCare",
@@ -96,6 +106,7 @@ const EVENTS = [
       "doctorName",
     ],
     isJourney: true,
+    allowedContentTypes: ["text"],
   },
 ];
 
@@ -1479,7 +1490,7 @@ function LangEditor({ lang, event, template, onSaved }) {
           ?
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-          {CONTENT_TYPES.map((ct) => (
+          {CONTENT_TYPES.filter((ct) => event.allowedContentTypes?.includes(ct.type)).map((ct) => (
             <button
               key={ct.type}
               type="button"
@@ -1959,7 +1970,7 @@ function StepLangEditor({ lang, event, existing, onSaved }) {
           :
         </p>
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
-          {CONTENT_TYPES.map((ct) => (
+          {CONTENT_TYPES.filter((ct) => event.allowedContentTypes?.includes(ct.type)).map((ct) => (
             <button
               key={ct.type}
               type="button"
@@ -2830,7 +2841,7 @@ function FeedbackPollConfigEditor({
   const [saving, setSaving] = useState(false);
   const [pollForm, setPollForm] = useState({
     question: "",
-    options: ["1 - Very Unhappy", "2 - Unhappy", "3 - Neutral", "4 - Happy", "5 - Very Happy"],
+    options: ["1 😠 Very Unhappy", "2 🙁 Unhappy", "3 😐 Neutral", "4 🙂 Happy", "5 😄 Very Happy"],
   });
   const [responses, setResponses] = useState({
     rating1: { contentType: "text", content: { text: "" }, isEnabled: true },
@@ -4153,6 +4164,197 @@ function LogsPanel() {
   );
 }
 
+// ─── Feedback Analytics Panel ─────────────────────────────────────────────────
+
+const RATING_LABELS = {
+  1: "😠 Very Unhappy",
+  2: "🙁 Unhappy",
+  3: "😐 Neutral",
+  4: "🙂 Happy",
+  5: "😄 Very Happy",
+};
+const RATING_COLORS = { 1: "#ef4444", 2: "#f97316", 3: "#eab308", 4: "#22c55e", 5: "#16a34a" };
+
+function FeedbackAnalyticsPanel() {
+  const [data, setData] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const today = new Date().toISOString().slice(0, 10);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const [dateFrom, setDateFrom] = useState(thirtyDaysAgo);
+  const [dateTo, setDateTo]     = useState(today);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (dateFrom) params.set("dateFrom", dateFrom);
+      if (dateTo)   params.set("dateTo", dateTo);
+      const res = await api.get(`/whatsapp/feedback?${params}`);
+      setData(res.data.data || []);
+      setAnalytics(res.data.analytics || null);
+    } catch (_) {}
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  const barChartData = analytics
+    ? [1, 2, 3, 4, 5].map(r => ({ label: RATING_LABELS[r], count: analytics.ratingCounts[r] || 0, fill: RATING_COLORS[r] }))
+    : [];
+
+  // Build avg-per-day line chart from raw data
+  const dayMap = {};
+  for (const row of data) {
+    const day = row.respondedAt?.slice(0, 10);
+    if (!day || !row.rating) continue;
+    if (!dayMap[day]) dayMap[day] = { sum: 0, count: 0 };
+    dayMap[day].sum += row.rating;
+    dayMap[day].count += 1;
+  }
+  const lineChartData = Object.entries(dayMap)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, { sum, count }]) => ({ day, avg: +(sum / count).toFixed(2) }));
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">From</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#137fec]" />
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">To</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            className="border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#137fec]" />
+        </div>
+        <button onClick={load}
+          className="px-4 py-1.5 bg-[#137fec] text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
+          {loading ? "Loading…" : "Apply"}
+        </button>
+      </div>
+
+      {/* KPI Cards */}
+      {analytics && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wide">Total Responses</p>
+            <p className="text-3xl font-bold text-blue-700 dark:text-blue-300 mt-1">{analytics.total}</p>
+          </div>
+          <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
+            <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase tracking-wide">Avg Rating</p>
+            <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-1">{analytics.avgRating ?? "—"} <span className="text-sm font-normal">/ 5</span></p>
+          </div>
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+            <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wide">Happy + Very Happy</p>
+            <p className="text-3xl font-bold text-amber-700 dark:text-amber-300 mt-1">
+              {(analytics.ratingCounts[4] || 0) + (analytics.ratingCounts[5] || 0)}
+            </p>
+          </div>
+          <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-xl p-4">
+            <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wide">Predicted Google ⭐</p>
+            <p className="text-3xl font-bold text-purple-700 dark:text-purple-300 mt-1">{analytics.predictedGoogleScore ?? "—"} <span className="text-sm font-normal">/ 5</span></p>
+          </div>
+        </div>
+      )}
+
+      {/* Charts */}
+      {analytics && analytics.total > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bar: rating distribution */}
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Rating Distribution</p>
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={barChartData} barSize={32}>
+                <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+                <Tooltip />
+                <Bar dataKey="count" name="Responses">
+                  {barChartData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Line: avg rating over time */}
+          <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-4">Avg Rating Over Time</p>
+            {lineChartData.length > 1 ? (
+              <ResponsiveContainer width="100%" height={200}>
+                <LineChart data={lineChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                  <YAxis domain={[1, 5]} tick={{ fontSize: 11 }} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="avg" stroke="#137fec" strokeWidth={2} dot={{ r: 4 }} name="Avg Rating" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="text-sm text-slate-400 text-center py-16">Not enough data for trend</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        <div className="px-5 py-3 border-b border-slate-200 dark:border-slate-700">
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">All Responses</p>
+        </div>
+        {data.length === 0 ? (
+          <p className="text-sm text-slate-400 text-center py-12">
+            {loading ? "Loading…" : "No feedback responses found for this period."}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
+                  {["Patient", "Appointment Date", "Type", "Rating", "Responded At"].map(h => (
+                    <th key={h} className="text-left py-2.5 px-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {data.map((row, i) => {
+                  const patientName = row.patient
+                    ? `${row.patient.first_name} ${row.patient.last_name || ""}`.trim()
+                    : row.from || "—";
+                  const apptDate = row.appointment?.start_time
+                    ? new Date(row.appointment.start_time).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" })
+                    : "—";
+                  const apptType = row.appointment?.type || "—";
+                  const rating = row.rating;
+                  return (
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                      <td className="py-3 px-4 font-medium text-slate-800 dark:text-slate-200">{patientName}</td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400">{apptDate}</td>
+                      <td className="py-3 px-4 text-slate-600 dark:text-slate-400 capitalize">{apptType}</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold`}
+                          style={{ background: RATING_COLORS[rating] + "22", color: RATING_COLORS[rating] }}>
+                          {RATING_LABELS[rating] || rating}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-500 dark:text-slate-400 text-xs">
+                        {row.respondedAt ? new Date(row.respondedAt).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 const DEFAULT_SETTINGS = {
@@ -4282,9 +4484,10 @@ export default function WhatsAppPage() {
 
   const activeEvent = EVENTS.find((e) => e.key === activeEditor);
   const tabs = [
-    { key: "messages", label: "Messages", icon: "chat" },
-    { key: "settings", label: "Settings", icon: "settings" },
-    { key: "logs", label: "Logs", icon: "history" },
+    { key: "messages",  label: "Messages",  icon: "chat" },
+    { key: "feedback",  label: "Feedback Analytics", icon: "star" },
+    { key: "settings",  label: "Settings",  icon: "settings" },
+    { key: "logs",      label: "Logs",      icon: "history" },
   ];
 
   return (
@@ -4474,6 +4677,7 @@ export default function WhatsAppPage() {
         )}
 
         {/* ── Logs ── */}
+        {activeTab === "feedback" && <FeedbackAnalyticsPanel />}
         {activeTab === "logs" && <LogsPanel />}
       </div>
 

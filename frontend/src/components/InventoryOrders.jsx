@@ -311,9 +311,16 @@ export const CreateOrderModal = ({ isOpen, onClose, onSave, editOrder }) => {
 };
 
 // --- MAIN COMPONENT ---
-const InventoryOrders = ({ SectionHeader }) => {
+const InventoryOrders = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filter orders by category. "General" orders are always shown.
+  const visibleOrders = orders.filter(o => {
+    if (o.category === 'Pharmacy') return medicineEnabled;
+    if (o.category === 'Consumable') return consumableEnabled;
+    return true;
+  });
   
   // Modal & Context Menu State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -379,8 +386,8 @@ const InventoryOrders = ({ SectionHeader }) => {
              title="Purchase Orders" 
              icon={Pill} 
              colorClass="bg-blue-50/50" 
-             count={orders.length}
-             onAdd={handleCreateNew} 
+             count={visibleOrders.length}
+             onAdd={handleCreateNew}
           />
           
           <div className="overflow-auto flex-1">
@@ -395,7 +402,7 @@ const InventoryOrders = ({ SectionHeader }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                    {orders.map(o => (
+                    {visibleOrders.map(o => (
                         <tr 
                             key={o._id} 
                             className="hover:bg-slate-50 cursor-context-menu select-none"

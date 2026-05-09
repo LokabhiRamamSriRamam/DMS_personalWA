@@ -3,6 +3,7 @@ const router = Router();
 import {
   getOrders, createOrder, updateOrderStatus, updateOrderFull,
   getCatalog, createCatalogItem, updateCatalogItem,
+  bulkUploadLabItems, bulkUploadLabVendors,
 } from '../controllers/lab.controller.js';
 
 // Lab Orders
@@ -15,5 +16,9 @@ router.put('/orders/:id', updateOrderFull);       // full edit (modal)
 router.get('/items', getCatalog);
 router.post('/items', createCatalogItem);
 router.put('/items/:id', updateCatalogItem);
+
+// Bulk uploads via Google Sheets
+router.post('/bulk-upload-items',   bulkUploadLabItems);
+router.post('/bulk-upload-vendors', bulkUploadLabVendors);
 
 export default router;

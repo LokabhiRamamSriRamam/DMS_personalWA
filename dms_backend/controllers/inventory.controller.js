@@ -1,3 +1,199 @@
+// ============================================================================
+//                       INVENTORY SETTINGS (per-tenant)
+// ============================================================================
+
+// GET /api/inventory/settings — returns the singleton settings doc, creating
+// it on first read with defaults (both inventory types enabled).
+export async function getInventorySettings(req, res) {
+  const { InventorySettings } = req.tenantModels;
+  try {
+    let settings = await InventorySettings.findOne({});
+    if (!settings) {
+      settings = await InventorySettings.create({});
+    }
+    res.json({
+      medicineEnabled: settings.medicineEnabled,
+      consumableEnabled: settings.consumableEnabled,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
+// PUT /api/inventory/settings — upsert the singleton settings doc.
+export async function updateInventorySettings(req, res) {
+  const { InventorySettings } = req.tenantModels;
+  try {
+    const update = {};
+    if (req.body.medicineEnabled !== undefined) update.medicineEnabled = !!req.body.medicineEnabled;
+    if (req.body.consumableEnabled !== undefined) update.consumableEnabled = !!req.body.consumableEnabled;
+
+    const settings = await InventorySettings.findOneAndUpdate(
+      {},
+      update,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({
+      medicineEnabled: settings.medicineEnabled,
+      consumableEnabled: settings.consumableEnabled,
+    });
+  } catch (err) { res.status(400).json({ error: err.message }); }
+}
+
+// ============================================================================
+//                BULK UPLOAD MEDICINES (via Google Sheets URL)
+// ============================================================================
+
+/**
+ * Extract the spreadsheet ID from a Google Sheets URL or accept a bare ID.
+ * Examples:
+ *   https://docs.google.com/spreadsheets/d/<ID>/edit#gid=0
+ *   https://docs.google.com/spreadsheets/d/<ID>
+ *   <ID>
+ */
+function extractSheetId(input) {
+  if (!input) return null;
+  const trimmed = String(input).trim();
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+  // Bare ID — only allow safe chars
+  if (/^[a-zA-Z0-9-_]+$/.test(trimmed)) return trimmed;
+  return null;
+}
+
+/**
+ * Parse a CSV string into an array of objects keyed by header.
+ * Handles quoted fields (including embedded commas and escaped quotes "").
+ */
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else {
+        field += ch;
+      }
+    } else {
+      if (ch === '"') inQuotes = true;
+      else if (ch === ',') { row.push(field); field = ''; }
+      else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+      else if (ch === '\r') { /* skip */ }
+      else field += ch;
+    }
+  }
+  if (field !== '' || row.length > 0) { row.push(field); rows.push(row); }
+
+  if (rows.length === 0) return [];
+  const headers = rows[0].map(h => h.trim().toLowerCase());
+  return rows.slice(1)
+    .filter(r => r.some(c => String(c).trim() !== ''))
+    .map(r => {
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+      return obj;
+    });
+}
+
+// POST /api/inventory/bulk-upload-medicines
+export async function bulkUploadMedicines(req, res) {
+  const { InventoryItem } = req.tenantModels;
+  try {
+    const sheetId = extractSheetId(req.body?.sheetUrl);
+    if (!sheetId) return res.status(400).json({ error: 'Invalid Google Sheets URL or ID.' });
+
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    const response = await fetch(exportUrl, { redirect: 'follow' });
+    if (!response.ok)
+      return res.status(400).json({ error: `Could not read sheet. Make sure it's shared as "Anyone with the link can view". (HTTP ${response.status})` });
+
+    const rows = parseCsv(await response.text());
+    if (rows.length === 0) return res.status(400).json({ error: 'Sheet is empty.' });
+    if (!('name' in rows[0]))
+      return res.status(400).json({ error: 'Sheet must include a "name" column.' });
+
+    const existing = await InventoryItem.find({ type: 'Pharmacy' }, 'name').lean();
+    const existingNames = new Set(existing.map(i => String(i.name).trim().toLowerCase()));
+
+    const toInsert = [], skipped = [], seenInBatch = new Set();
+    for (const row of rows) {
+      const name = (row.name || '').trim();
+      if (!name) { skipped.push({ name: '', reason: 'Missing name' }); continue; }
+      const key = name.toLowerCase();
+      if (existingNames.has(key) || seenInBatch.has(key)) { skipped.push({ name, reason: 'Duplicate (already exists)' }); continue; }
+      seenInBatch.add(key);
+      toInsert.push({
+        name,
+        type: 'Pharmacy',
+        composition:   (row.composition    || '').trim(),
+        manufacturer:  (row.manufacturer   || '').trim(),
+        category:      (row.category       || '').trim(),
+        cost_price:    Number((row['cost price']    || row.costprice    || row.cost    || '0').replace(/[^0-9.]/g, '')) || 0,
+        selling_price: Number((row['selling price'] || row.sellingprice || row.selling || '0').replace(/[^0-9.]/g, '')) || 0,
+      });
+    }
+
+    let inserted = 0;
+    if (toInsert.length > 0) { const docs = await InventoryItem.insertMany(toInsert, { ordered: false }); inserted = docs.length; }
+    res.json({ inserted, skipped: skipped.length, skippedDetails: skipped, total: rows.length });
+  } catch (err) {
+    console.error('bulkUploadMedicines error:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// POST /api/inventory/bulk-upload-consumables
+// Body: { sheetUrl: string }
+// Sheet columns: Name, Category, Cost Price, Min Consumption
+export async function bulkUploadConsumables(req, res) {
+  const { InventoryItem } = req.tenantModels;
+  try {
+    const sheetId = extractSheetId(req.body?.sheetUrl);
+    if (!sheetId) return res.status(400).json({ error: 'Invalid Google Sheets URL or ID.' });
+
+    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+    const response = await fetch(exportUrl, { redirect: 'follow' });
+    if (!response.ok)
+      return res.status(400).json({ error: `Could not read sheet. Make sure it's shared as "Anyone with the link can view". (HTTP ${response.status})` });
+
+    const rows = parseCsv(await response.text());
+    if (rows.length === 0) return res.status(400).json({ error: 'Sheet is empty.' });
+    if (!('name' in rows[0]))
+      return res.status(400).json({ error: 'Sheet must include a "name" column.' });
+
+    const existing = await InventoryItem.find({ type: 'Consumable' }, 'name').lean();
+    const existingNames = new Set(existing.map(i => String(i.name).trim().toLowerCase()));
+
+    const toInsert = [], skipped = [], seenInBatch = new Set();
+    for (const row of rows) {
+      const name = (row.name || '').trim();
+      if (!name) { skipped.push({ name: '', reason: 'Missing name' }); continue; }
+      const key = name.toLowerCase();
+      if (existingNames.has(key) || seenInBatch.has(key)) { skipped.push({ name, reason: 'Duplicate (already exists)' }); continue; }
+      seenInBatch.add(key);
+      toInsert.push({
+        name,
+        type: 'Consumable',
+        category:          (row.category || '').trim(),
+        cost_price:        Number((row['cost price']       || row.costprice || row.cost || '0').replace(/[^0-9.]/g, '')) || 0,
+        consumption_unit:  Number((row['min consumption'] || row['consumption unit'] || row.consumption || row.unit || '0').replace(/[^0-9.]/g, '')) || 0,
+        selling_price: 0,
+      });
+    }
+
+    let inserted = 0;
+    if (toInsert.length > 0) { const docs = await InventoryItem.insertMany(toInsert, { ordered: false }); inserted = docs.length; }
+    res.json({ inserted, skipped: skipped.length, skippedDetails: skipped, total: rows.length });
+  } catch (err) {
+    console.error('bulkUploadConsumables error:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 // --- HELPER: CENTRALIZED STATUS LOGIC ---
 const calculateStatus = (currentStock, minStock) => {
     const stock = Number(currentStock);

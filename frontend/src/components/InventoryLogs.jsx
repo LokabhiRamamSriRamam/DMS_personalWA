@@ -152,7 +152,7 @@ export const AddLogModal = ({ isOpen, onClose, onSave }) => {
 };
 
 // --- MAIN LOGS COMPONENT ---
-const InventoryLogs = () => {
+const InventoryLogs = ({ medicineEnabled = true, consumableEnabled = true }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -171,6 +171,16 @@ const InventoryLogs = () => {
   useEffect(() => {
     fetchLogs();
   }, []);
+
+  // Filter logs to hide rows whose item type is disabled.
+  // Rows whose item_id is missing/null are kept (cannot determine type).
+  const visibleLogs = logs.filter(log => {
+    const itemType = log.item_id?.type;
+    if (!itemType) return true;
+    if (itemType === 'Pharmacy') return medicineEnabled;
+    if (itemType === 'Consumable' || itemType === 'Asset') return consumableEnabled;
+    return true;
+  });
 
   // Expose refresh function to parent via ref if needed, 
   // but for now, we rely on the parent page re-mounting or using a global context.
@@ -200,7 +210,7 @@ const InventoryLogs = () => {
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-                {logs.map((log, index) => (
+                {visibleLogs.map((log, index) => (
                 <tr key={log._id} className="hover:bg-slate-50 text-sm">
                     <td className="p-4 text-slate-400">{index + 1}</td>
                     <td className="p-4">

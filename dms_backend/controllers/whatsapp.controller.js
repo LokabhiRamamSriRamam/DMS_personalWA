@@ -449,26 +449,58 @@ export async function handlePollResponse(req, res) {
 // GET /api/whatsapp/feedback?feedbackType=&dateFrom=&dateTo=
 // Returns tenant-isolated poll responses
 export async function getFeedback(req, res) {
-  const { PollResponse } = req.tenantModels;
+  const { PollResponse, Patient, Appointment } = req.tenantModels;
   try {
     const filter = { tenantId: req.user.tenantId };
 
     if (req.query.feedbackType) filter.feedbackType = req.query.feedbackType;
+    if (req.query.rating) filter.rating = Number(req.query.rating);
 
     if (req.query.dateFrom || req.query.dateTo) {
       filter.respondedAt = {};
       if (req.query.dateFrom) filter.respondedAt.$gte = new Date(req.query.dateFrom);
-      if (req.query.dateTo)   filter.respondedAt.$lte = new Date(req.query.dateTo);
+      if (req.query.dateTo)   filter.respondedAt.$lte = new Date(new Date(req.query.dateTo).setHours(23, 59, 59, 999));
     }
 
     const responses = await PollResponse.find(filter)
       .sort({ respondedAt: -1 })
-      .limit(200);
+      .limit(500)
+      .lean();
+
+    // Join patient and appointment data
+    const patientIds = [...new Set(responses.map(r => r.patientId).filter(Boolean))];
+    const appointmentIds = [...new Set(responses.map(r => r.appointmentId).filter(Boolean))];
+
+    const [patients, appointments] = await Promise.all([
+      Patient ? Patient.find({ _id: { $in: patientIds } }).select('first_name last_name patientId').lean() : [],
+      Appointment ? Appointment.find({ _id: { $in: appointmentIds } }).select('start_time type doctor_id').lean() : [],
+    ]);
+
+    const patientMap = Object.fromEntries(patients.map(p => [p._id.toString(), p]));
+    const apptMap    = Object.fromEntries(appointments.map(a => [a._id.toString(), a]));
+
+    const enriched = responses.map(r => ({
+      ...r,
+      patient:     r.patientId     ? patientMap[r.patientId.toString()]     || null : null,
+      appointment: r.appointmentId ? apptMap[r.appointmentId.toString()]    || null : null,
+    }));
+
+    // Analytics
+    const ratingCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let ratingSum = 0;
+    for (const r of responses) {
+      if (r.rating >= 1 && r.rating <= 5) { ratingCounts[r.rating]++; ratingSum += r.rating; }
+    }
+    const total = responses.length;
+    const avgRating = total > 0 ? (ratingSum / total).toFixed(2) : null;
+    const positive = (ratingCounts[4] + ratingCounts[5]);
+    const predictedGoogleScore = total > 0 ? ((positive / total) * 4 + 1).toFixed(2) : null;
 
     res.json({
       ok: true,
-      count: responses.length,
-      data: responses,
+      count: total,
+      data: enriched,
+      analytics: { ratingCounts, avgRating: Number(avgRating), total, predictedGoogleScore: Number(predictedGoogleScore) },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

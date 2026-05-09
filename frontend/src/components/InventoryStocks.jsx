@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Pill, Syringe, Loader2 } from 'lucide-react'; 
 import API from '../services/api';
 
-const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock }) => {
+const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, medicineEnabled = true, consumableEnabled = true }) => {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState({ pharmacy: [], consumables: [] });
 
@@ -48,9 +48,10 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock })
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full min-h-0">
-      
+    <div className={`grid grid-cols-1 ${medicineEnabled && consumableEnabled ? 'lg:grid-cols-2' : ''} gap-6 h-full min-h-0`}>
+
       {/* Left: Pharmacy */}
+      {medicineEnabled && (
       <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
         <SectionHeader title="Pharmacy Stock" icon={Pill} colorClass="bg-blue-50/50" count={pharmacyData.length} />
         <div className="overflow-auto flex-1">
@@ -98,8 +99,10 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock })
           </table>
         </div>
       </div>
+      )}
 
       {/* Right: Consumables */}
+      {consumableEnabled && (
       <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
         <SectionHeader title="In-Clinic Consumables" icon={Syringe} colorClass="bg-teal-50/50" count={consumablesData.length} />
         <div className="overflow-auto flex-1">
@@ -147,6 +150,7 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock })
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 };
