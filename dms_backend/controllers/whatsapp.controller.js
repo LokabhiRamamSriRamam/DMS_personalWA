@@ -1,5 +1,5 @@
 import { uploadFile, deleteFile } from '../services/cloudinary.service.js';
-import { buildMessage, sendToWAAPI } from '../services/whatsapp.service.js';
+import { buildMessage, sendToWAAPI, normalizePhone } from '../services/whatsapp.service.js';
 import { generateReportPdf } from '../services/email.service.js';
 
 // ─── Treatment Journey CRUD ───────────────────────────────────────────────────
@@ -502,7 +502,7 @@ export async function sendFeedbackPoll(req, res) {
 
     const payload = {
       tenantId: req.user.tenantId,
-      to: patient.contact.mobile,
+      to: normalizePhone(patient.contact.mobile),
       messageType: 'feedbackPoll',
       contentType: 'poll',
       content: {
@@ -527,7 +527,7 @@ export async function sendFeedbackPoll(req, res) {
     // Log the poll message
     await WhatsAppLog.create({
       event: 'feedbackPoll',
-      to: patient.contact.mobile,
+      to: normalizePhone(patient.contact.mobile),
       payload,
       status,
       errorMessage,
@@ -596,7 +596,7 @@ export async function sendReportWhatsApp(req, res) {
       req.tenantConfig
     );
 
-    if (!uploaded || !uploaded.secure_url) {
+    if (!uploaded || !uploaded.url) {
       return res.status(500).json({ error: 'Failed to upload PDF to Cloudinary' });
     }
 
@@ -607,7 +607,7 @@ export async function sendReportWhatsApp(req, res) {
       messageType: 'aiReport',
       contentType: 'document',
       content: {
-        url: uploaded.secure_url,
+        url: uploaded.url,
         mimetype: 'application/pdf',
         fileName: filename,
         caption: caption || `Here is your clinical report: ${template_name || 'Patient Letter'}`,
@@ -642,7 +642,7 @@ export async function sendReportWhatsApp(req, res) {
     res.json({
       status: 'sent',
       to,
-      cloudinaryUrl: uploaded.secure_url,
+      cloudinaryUrl: uploaded.url,
       filename,
     });
   } catch (err) {

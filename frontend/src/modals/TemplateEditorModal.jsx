@@ -39,13 +39,19 @@ export default function TemplateEditorModal({ isOpen, onClose, onSave, template,
 
   useEffect(() => {
     if (template) {
+      // Recover the editable body text from content — text uses content.text, media uses content.caption
+      const ct = template.contentType || 'text';
+      const savedBody = ct === 'text'
+        ? (template.content?.text || template.body || '')
+        : (template.content?.caption || template.body || '');
+
       setForm({
-        event:       template.event       || 'appointmentBooked',
-        language:    template.language    || 'en',
-        contentType: template.contentType || 'text',
-        body:        template.body        || '',
+        event:       template.event    || 'appointmentBooked',
+        language:    template.language || 'en',
+        contentType: ct,
+        body:        savedBody,
         mediaRef:    template.mediaRef?._id || template.mediaRef || '',
-        isActive:    template.isActive    ?? true,
+        isActive:    template.isActive ?? true,
       });
     } else {
       setForm({ event: 'appointmentBooked', language: 'en', contentType: 'text', body: '', mediaRef: '', isActive: true });
@@ -71,9 +77,47 @@ export default function TemplateEditorModal({ isOpen, onClose, onSave, template,
 
   async function handleSave() {
     if (!form.body.trim()) return alert('Message body is required');
+
+    // For media types, the selected media must supply the URL
+    let content;
+    if (form.contentType === 'text') {
+      content = { text: form.body };
+    } else {
+      const media = mediaList.find(m => m._id === form.mediaRef || m._id === form.mediaRef?._id);
+      if (!media) return alert('Please select a media file for this content type.');
+
+      switch (form.contentType) {
+        case 'image':
+          content = { url: media.url, caption: form.body, mimetype: media.mimeType };
+          break;
+        case 'video':
+          content = { url: media.url, caption: form.body, mimetype: media.mimeType, gifPlayback: false, ptv: false };
+          break;
+        case 'document':
+          content = { url: media.url, caption: form.body, mimetype: media.mimeType, fileName: media.fileName };
+          break;
+        case 'audio':
+          content = { url: media.url, mimetype: media.mimeType, ptt: false };
+          break;
+        case 'sticker':
+          content = { url: media.url, mimetype: media.mimeType ?? 'image/webp', isAnimated: false };
+          break;
+        default:
+          content = { url: media.url, caption: form.body, mimetype: media.mimeType };
+      }
+    }
+
     setSaving(true);
     try {
-      const payload = { ...form, mediaRef: form.mediaRef || undefined };
+      const payload = {
+        event:       form.event,
+        language:    form.language,
+        contentType: form.contentType,
+        content,
+        isActive:    form.isActive,
+        // keep mediaRef for UI round-trip (schema ignores it, but we read it back on edit)
+        mediaRef:    form.mediaRef || undefined,
+      };
       let saved;
       if (template?._id) {
         const res = await api.put(`/whatsapp/templates/${template._id}`, payload);

@@ -201,7 +201,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
                         <div className="flex items-center gap-2 flex-shrink-0">
                           <button
                             onClick={() => copyLink(file)}
-                            title="Copy Drive link"
+                            title="Copy link"
                             className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
                           >
                             {copiedId === file._id ? <CheckCheck size={15} className="text-green-500" /> : <Copy size={15} />}
@@ -209,7 +209,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
                           {file.web_view_link && (
                             <button
                               onClick={() => openExternal(file.web_view_link)}
-                              title="Open in Drive"
+                              title="Open in Connect Cloud"
                               className="p-1.5 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors flex items-center gap-1 text-xs font-medium"
                             >
                               <ExternalLink size={15} /> Open

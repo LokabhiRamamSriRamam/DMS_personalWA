@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Printer, FileText, Monitor, Phone,
-  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2, Save, Edit2, Receipt, Mic
+  MapPin, User, Plus, ChevronDown, NotebookPen, Pill, TestTube, Loader2, Save, Edit2, Receipt, Mic, AlertTriangle
 } from 'lucide-react';
 
 // --- IMPORTS ---
@@ -44,50 +44,53 @@ const PatientInfoCard = ({ patient, onViewProfile, appointments = [] }) => {
         Patient Profile
       </div>
       
-      <div className="pt-8 flex flex-col gap-6">
-        <div className="flex justify-between flex-wrap gap-5">
-          <h2 className="font-semibold text-2xl text-gray-800 capitalize">{fullName}</h2>
-          <div className="flex flex-wrap gap-5 items-center text-gray-600">
-            <div className="flex gap-2 items-center">
-              <MapPin size={18} /> <span>{patient.contact?.city || 'N/A'}</span>
+      <div className="pt-8 flex flex-col gap-5">
+        <div className="flex justify-between flex-wrap gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-semibold text-2xl text-gray-800 capitalize">{fullName}</h2>
+            <div className="flex flex-wrap gap-4 items-center text-gray-500 text-sm">
+              <span className="flex gap-1.5 items-center"><MapPin size={14} /> {patient.contact?.city || 'N/A'}</span>
+              <span className="flex gap-1.5 items-center"><Phone size={14} /> {patient.contact?.mobile || '--'}</span>
+              <span className="flex gap-1.5 items-center"><User size={14} /> {patient.gender}</span>
             </div>
-            <div className="flex gap-2 items-center">
-              <Phone size={18} /> <span>{patient.contact?.mobile || '--'}</span>
-            </div>
-            <div className="flex gap-2 items-center">
-              <User size={18} /> <span>{patient.gender}</span>
-            </div>
-            
-            {/* ACTION BUTTON LINKED TO MODAL */}
-            <button 
-              onClick={onViewProfile}
-              className="px-3 py-1.5 border border-[#137fec] text-[#137fec] rounded-md text-sm font-medium hover:bg-[#137fec] hover:text-white transition-colors"
-            >
-              View Profile
-            </button>
           </div>
+          <button
+            onClick={onViewProfile}
+            className="self-start px-3 py-1.5 border border-[#137fec] text-[#137fec] rounded-md text-sm font-medium hover:bg-[#137fec] hover:text-white transition-colors"
+          >
+            View Profile
+          </button>
         </div>
 
-        <div className="border-t border-gray-200 w-full"></div>
+        {/* Chief Complaint — prominently visible so the dentist sees it immediately */}
+        {patient.chief_complaint && (
+          <div className="flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+            <AlertTriangle size={15} className="text-red-500 mt-0.5 flex-shrink-0" />
+            <div>
+              <span className="text-xs font-bold text-red-500 uppercase tracking-wide">Chief Complaint</span>
+              <p className="text-sm text-red-800 font-medium mt-0.5">{patient.chief_complaint}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="border-t border-gray-100 w-full" />
 
         <div className="grid grid-cols-2 md:grid-cols-6 gap-5">
           {[
-            { label: "Gender", value: patient.gender },
-            { label: "Age", value: `${age} Yrs` },
-            { label: "Patient ID", value: patient.patientId || patient._id?.slice(-6).toUpperCase() },
+            { label: "Gender",      value: patient.gender },
+            { label: "Age",         value: `${age} Yrs` },
+            { label: "Patient ID",  value: patient.patientId || patient._id?.slice(-6).toUpperCase() },
             { label: "Blood Group", value: patient.blood_group || '-' },
-            { label: "Reg Date", value: new Date(patient.createdAt).toLocaleDateString() },
+            { label: "Reg Date",    value: new Date(patient.createdAt).toLocaleDateString() },
           ].map((item, idx) => (
             <div key={idx} className="flex flex-col gap-1">
-              <p className="text-sm text-gray-400">{item.label}</p>
-              <p className="font-medium text-gray-800">{item.value}</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wide">{item.label}</p>
+              <p className="font-medium text-gray-800 text-sm">{item.value}</p>
             </div>
           ))}
           <div className="flex flex-col gap-1">
-              <p className="text-sm text-gray-400">Visit Type</p>
-              <div className="flex items-center gap-2">
-                 <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 font-medium capitalize">{visitType}</span>
-              </div>
+            <p className="text-xs text-gray-400 uppercase tracking-wide">Visit Type</p>
+            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-100 font-medium capitalize self-start">{visitType}</span>
           </div>
         </div>
       </div>
@@ -96,15 +99,14 @@ const PatientInfoCard = ({ patient, onViewProfile, appointments = [] }) => {
 };
 
 const ClinicalHistory = ({ patient, onSaveHistory }) => {
-  // Local state for editing fields
   const [formData, setFormData] = useState({
     chief_complaint: '',
-    medical_history: [], // Array of strings
+    medical_history: [],
     dental_history: ''
   });
   const [isEditing, setIsEditing] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
 
-  // Initialize data from patient prop
   useEffect(() => {
     if (patient) {
       setFormData({
@@ -115,30 +117,43 @@ const ClinicalHistory = ({ patient, onSaveHistory }) => {
     }
   }, [patient]);
 
-  const handleSave = () => {
-    onSaveHistory(formData);
-    setIsEditing(false);
+  const handleSave = async () => {
+    setSaveStatus('saving');
+    try {
+      await onSaveHistory(formData);
+      setIsEditing(false);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus(null), 2500);
+    } catch {
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus(null), 3000);
+    }
   };
 
   const handleMedicalHistoryChange = (e) => {
-      // Split comma-separated string into array for backend
-      const val = e.target.value;
-      setFormData({...formData, medical_history: val ? val.split(',').map(s => s.trim()) : []});
+    const val = e.target.value;
+    setFormData({ ...formData, medical_history: val ? val.split(',').map(s => s.trim()) : [] });
   };
 
   return (
-    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 relative group">
-      {/* Edit/Save Controls */}
-      <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-         {isEditing ? (
-             <button onClick={handleSave} className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-600 rounded-md text-xs font-bold border border-green-200 hover:bg-green-100">
-                 <Save size={14} /> Save Changes
-             </button>
-         ) : (
-             <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 text-slate-500 rounded-md text-xs font-bold border border-slate-200 hover:bg-slate-100">
-                 <NotebookPen size={14} /> Edit History
-             </button>
-         )}
+    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 relative">
+      {/* Always-visible edit/save controls */}
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        {saveStatus === 'saved' && <span className="text-xs text-green-600 font-medium">✓ Saved</span>}
+        {saveStatus === 'error' && <span className="text-xs text-red-500 font-medium">Save failed</span>}
+        {isEditing ? (
+          <button
+            onClick={handleSave}
+            disabled={saveStatus === 'saving'}
+            className="flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-600 rounded-md text-xs font-bold border border-green-200 hover:bg-green-100 disabled:opacity-60"
+          >
+            <Save size={14} /> {saveStatus === 'saving' ? 'Saving…' : 'Save Changes'}
+          </button>
+        ) : (
+          <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 px-3 py-1.5 bg-slate-50 text-slate-500 rounded-md text-xs font-bold border border-slate-200 hover:bg-slate-100">
+            <NotebookPen size={14} /> Edit History
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -884,6 +899,12 @@ export default function TreatmentPage({ patientIdProp }) {
   const [viewingDate, setViewingDate]             = useState(null); // ISO date string or null (= today)
   const [showConcludeModal, setShowConcludeModal] = useState(false);
   const [concludingAppointment, setConcludingAppointment] = useState(null);
+  const [pageBanner, setPageBanner] = useState(null); // { type: 'success'|'error', msg: string }
+
+  const showBanner = (type, msg) => {
+    setPageBanner({ type, msg });
+    setTimeout(() => setPageBanner(null), 3500);
+  };
 
   // Central Data Fetch Function
   const fetchPageData = async () => {
@@ -912,15 +933,8 @@ export default function TreatmentPage({ patientIdProp }) {
   }, [id]);
 
   const handleSaveHistory = async (updatedData) => {
-      try {
-          await API.put(`/patients/${id}`, updatedData);
-          // Optimistic update or refresh
-          setPatient(prev => ({ ...prev, ...updatedData }));
-          alert("Clinical History Updated");
-      } catch (err) {
-          console.error("Failed to update history", err);
-          alert("Update failed");
-      }
+    await API.put(`/patients/${id}`, updatedData);
+    setPatient(prev => ({ ...prev, ...updatedData }));
   };
 
   const handleConcludeAppointment = async () => {
@@ -936,11 +950,11 @@ export default function TreatmentPage({ patientIdProp }) {
       await fetchPageData();
       setShowConcludeModal(false);
       setConcludingAppointment(null);
-      alert('Appointment marked as completed');
-      closeTreatment(true);
+      showBanner('success', 'Appointment marked as completed.');
+      setTimeout(() => closeTreatment(true), 1200);
     } catch (err) {
       console.error('Error concluding appointment:', err);
-      alert('Failed to conclude appointment: ' + err.message);
+      showBanner('error', 'Failed to conclude appointment: ' + err.message);
       throw err;
     }
   };
@@ -965,10 +979,18 @@ export default function TreatmentPage({ patientIdProp }) {
   return (
     <div className="min-h-screen bg-[#EBF2F7] px-4 font-sans pb-20">
       <div className="max-w-7xl mx-auto pt-6">
-        
-        {/* Note: PatientHeader removed as requested */}
-        
-        {/* Pass 'onViewProfile' to open the modal and appointments for visit type */}
+
+        {/* Page-level feedback banner */}
+        {pageBanner && (
+          <div className={`flex items-center gap-2 px-4 py-3 rounded-xl mb-4 text-sm font-medium border ${
+            pageBanner.type === 'success'
+              ? 'bg-green-50 border-green-200 text-green-700'
+              : 'bg-red-50 border-red-200 text-red-700'
+          }`}>
+            {pageBanner.type === 'success' ? '✓' : '✕'} {pageBanner.msg}
+          </div>
+        )}
+
         <PatientInfoCard
             patient={patient}
             onViewProfile={() => setIsProfileOpen(true)}
@@ -995,32 +1017,33 @@ export default function TreatmentPage({ patientIdProp }) {
             onSaveHistory={handleSaveHistory}
         />
 
-        <ReportsNotesSection
-            patientId={id}
-            refreshTrigger={reportRefreshKey}
-            visits={visits}
-            onRefresh={fetchPageData}
-        />
-
-        {/* 1. Dental Chart Tabs */}
+        {/* Dental Chart — primary clinical tool, shown early in workflow */}
         <TreatmentTabs
           onTreatmentAdded={fetchPageData}
           visits={visits}
           patientId={id}
           initialDentition={patient?.dentition_type || 'Adult'} />
 
-        {/* 2. Treatment Plan Board */}
+        {/* Treatment Plan Board — directly below the chart */}
         <TreatmentPlanBoard
             visits={displayVisits}
             onRefresh={fetchPageData}
         />
 
-        {/* 3. Other Sections — use displayVisits so they reflect the selected date */}
+        {/* Secondary clinical sections */}
         <ConsultationNotes visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <InventoryConsumption visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <Medications visits={displayVisits} patientId={id} onRefresh={fetchPageData} />
         <LabOrders patientId={id} onRefresh={fetchPageData} onOrdersLoaded={setLabOrders} />
         <AdvicesRecall visits={displayVisits} patientId={id} patient={patient} onRefresh={fetchPageData} onSelectDate={setViewingDate} />
+
+        {/* Files & AI Reports — reference material, at the bottom */}
+        <ReportsNotesSection
+            patientId={id}
+            refreshTrigger={reportRefreshKey}
+            visits={visits}
+            onRefresh={fetchPageData}
+        />
 
         {/* Sticky Bottom Action Bar */}
         <div className="sticky bottom-4 z-10 bg-white p-4 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border border-gray-100 flex justify-between items-center">
@@ -1033,7 +1056,7 @@ export default function TreatmentPage({ patientIdProp }) {
                 setConcludingAppointment(latestAppointment);
                 setShowConcludeModal(true);
               } else {
-                alert("No active appointment found");
+                showBanner('error', 'No active appointment found for this patient.');
               }
             }}
             className="px-6 py-2 border-2 border-red-300 text-red-600 font-medium rounded-lg hover:bg-red-50 flex items-center gap-2 transition-colors"

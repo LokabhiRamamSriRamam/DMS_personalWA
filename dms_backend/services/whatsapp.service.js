@@ -10,6 +10,18 @@
  * - Scheduling calculations use UTC for consistency
  */
 
+// ─── Phone normalizer ─────────────────────────────────────────────────────────
+// Ensures every number sent to WAAPI has the Indian country code 91 prepended.
+// Handles: 10-digit bare, +91XXXXXXXXXX, 91XXXXXXXXXX, hyphenated variants.
+export function normalizePhone(phone) {
+  if (!phone) return phone;
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  if (digits.length === 10) return '91' + digits;
+  if (digits.length === 12) return '91' + digits.slice(-10); // wrong prefix
+  return digits;
+}
+
 // ─── Timezone helpers ─────────────────────────────────────────────────────────
 
 function formatDateIST(date) {
@@ -301,6 +313,7 @@ export async function triggerJourney(tenantModels, tenantId, waapiBaseUrl, patie
   const { WhatsAppSettings, TreatmentJourney, WhatsAppLog } = tenantModels;
   try {
     if (!waapiBaseUrl) return;
+    patientPhone = normalizePhone(patientPhone);
 
     const settings = await WhatsAppSettings.findOne({}).lean();
     if (!settings?.enabled) return;
@@ -391,7 +404,8 @@ export async function triggerWhatsApp(tenantModels, tenantId, waapiBaseUrl, even
   const { WhatsAppLog } = tenantModels;
   let payload = null;
   try {
-    console.log(`[WhatsApp] triggerWhatsApp called: event=${eventType}, phone=${patientPhone}, waapiUrl=${waapiBaseUrl}`);
+    const phone = normalizePhone(patientPhone);
+    console.log(`[WhatsApp] triggerWhatsApp called: event=${eventType}, phone=${phone} (raw=${patientPhone}), waapiUrl=${waapiBaseUrl}`);
     if (!waapiBaseUrl) {
       console.log('[WhatsApp] WAAPI_BASE_URL not configured, skipping');
       return;
@@ -404,7 +418,7 @@ export async function triggerWhatsApp(tenantModels, tenantId, waapiBaseUrl, even
     }
     console.log(`[WhatsApp] Built payload for ${eventType}, scheduledAt=${payload.scheduledAt}`);
 
-    payload.to = patientPhone;
+    payload.to = phone;
     console.log(`[WhatsApp] Sending to WAAPI: ${waapiBaseUrl}/messages/send`);
     const waapiResponse = await sendToWAAPI(payload, waapiBaseUrl);
     console.log(`[WhatsApp] WAAPI response for ${eventType}:`, waapiResponse);

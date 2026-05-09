@@ -689,7 +689,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
                       <input type="checkbox" checked={saveReport} onChange={e => setSaveReport(e.target.checked)}
                         className="w-4 h-4 rounded accent-[#137fec] cursor-pointer" />
                       <Save size={14} className="text-slate-400" />
-                      <span className="text-sm font-medium text-slate-700">Save to Drive</span>
+                      <span className="text-sm font-medium text-slate-700">Save to Connect Cloud</span>
                     </label>
 
                     <div onClick={() => setAutofillEnabled(v => !v)}
@@ -882,7 +882,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
                 <div>
                   <p className="text-slate-700 font-semibold text-sm">Generating {selectedTemplate?.name || 'report'}…</p>
                   <p className="text-slate-400 text-xs mt-0.5">
-                    {autofillEnabled ? 'Will auto-fill treatment page after generation.' : 'Saving to Drive after generation.'}
+                    {autofillEnabled ? 'Will auto-fill treatment page after generation.' : 'Saving to Connect Cloud after generation.'}
                   </p>
                 </div>
               </div>
@@ -921,7 +921,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
               {driveLinks[templateId] && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <p className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-slate-700">
-                    <Save size={14} /> Saved to Drive
+                    <Save size={14} /> Saved to Connect Cloud
                   </p>
                   <button
                     onClick={() => openExternal(driveLinks[templateId])}
