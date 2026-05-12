@@ -994,7 +994,7 @@ export default function TreatmentPage({ patientIdProp }) {
   const id = patientIdProp || paramId;
 
   const { user } = useAuth();
-  const { closeTreatment } = useTreatment();
+  const { closeTreatment, activeTreatment } = useTreatment();
   const { inventorySettings } = useInventorySettings();
 
   const [patient, setPatient]               = useState(null);
@@ -1181,11 +1181,12 @@ export default function TreatmentPage({ patientIdProp }) {
         <div className="sticky bottom-4 z-10 bg-white p-4 rounded-xl shadow-[0_-4px_20px_rgba(0,0,0,0.05)] border border-gray-100 flex justify-between items-center">
           <button
             onClick={() => {
-              const latestAppointment = appointments.length > 0
-                ? appointments.sort((a, b) => new Date(b.start_time) - new Date(a.start_time))[0]
+              const apptId = activeTreatment?.appointmentId;
+              const activeAppt = apptId
+                ? appointments.find(a => a._id === apptId)
                 : null;
-              if (latestAppointment) {
-                setConcludingAppointment(latestAppointment);
+              if (activeAppt) {
+                setConcludingAppointment(activeAppt);
                 setShowConcludeModal(true);
               } else {
                 showBanner('error', 'No active appointment found for this patient.');

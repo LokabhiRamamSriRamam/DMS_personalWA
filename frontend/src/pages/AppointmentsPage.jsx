@@ -213,7 +213,7 @@ const AppointmentsPage = () => {
         setAppointments(prev => prev.map(a => a.id === appointment.id ? {...a, status: 'In Progress', statusColor: 'green'} : a));
       }
       // 2. Open Global Overlay
-      startTreatment(appointment.patientId);
+      startTreatment(appointment.patientId, appointment.id);
     } catch (err) {
       console.error("Failed to start visit", err);
       alert("Could not start visit. Check console.");

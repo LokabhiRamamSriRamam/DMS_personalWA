@@ -3,11 +3,11 @@ import React, { createContext, useContext, useState } from 'react';
 const TreatmentContext = createContext();
 
 export const TreatmentProvider = ({ children }) => {
-  // Structure: { id: 'patientId', minimized: boolean } or null
+  // Structure: { id: 'patientId', appointmentId: 'apptId', minimized: boolean } or null
   const [activeTreatment, setActiveTreatment] = useState(null);
 
-  const startTreatment = (patientId) => {
-    setActiveTreatment({ id: patientId, minimized: false });
+  const startTreatment = (patientId, appointmentId) => {
+    setActiveTreatment({ id: patientId, appointmentId: appointmentId || null, minimized: false });
   };
 
   const minimizeTreatment = () => {

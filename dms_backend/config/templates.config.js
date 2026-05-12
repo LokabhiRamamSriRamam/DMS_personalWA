@@ -373,6 +373,341 @@ N/A`;
 
 const COMPREHENSIVE_DENTAL_EXAM_SYSTEM_INSTRUCTION = `You are a dental clinician documenting a comprehensive dental examination following a patient consultation. Extract only information explicitly mentioned in the transcript, contextual notes, or clinical note. Use professional clinical language appropriate for formal clinical record-keeping. Include tooth numbers using FDI notation. Be comprehensive but organized. When information is not provided in the transcript, write "N/A" for that section. Never come up with your own patient details, diagnoses, assessment, plans, or prognosis. If a finding is normal or no abnormalities detected, write "NAD" instead of omitting the section. Use as many lines, paragraphs, or bullet points as needed to capture all relevant information from the transcript.`;
 
+const SOAP_NOTE_STRUCTURE = `Subjective:
+[Reason for visit or chief complaint] (State the primary reason for the consultation, such as symptoms, requests, or concerns raised by the patient. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom characteristics] (Include duration, timing, location, quality, severity, and context of the complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom modifiers and self-management] (Include factors that worsen or relieve symptoms, and any self-treatment attempts and their effectiveness. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom progression] (Describe how the symptoms have changed over time. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Previous episodes] (Include details of any prior similar episodes, how they were managed, and outcomes. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Impact on daily activities] (Describe how the issue affects daily functioning, including work, home, or physical activity. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Associated symptoms] (List any related or systemic symptoms that accompany the main complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Past Medical History:
+[Relevant medical and surgical history] (Include any contributing past illnesses, surgeries, treatments, or relevant findings. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Relevant social history] (Include lifestyle, occupation, substance use, or social determinants of health relevant to the presenting complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Relevant family history] (Include any hereditary or familial conditions relevant to the current presentation. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Exposure history] (Include occupational, travel, or environmental exposures relevant to the complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Immunisation history] (Include immunisation status or relevant vaccines. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Other relevant subjective information] (Include any additional information that provides useful context. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Objective:
+[Vital signs] (Include values for temperature, pulse, blood pressure, oxygen saturation, etc. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Physical or mental examination findings] (Summarise findings from the physical or mental state exam, organised by body system or clinical relevance. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Investigations with results] (List only completed investigations with available results. Do not include investigations that are planned or pending. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Assessment:
+[Diagnosis] (State the confirmed diagnosis or clinical impression. Do not infer or suggest. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Differential diagnosis] (List any alternative diagnoses under consideration. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Plan:
+[Recommendations and counselling] (Summarise the clinician's advice, education or counselling given during the visit. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Investigations planned] (Include tests or diagnostic procedures to be ordered. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Treatment planned] (Include any medications, therapies, or interventions recommended. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Other actions such as referrals or follow-up] (Include any referrals, follow-up plans, or allied health involvement. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+(Never come up with your own patient details, assessment, plan, interventions, evaluation, and plan for continuing care – use only the transcript, contextual notes or clinical note as a reference for the information included in your note. If any information related to a placeholder has not been explicitly mentioned in the transcript, contextual notes or clinical note, you must not state the information has not been explicitly mentioned in your output, just leave the relevant placeholder or section blank.)`;
+
+const SOAP_NOTE_EXAMPLE = `Subjective:
+Severe tooth pain, lower right molar area, tooth 46
+Onset 3 weeks ago as dull ache; sharp, throbbing, constant for last 2 days
+Pain 8/10 at rest, 10/10 with cold stimuli or eating
+Pain lingers 1-2 minutes after cold stimulus removed; spontaneous throbbing present
+Paracetamol provides relief for 1-2 hours only
+Sleep disturbance due to pain
+Swelling noted on gum line adjacent to tooth, tender to touch
+
+Past Medical History:
+Type 2 diabetes mellitus, controlled; HbA1c 7.5 (approximately 2 months ago)
+Medications: Metformin 500mg BD after meals
+No known drug allergies; previous dental work (fillings, extraction approximately 10 years ago) without adverse reaction to local anaesthetic
+Last dental visit 4-5 years ago
+Smoking: 5-6 cigarettes/day; Alcohol: social, once weekly
+
+Objective:
+Extra-oral: Submandibular and cervical lymph nodes NAD; TMJ normal, no clicking or pain on opening
+Intra-oral: Generalised plaque accumulation, mild gingivitis; tooth 46 large deep carious lesion on occlusal and distal surfaces; surrounding gingiva inflamed and erythematous, localised to 46
+Percussion: Tender on tooth 46
+Cold test: Positive, sharp pain with lingering response
+IOPA tooth 46: Deep decay close to pulp chamber; widening of PDL space around apex indicating early bone involvement
+
+Assessment:
+Irreversible pulpitis tooth 46
+Acute apical periodontitis tooth 46 secondary to deep caries
+
+Plan:
+RCT tooth 46 initiated today: pulpal debridement, intracanal medication (Calcium Hydroxide) placed
+Amoxicillin 500mg + Clavulanic Acid 125mg (Augmentin 625mg equivalent), one tablet BD for 5 days
+Ibuprofen 400mg + Paracetamol 325mg combination, one tablet TDS PRN for pain
+Advised to monitor blood sugar closely during infection
+Complete full antibiotic course even if pain resolves
+Next appointment: RCT stage 2, Tuesday 10 AM
+Following RCT completion: composite core build-up and full ceramic crown required
+Scaling and OHI to be scheduled after RCT completion
+Crown options and costs to be discussed at next visit`;
+
+const SOAP_NOTE_SYSTEM_INSTRUCTION = `You are a dental clinician documenting a SOAP note (Subjective, Objective, Assessment, Plan) from a consultation. Extract only information explicitly mentioned in the transcript, contextual notes, or clinical note. Organize findings systematically using the SOAP format. Use professional clinical language. Include tooth numbers using FDI notation. Never come up with your own patient details, diagnoses, assessment, plans, or prognosis. If information is not provided in the transcript, leave that placeholder or section blank entirely rather than stating it was not mentioned. Use as many lines, paragraphs, or bullet points as needed to capture all relevant information from the transcript.`;
+
+const SOAP_NOTE_ISSUES_STRUCTURE = `Subjective:
+[Reason for visit or chief complaint] (State the primary reason for the consultation, such as symptoms, requests, or concerns raised by the patient. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom characteristics] (Include duration, timing, location, quality, severity, and context of the complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom modifiers and self-management] (Include factors that worsen or relieve symptoms, and any self-treatment attempts and their effectiveness. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Symptom progression] (Describe how the symptoms have changed over time. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Previous episodes] (Include details of any prior similar episodes, how they were managed, and outcomes. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Impact on daily activities] (Describe how the issue affects daily functioning, including work, home, or physical activity. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Associated symptoms] (List any related or systemic symptoms that accompany the main complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Past Medical History:
+[Relevant medical and surgical history] (Include any contributing past illnesses, surgeries, treatments, or relevant findings. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Relevant social history] (Include lifestyle, occupation, substance use, or social determinants of health relevant to the presenting complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Relevant family history] (Include any hereditary or familial conditions relevant to the current presentation. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Exposure history] (Include occupational, travel, or environmental exposures relevant to the complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Immunisation history] (Include immunisation status or relevant vaccines. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Other relevant subjective information] (Include any additional information that provides useful context. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Objective:
+[Vital signs] (Include values for temperature, pulse, blood pressure, oxygen saturation, etc. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Physical or mental examination findings] (Summarise findings from the physical or mental state exam, organised by body system or clinical relevance. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Investigations with results] (List only completed investigations with available results. Do not include investigations that are planned or pending. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Assessment:
+[Diagnosis] (State the confirmed diagnosis or clinical impression. Do not infer or suggest. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Differential diagnosis] (List any alternative diagnoses under consideration. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+Plan:
+[Recommendations and counselling] (Summarise the clinician's advice, education or counselling given during the visit. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Investigations planned] (Include tests or diagnostic procedures to be ordered. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Treatment planned] (Include any medications, therapies, or interventions recommended. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+[Other actions such as referrals or follow-up] (Include any referrals, follow-up plans, or allied health involvement. Only include if explicitly mentioned in the transcript, contextual notes or clinical note; otherwise leave blank.)
+
+(Never come up with your own patient details, assessment, plan, interventions, evaluation, and plan for continuing care – use only the transcript, contextual notes or clinical note as a reference for the information included in your note. If any information related to a placeholder has not been explicitly mentioned in the transcript, contextual notes or clinical note, you must not state the information has not been explicitly mentioned in your output, just leave the relevant placeholder or section blank.)`;
+
+const SOAP_NOTE_ISSUES_EXAMPLE = `Subjective:
+Severe tooth pain, lower right molar area, tooth 46
+Onset 3 weeks ago as dull ache; sharp, throbbing, constant for last 2 days
+Pain 8/10 at rest, 10/10 with cold stimuli or eating
+Pain lingers 1-2 minutes after cold stimulus removed; spontaneous throbbing present
+Paracetamol provides relief for 1-2 hours only
+Sleep disturbance due to pain
+Swelling noted on gum line adjacent to tooth, tender to touch
+
+Past Medical History:
+Type 2 diabetes mellitus, controlled; HbA1c 7.5 (approximately 2 months ago)
+Medications: Metformin 500mg BD after meals
+No known drug allergies; previous dental work (fillings, extraction approximately 10 years ago) without adverse reaction to local anaesthetic
+Last dental visit 4-5 years ago
+Smoking: 5-6 cigarettes/day; Alcohol: social, once weekly
+
+Objective:
+Extra-oral: Submandibular and cervical lymph nodes NAD; TMJ normal, no clicking or pain on opening
+Intra-oral: Generalised plaque accumulation, mild gingivitis; tooth 46 large deep carious lesion on occlusal and distal surfaces; surrounding gingiva inflamed and erythematous, localised to 46
+Percussion: Tender on tooth 46
+Cold test: Positive, sharp pain with lingering response
+IOPA tooth 46: Deep decay close to pulp chamber; widening of PDL space around apex indicating early bone involvement
+
+Assessment:
+Irreversible pulpitis tooth 46
+Acute apical periodontitis tooth 46 secondary to deep caries
+
+Plan:
+RCT tooth 46 initiated today: pulpal debridement, intracanal medication (Calcium Hydroxide) placed
+Amoxicillin 500mg + Clavulanic Acid 125mg (Augmentin 625mg equivalent), one tablet BD for 5 days
+Ibuprofen 400mg + Paracetamol 325mg combination, one tablet TDS PRN for pain
+Advised to monitor blood sugar closely during infection
+Complete full antibiotic course even if pain resolves
+Next appointment: RCT stage 2, Tuesday 10 AM
+Following RCT completion: composite core build-up and full ceramic crown required
+Scaling and OHI to be scheduled after RCT completion
+Crown options and costs to be discussed at next visit`;
+
+const SOAP_NOTE_ISSUES_SYSTEM_INSTRUCTION = `You are a dental clinician documenting an issues-centric SOAP note from a consultation. Extract only information explicitly mentioned in the transcript, contextual notes, or clinical note. Organize findings by individual issues or problems using the SOAP format for each issue. Use professional clinical language. Include tooth numbers using FDI notation. Never come up with your own patient details, diagnoses, assessment, plans, or prognosis. If information is not provided in the transcript, leave that placeholder or section blank entirely rather than stating it was not mentioned. Use as many lines, paragraphs, or bullet points as needed to capture all relevant information from the transcript.`;
+
+const HP_NOTE_STRUCTURE = `History:
+ - [Patient age] (State the patient's age in years. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Current issues or reasons for visit] (Include the presenting complaints or concerns as described by the patient. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Symptom characteristics] (Describe the duration, timing, location, quality, severity, or context of the presenting issue. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Symptom modifiers or self-management] (List any factors that improve or worsen symptoms, including any attempted treatments or remedies. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Symptom progression] (Explain how symptoms have changed or evolved since onset. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Previous episodes] (Detail any similar prior events, their timing, management, and outcomes. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Impact on daily activities] (Describe how symptoms affect the patient's daily functioning, work, or lifestyle. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Associated symptoms] (Include any additional focal or systemic symptoms accompanying the primary complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+Past Medical History:
+- Medical History: [Relevant medical and surgical history] (Summarise relevant past conditions, surgeries, or ongoing treatments. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Family history] (Include any family health history relevant to the current complaint. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- Social History: [Social history] (Include relevant lifestyle, substance use, occupation, or home situation. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- Allergies: [Allergies and reactions] (Document known allergies, including type and severity of reactions. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- Medications: [Current medications] (List all current prescriptions, over-the-counter medications, and supplements. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Immunisation history] (Include recent or relevant vaccinations. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Other relevant historical factors] (Include any other contextual or contributory history. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+Physical Examination:
+- [Vital signs] (Include numerical values for blood pressure, pulse, temperature, respiratory rate, oxygen saturation, etc. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Physical or mental state examination findings] (Document findings system by system, separated line-by-line. Include general appearance, cardiovascular, respiratory, abdominal, neurological, mental status or others. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+Investigations:
+- [Completed investigations with results] (List only completed tests with results. Do not include planned investigations here. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+Impression:
+- [Diagnosis] (Include confirmed or working diagnosis. Do not infer or speculate. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+[Differential diagnosis] (List any relevant differentials under consideration. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+Management Plan:
+- [Recommendations and counselling] (Summarise advice given to the patient, including safety netting or education. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Investigations planned] (List any diagnostic tests to be ordered. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Treatment planned] (Document any medications, therapies, or treatments recommended. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+- [Other actions or referrals] (Include lifestyle advice, specialist referrals, or allied health input. Only include if explicitly mentioned in the transcript, contextual notes or clinical note, otherwise omit completely.)
+
+(Never come up with your own patient details, assessment, plan, interventions, evaluation or next steps—use only the transcript, contextual notes or clinical note as reference for all information. If any information related to a placeholder has not been explicitly mentioned, do not state that in the output; simply leave the relevant placeholder or section out entirely. Use as many lines, paragraphs or bullet points as needed to capture all relevant information from the transcript.)`;
+
+const HP_NOTE_EXAMPLE = `History:
+- 45-year-old male
+- Severe pain upper right back teeth, started 3 days ago, became unbearable yesterday
+- Constant, deep throbbing pain with pressure sensation
+- Cold water triggers shooting pain with lingering 20-30 seconds; pain at rest
+- Pain 8/10, reduced to 5/10 with Combiflam
+- Sleep disturbance for 2 nights
+- Unable to chew on right side
+
+Past Medical History:
+- Medical History: Pre-diabetic, managed with diet; no medication
+- Social History: Smokes 5 cigarettes/day; alcohol socially once weekly; frequent sweetened tea intake
+- Allergies: NKDA; previous Novocaine tolerated
+- Medications: Daily multivitamin; Combiflam PRN
+- Dental History: Lower left wisdom tooth extraction 5 years ago; fillings in childhood; no dental check-up for 3 years
+
+Physical Examination:
+- BP 130/85 mmHg (6 months ago)
+- Facial symmetry normal
+- No palpable lymphadenopathy submandibular or cervical regions
+- TMJ movement smooth
+- Intraoral: Soft tissues generally healthy; mild redness around 17; large old amalgam restoration occlusal surface 17; generalised mild gingivitis and calculus noted
+- Percussion: 17 positive
+- Cold test: 17 positive with prolonged response (20 seconds)
+
+Investigations:
+- IOPA 17: Deep carious lesion beneath existing restoration extending close to pulp chamber; slight widening of PDL space around apex of distal root confirming periapical inflammation; root anatomy manageable for RCT (3 canals)
+
+Impression:
+- Tooth 17: Irreversible Pulpitis with Symptomatic Apical Periodontitis
+
+Management Plan:
+- IOPA 17 completed; no further imaging required
+- Phase 1 (Today - Emergency): 2% Lignocaine with 1:80,000 Adrenaline LA; access opening and emergency pulpectomy; partial canal cleaning and shaping; Calcium Hydroxide intracanal medicament; IRM temporary restoration
+- Phase 2 (Next Week - Definitive RCT): Complete biomechanical preparation and obturation (cold lateral condensation with Gutta Percha and sealer)
+- Phase 3 (Post-RCT): Fibre post and core buildup; full coverage ceramic crown
+- Amoxicillin 500mg TDS for 5 days; Diclofenac Potassium 50mg BD PRN for 3 days; advised to complete full antibiotic course
+- Prophylaxis recommended once acute infection resolved
+- Counselled on reducing sugar intake and smoking cessation; link between smoking and periodontal health discussed; advised to avoid chewing on temporary restoration
+- Consent for RCT obtained
+- Follow-up: Next Tuesday 4 PM for Phase 2; contact clinic immediately if severe pain returns`;
+
+const HP_NOTE_SYSTEM_INSTRUCTION = `You are a dental clinician documenting a comprehensive H&P (History & Physical) note from a consultation. Extract only information explicitly mentioned in the transcript, contextual notes, or clinical note. Organize findings systematically using standard H&P format with clear separation between history, examination, investigations, assessment, and plan sections. Use professional clinical language. Include tooth numbers using FDI notation. Never come up with your own patient details, diagnoses, assessment, plans, or prognosis. If information is not provided in the transcript, omit that placeholder or section entirely rather than stating it was not mentioned. Use as many lines, paragraphs, or bullet points as needed to capture all relevant information from the transcript.`;
+
+const HP_NOTE_ISSUES_STRUCTURE = `History:
+ - [Patient age] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. State the patient's age in years.)
+- [Current issues or reasons for visit] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences as a paragraph.)
+- [Symptom characteristics] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences describing duration, timing, location, quality, severity, and context.)
+- [Symptom modifiers or self-management] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List factors affecting symptoms and attempted remedies in full sentences.)
+- [Symptom progression] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences.)
+- [Previous episodes] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Include timing, management, and outcome in paragraph format.)
+- [Impact on daily activities] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences describing functional limitations.)
+- [Associated symptoms] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List relevant additional symptoms using full sentences.)
+
+Past Medical History:
+- [Relevant medical and surgical history] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List conditions or procedures as bullet points.)
+- [Family history] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Summarise family medical background in paragraph form.)
+- [Social history] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Describe lifestyle, substance use, living or occupational details in paragraph form.)
+- [Allergies and reactions] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List allergens and reactions.)
+- [Current medications] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List all medications including dosage/frequency if known.)
+- [Immunisation history] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Summarise relevant vaccination history in bullet points.)
+- [Other relevant historical factors] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Provide in full sentences.)
+
+Physical Examination:
+- [Vital signs] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List numerical values.)
+- [Physical or mental state examination findings] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Document systems examined in line-by-line bullet points.)
+
+Investigations:
+- [Completed investigations with results] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List completed investigations with result summaries.)
+
+Impression & Plan:
+1. [Title or brief name of the first issue, condition, request or concern discussed]
+ - [Impression or likely diagnosis for the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in short descriptive phrases on a new line.)
+ - [List of differential diagnoses under consideration for the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Recommendations, counselling, advice or safety netting given regarding the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences as a paragraph.)
+ - [Investigations requested or planned for the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Treatments advised, prescribed or commenced for the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Referrals to other health professionals or services for the first issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+
+2. [Title or brief name of the second issue, condition, request or concern discussed]
+ - [Impression or likely diagnosis for the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in short descriptive phrases on a new line.)
+ - [List of differential diagnoses under consideration for the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Recommendations, counselling, advice or safety netting given regarding the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences as a paragraph.)
+ - [Investigations requested or planned for the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Treatments advised, prescribed or commenced for the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Referrals to other health professionals or services for the second issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+
+3. [Title or brief name of any further issue, condition, request or concern discussed]
+ - [Impression or likely diagnosis for this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in short descriptive phrases on a new line.)
+ - [List of differential diagnoses under consideration for this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Recommendations, counselling, advice or safety netting given regarding this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. Write in full sentences as a paragraph.)
+ - [Investigations requested or planned for this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Treatments advised, prescribed or commenced for this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+ - [Referrals to other health professionals or services for this additional issue] (Only include if explicitly mentioned in the transcript, contextual notes or clinical note. List as bullet points.)
+
+(Never come up with your own patient details, assessment, plan, interventions, evaluation or next steps—use only the transcript, contextual notes or clinical note as reference for all information. If any information related to a placeholder has not been explicitly mentioned, do not state that in the output; simply leave the relevant placeholder or section out entirely. Use as many lines, paragraphs or bullet points as needed to capture all relevant information from the transcript.)`;
+
+const HP_NOTE_ISSUES_EXAMPLE = `History:
+- 45-year-old male
+- Severe pain upper right back teeth, started 3 days ago, became unbearable yesterday. Constant, deep throbbing pain with pressure sensation.
+- Cold water triggers shooting pain with lingering 20-30 seconds; pain present at rest. Pain 8/10, reduced to 5/10 with Combiflam.
+- Sleep disturbance for 2 nights. Unable to chew on right side.
+
+Past Medical History:
+- Medical History: Pre-diabetic, managed with diet; no medication
+- Social History: Smokes 5 cigarettes/day; alcohol socially once weekly; frequent sweetened tea intake
+- Allergies and reactions: NKDA; previous Novocaine tolerated
+- Current medications: Daily multivitamin; Combiflam PRN
+- Immunisation history: Dental history - Lower left wisdom tooth extraction 5 years ago; fillings in childhood; no dental check-up for 3 years
+
+Physical Examination:
+- BP 130/85 mmHg (6 months ago)
+- General appearance: Facial symmetry normal
+- Head and neck: No palpable lymphadenopathy submandibular or cervical regions; TMJ movement smooth
+- Intraoral: Soft tissues generally healthy; mild redness around 17; large old amalgam restoration occlusal surface 17; generalised mild gingivitis and calculus noted
+- Percussion: 17 positive
+- Cold test: 17 positive with prolonged response (20 seconds)
+
+Investigations:
+- IOPA 17: Deep carious lesion beneath existing restoration extending close to pulp chamber; slight widening of PDL space around apex of distal root confirming periapical inflammation; root anatomy manageable for RCT (3 canals)
+
+Impression & Plan:
+
+1. Irreversible Pulpitis with Symptomatic Apical Periodontitis (Tooth 17)
+ - Irreversible Pulpitis with Symptomatic Apical Periodontitis
+ - Differential: Acute pericoronitis (ruled out by examination)
+ - No further imaging required. Consent for RCT obtained.
+ - None additional
+ - Phase 1 (Today - Emergency): 2% Lignocaine with 1:80,000 Adrenaline LA; access opening and emergency pulpectomy; partial canal cleaning and shaping; Calcium Hydroxide intracanal medicament; IRM temporary restoration
+ - Phase 2 (Next Week - Definitive RCT): Complete biomechanical preparation and obturation (cold lateral condensation with Gutta Percha and sealer)
+ - Phase 3 (Post-RCT): Fibre post and core buildup; full coverage ceramic crown
+ - Amoxicillin 500mg TDS for 5 days; Diclofenac Potassium 50mg BD PRN for 3 days; advised to complete full antibiotic course
+ - Prophylaxis recommended once acute infection resolved
+ - None
+
+2. Generalised Mild Gingivitis with Calculus
+ - Generalised mild gingivitis and calculus
+ - Counselled on reducing sugar intake, especially frequent sweetened tea; smoking cessation discussed with link to periodontal health
+ - Scaling and root planing recommended once acute infection resolved
+ - None
+ - Oral hygiene instructions; advised to avoid chewing on temporary restoration
+ - None
+
+3. Follow-up and Safety Netting
+ - Next Tuesday 4 PM for Phase 2 RCT appointment
+ - Contact clinic immediately if severe pain returns before next appointment`;
+
+const HP_NOTE_ISSUES_SYSTEM_INSTRUCTION = `You are a dental clinician documenting an issues-centric H&P (History & Physical) note from a consultation. Extract only information explicitly mentioned in the transcript, contextual notes, or clinical note. Organize findings using standard H&P format with a clear separation between history, examination, investigations, and impression/plan sections. For the assessment and plan, organize findings by individual issues or problems. Use professional clinical language. Include tooth numbers using FDI notation. Never come up with your own patient details, diagnoses, assessment, plans, or prognosis. If information is not provided in the transcript, omit that placeholder or section entirely rather than stating it was not mentioned. Use as many lines, paragraphs, or bullet points as needed to capture all relevant information from the transcript.`;
+
 export const TEMPLATES = [
   {
     id:                'patient_letter_v1',
@@ -406,6 +741,50 @@ export const TEMPLATES = [
     systemInstruction: COMPREHENSIVE_DENTAL_EXAM_SYSTEM_INSTRUCTION,
     structure:         COMPREHENSIVE_DENTAL_EXAM_STRUCTURE,
     example:           COMPREHENSIVE_DENTAL_EXAM_EXAMPLE,
+  },
+  {
+    id:                'soap_note_v1',
+    name:              'SOAP Note',
+    description:       'Structured clinical documentation using Subjective, Objective, Assessment, and Plan format for comprehensive patient record-keeping.',
+    type:              'Document',
+    category:          'Clinical',
+    specialty:         'General Dentistry',
+    systemInstruction: SOAP_NOTE_SYSTEM_INSTRUCTION,
+    structure:         SOAP_NOTE_STRUCTURE,
+    example:           SOAP_NOTE_EXAMPLE,
+  },
+  {
+    id:                'soap_note_issues_v1',
+    name:              'SOAP Note (Issues Centric)',
+    description:       'Issues-focused SOAP note organizing subjective, objective, assessment, and plan by individual problems or concerns.',
+    type:              'Document',
+    category:          'Clinical',
+    specialty:         'General Dentistry',
+    systemInstruction: SOAP_NOTE_ISSUES_SYSTEM_INSTRUCTION,
+    structure:         SOAP_NOTE_ISSUES_STRUCTURE,
+    example:           SOAP_NOTE_ISSUES_EXAMPLE,
+  },
+  {
+    id:                'hp_note_v1',
+    name:              'H&P Note',
+    description:       'Comprehensive History & Physical examination note documenting patient history, examination findings, investigations, impression, and management plan.',
+    type:              'Document',
+    category:          'Clinical',
+    specialty:         'General Dentistry',
+    systemInstruction: HP_NOTE_SYSTEM_INSTRUCTION,
+    structure:         HP_NOTE_STRUCTURE,
+    example:           HP_NOTE_EXAMPLE,
+  },
+  {
+    id:                'hp_note_issues_v1',
+    name:              'H&P Note (Issues Centric)',
+    description:       'Issues-focused History & Physical note organizing impression and plan by individual problems, conditions, or concerns.',
+    type:              'Document',
+    category:          'Clinical',
+    specialty:         'General Dentistry',
+    systemInstruction: HP_NOTE_ISSUES_SYSTEM_INSTRUCTION,
+    structure:         HP_NOTE_ISSUES_STRUCTURE,
+    example:           HP_NOTE_ISSUES_EXAMPLE,
   },
 ];
 
