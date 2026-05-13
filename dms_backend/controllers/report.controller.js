@@ -142,7 +142,7 @@ Generate the document now following the structure and detail level above. Return
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'moonshotai/kimi-k2-instruct',
+      model: 'minimaxai/minimax-m2.7',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
@@ -196,7 +196,7 @@ Generate the document now following the structure and detail level above. Return
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'moonshotai/kimi-k2-instruct',
+      model: 'minimaxai/minimax-m2.7',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
@@ -261,7 +261,7 @@ Return JSON:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'moonshotai/kimi-k2-instruct',
+      model: 'minimaxai/minimax-m2.7',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
