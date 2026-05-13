@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext.jsx';
 import { useUser } from '../Context/UserContext.jsx';
@@ -104,9 +104,25 @@ const NavigationLayout = ({ children }) => {
   const { inventorySettings } = useInventorySettings();
   const [showClinicModal, setShowClinicModal] = React.useState(false);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const [showSupportPopover, setShowSupportPopover] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  function handleCopySupport() {
+    navigator.clipboard.writeText('support@connectgenai.in');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const showInventoryNav =
     inventorySettings.medicineEnabled || inventorySettings.consumableEnabled;
+
+  const role = authUser?.role;
+  const isOwner     = role === 'Owner';
+  const isAssistant = role === 'Assistant';
+  const isDoctor    = role === 'Doctor';
+  const showDoctorRoutes    = isOwner || isAssistant || isDoctor;  // Files, Lab
+  const showAssistantRoutes = isOwner || isAssistant;              // + Transactions, Invoices, Inventory
+  const showOwnerRoutes     = isOwner;                             // + Insights, WhatsApp, Settings
 
   function handleLogout() {
     logout();
@@ -120,12 +136,14 @@ const NavigationLayout = ({ children }) => {
 
   const closeDrawer = () => setDrawerOpen(false);
 
-  // Bottom tab bar items (most-used)
+  // Bottom tab bar items — role-filtered
   const bottomTabs = [
     { icon: 'calendar_month', label: 'Today', to: '/' },
     { icon: 'person', label: 'Patients', to: '/patients' },
-    { icon: 'receipt_long', label: 'Invoices', to: '/invoices' },
-    { icon: 'credit_card', label: 'Finance', to: '/transactions' },
+    ...(showAssistantRoutes ? [
+      { icon: 'receipt_long', label: 'Invoices', to: '/invoices' },
+      { icon: 'credit_card', label: 'Finance', to: '/transactions' },
+    ] : []),
   ];
 
   return (
@@ -151,16 +169,16 @@ const NavigationLayout = ({ children }) => {
             <nav className="flex flex-col gap-2">
               <SidebarItem icon="calendar_month" label="Appointments" to="/"          active={isActive('/')} />
               <SidebarItem icon="person"         label="Patients"     to="/patients"  active={isActive('/patients')} />
-              <SidebarItem icon="folder"         label="Files"        to="/files"     active={isActive('/files')} />
-              <SidebarItem icon="credit_card"    label="Transactions" to="/transactions" active={isActive('/transactions')} />
-              <SidebarItem icon="receipt_long"   label="Invoices"     to="/invoices"  active={isActive('/invoices')} />
-              <SidebarItem icon="science"        label="Lab"          to="/lab"       active={isActive('/lab')} />
-              {showInventoryNav && (
+              {showDoctorRoutes    && <SidebarItem icon="folder"       label="Files"        to="/files"        active={isActive('/files')} />}
+              {showAssistantRoutes && <SidebarItem icon="credit_card"  label="Transactions" to="/transactions" active={isActive('/transactions')} />}
+              {showAssistantRoutes && <SidebarItem icon="receipt_long" label="Invoices"     to="/invoices"     active={isActive('/invoices')} />}
+              {showDoctorRoutes    && <SidebarItem icon="science"      label="Lab"          to="/lab"          active={isActive('/lab')} />}
+              {showAssistantRoutes && showInventoryNav && (
                 <SidebarItem icon="inventory" label="Inventory" to="/inventory" active={isActive('/inventory')} />
               )}
-              <SidebarItem icon="dashboard"  label="Insights"  to="/insights"  active={isActive('/insights')} />
-              <SidebarItem icon="chat"       label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')} />
-              <SidebarItem icon="settings"   label="Settings"  to="/settings"  active={isActive('/settings')} />
+              {showOwnerRoutes && <SidebarItem icon="dashboard" label="Insights"  to="/insights"  active={isActive('/insights')} />}
+              {showOwnerRoutes && <SidebarItem icon="chat"      label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')} />}
+              {showOwnerRoutes && <SidebarItem icon="settings"  label="Settings"  to="/settings"  active={isActive('/settings')} />}
             </nav>
           </div>
 
@@ -172,7 +190,7 @@ const NavigationLayout = ({ children }) => {
               <p className="text-slate-900 dark:text-white text-sm font-medium truncate">
                 {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.firstName ?? 'User'}
               </p>
-              <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{user?.role ?? ''}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-xs truncate">{authUser?.role ?? ''}</p>
             </div>
             <button
               onClick={handleLogout}
@@ -182,8 +200,49 @@ const NavigationLayout = ({ children }) => {
               <span className="material-symbols-outlined text-[20px]">logout</span>
             </button>
           </div>
+
+          {/* Support */}
+          <button
+            onClick={() => setShowSupportPopover(v => !v)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors overflow-hidden mt-1"
+            title="Support"
+          >
+            <div className="flex-shrink-0 flex items-center justify-center rounded-full size-10 text-slate-400">
+              <span className="material-symbols-outlined text-[20px]">help</span>
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 text-xs opacity-0 w-0 group-hover/sidebar:w-auto group-hover/sidebar:opacity-100 transition-all duration-300 whitespace-nowrap">
+              Support
+            </p>
+          </button>
         </div>
       </aside>
+
+      {/* Support popup — screen centered */}
+      {showSupportPopover && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowSupportPopover(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-80 p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="size-10 rounded-full bg-blue-50 flex items-center justify-center text-[#137fec]">
+                <span className="material-symbols-outlined text-[22px]">help</span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-800">Contact Support</p>
+                <p className="text-xs text-slate-400">Responds within 6 hours</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">Mail us at:</p>
+            <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5">
+              <span className="text-sm text-slate-700 flex-1">support@connectgenai.in</span>
+              <button
+                onClick={handleCopySupport}
+                className="text-xs font-semibold text-[#137fec] hover:text-blue-700 shrink-0"
+              >
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main content ── */}
       <main className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -273,17 +332,26 @@ const NavigationLayout = ({ children }) => {
             <div className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
               <DrawerItem icon="calendar_month" label="Appointments" to="/"          active={isActive('/')}           onClick={closeDrawer} />
               <DrawerItem icon="person"         label="Patients"     to="/patients"  active={isActive('/patients')}   onClick={closeDrawer} />
-              <DrawerItem icon="folder"         label="Files"        to="/files"     active={isActive('/files')}      onClick={closeDrawer} />
-              <DrawerItem icon="credit_card"    label="Transactions" to="/transactions" active={isActive('/transactions')} onClick={closeDrawer} />
-              <DrawerItem icon="receipt_long"   label="Invoices"     to="/invoices"  active={isActive('/invoices')}   onClick={closeDrawer} />
-              <DrawerItem icon="science"        label="Lab"          to="/lab"       active={isActive('/lab')}        onClick={closeDrawer} />
-              {showInventoryNav && (
+              {showDoctorRoutes    && <DrawerItem icon="folder"       label="Files"        to="/files"        active={isActive('/files')}        onClick={closeDrawer} />}
+              {showAssistantRoutes && <DrawerItem icon="credit_card"  label="Transactions" to="/transactions" active={isActive('/transactions')} onClick={closeDrawer} />}
+              {showAssistantRoutes && <DrawerItem icon="receipt_long" label="Invoices"     to="/invoices"     active={isActive('/invoices')}     onClick={closeDrawer} />}
+              {showDoctorRoutes    && <DrawerItem icon="science"      label="Lab"          to="/lab"          active={isActive('/lab')}          onClick={closeDrawer} />}
+              {showAssistantRoutes && showInventoryNav && (
                 <DrawerItem icon="inventory" label="Inventory" to="/inventory" active={isActive('/inventory')} onClick={closeDrawer} />
               )}
-              <DrawerItem icon="dashboard"  label="Insights"  to="/insights"  active={isActive('/insights')}  onClick={closeDrawer} />
-              <DrawerItem icon="chat"       label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')}  onClick={closeDrawer} />
-              <DrawerItem icon="settings"   label="Settings"  to="/settings"  active={isActive('/settings')}  onClick={closeDrawer} />
+              {showOwnerRoutes && <DrawerItem icon="dashboard" label="Insights"  to="/insights"  active={isActive('/insights')}  onClick={closeDrawer} />}
+              {showOwnerRoutes && <DrawerItem icon="chat"      label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')}  onClick={closeDrawer} />}
+              {showOwnerRoutes && <DrawerItem icon="settings"  label="Settings"  to="/settings"  active={isActive('/settings')}  onClick={closeDrawer} />}
             </div>
+
+            {/* Support */}
+            <button
+              onClick={() => { setShowSupportPopover(v => !v); closeDrawer(); }}
+              className="w-full flex items-center gap-3 mx-3 mb-2 px-3 py-3 rounded-lg hover:bg-slate-50 transition-colors text-left"
+            >
+              <span className="material-symbols-outlined text-[20px] text-slate-400">help</span>
+              <p className="text-sm font-medium text-slate-700">Support</p>
+            </button>
 
             {/* Drawer footer — user + logout */}
             <div className="border-t border-slate-100 px-4 py-4">
@@ -295,7 +363,7 @@ const NavigationLayout = ({ children }) => {
                   <p className="text-sm font-semibold text-slate-900 truncate">
                     {user?.firstName && user?.lastName ? `${user.firstName} ${user.lastName}` : user?.firstName ?? 'User'}
                   </p>
-                  <p className="text-xs text-slate-500 truncate">{user?.role ?? ''}</p>
+                  <p className="text-xs text-slate-500 truncate">{authUser?.role ?? ''}</p>
                 </div>
                 <button
                   onClick={handleLogout}

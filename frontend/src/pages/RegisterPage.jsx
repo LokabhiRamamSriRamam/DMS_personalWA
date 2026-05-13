@@ -9,7 +9,7 @@ const RegisterPage = () => {
     email: '',
     password: '',
     phone: '',
-    role: 'Doctor'
+    role: 'Owner'
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -142,14 +142,18 @@ const RegisterPage = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700 px-1">Phone</label>
-                <input
-                  type="text"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                  placeholder="+91 98765..."
-                />
+                <div className="flex rounded-xl border border-gray-200 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100 transition-all overflow-hidden">
+                  <span className="flex items-center px-3 bg-gray-50 border-r border-gray-200 text-gray-500 text-sm font-medium select-none">+91</span>
+                  <input
+                    type="text"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    className="flex-1 px-3 py-3 outline-none bg-white"
+                    placeholder="98765 43210"
+                    maxLength={10}
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-gray-700 px-1">Role</label>
@@ -159,6 +163,7 @@ const RegisterPage = () => {
                   onChange={handleChange}
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all outline-none appearance-none bg-white"
                 >
+                  <option value="Owner">Owner</option>
                   <option value="Doctor">Doctor</option>
                   <option value="Receptionist">Receptionist</option>
                   <option value="Assistant">Assistant</option>
@@ -185,6 +190,22 @@ const RegisterPage = () => {
             <Link to="/login" className="text-indigo-600 font-bold hover:text-indigo-800 underline">
               Login here
             </Link>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-gray-100 space-y-2 text-center">
+            <p className="text-gray-400 text-sm">
+              Want to register your clinic?{' '}
+              <a href="mailto:sales@connectgenai.in" className="text-indigo-600 font-semibold hover:underline">
+                sales@connectgenai.in
+              </a>
+            </p>
+            <p className="text-gray-400 text-sm">
+              Need help?{' '}
+              <a href="mailto:support@connectgenai.in" className="text-indigo-600 font-semibold hover:underline">
+                support@connectgenai.in
+              </a>
+              {' '}— we respond within 6 hours
+            </p>
           </div>
         </div>
       </div>

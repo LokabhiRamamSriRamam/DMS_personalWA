@@ -118,15 +118,28 @@ export default function LoginPage() {
               </button>
             </form>
 
-            <div className="mt-10 pt-8 border-t border-gray-100 text-center">
+            <div className="mt-10 pt-8 border-t border-gray-100 space-y-3 text-center">
               <p className="text-gray-500 font-medium">
                 New to the platform?{' '}
-                <button 
+                <button
                   onClick={() => navigate('/register')}
                   className="text-[#137fec] font-bold hover:underline"
                 >
                   Create Admin Account
                 </button>
+              </p>
+              <p className="text-gray-400 text-sm">
+                Want to register your clinic?{' '}
+                <a href="mailto:sales@connectgenai.in" className="text-[#137fec] font-semibold hover:underline">
+                  sales@connectgenai.in
+                </a>
+              </p>
+              <p className="text-gray-400 text-sm">
+                Need help?{' '}
+                <a href="mailto:support@connectgenai.in" className="text-[#137fec] font-semibold hover:underline">
+                  support@connectgenai.in
+                </a>
+                {' '}— we respond within 6 hours
               </p>
             </div>
           </>

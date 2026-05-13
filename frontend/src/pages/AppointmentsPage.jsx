@@ -206,20 +206,26 @@ const AppointmentsPage = () => {
 
   // FIX 2: Safety check for Start Visit
   const handleStartVisit = async (appointment) => {
-    if (!appointment) return; // Prevent crash if undefined
+    if (!appointment) return;
 
-    try {
-      if (appointment.status !== 'In Progress') {
-        await axios.patch(`${API_BASE_URL}/appointments/${appointment.id}/status`, { status: 'In Progress' });
-        // Optimistic UI update for list
-        setAppointments(prev => prev.map(a => a.id === appointment.id ? {...a, status: 'In Progress', statusColor: 'green'} : a));
-      }
-      // 2. Open Global Overlay
-      startTreatment(appointment.patientId, appointment.id, appointment.patient);
-    } catch (err) {
-      console.error("Failed to start visit", err);
-      alert("Could not start visit. Check console.");
+    const patientId = appointment.patientId || appointment.rawPatient?._id || appointment.rawPatient;
+    if (!patientId) {
+      alert("Patient ID not found for this appointment.");
+      return;
     }
+
+    setActiveDropdown(null);
+
+    if (appointment.status !== 'In Progress') {
+      try {
+        await axios.patch(`${API_BASE_URL}/appointments/${appointment.id}/status`, { status: 'In Progress' });
+        setAppointments(prev => prev.map(a => a.id === appointment.id ? {...a, status: 'In Progress', statusColor: 'green'} : a));
+      } catch (err) {
+        console.warn("Could not update appointment status:", err?.response?.data?.error || err.message);
+      }
+    }
+
+    startTreatment(patientId, appointment.id, appointment.patient);
   };
 
   // FIX 3: Correctly set patient data for Modal
@@ -420,6 +426,7 @@ const AppointmentsPage = () => {
                     <div
                       className="hidden md:block fixed w-56 max-h-96 bg-white border border-slate-200 rounded-lg shadow-xl z-[60] overflow-y-auto text-left"
                       style={{ top: dropdownPos.top, right: dropdownPos.right }}
+                      onMouseDown={e => e.stopPropagation()}
                     >
                       {!['Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                         <div className="sticky top-0 bg-white p-1 border-b border-slate-100 z-10">

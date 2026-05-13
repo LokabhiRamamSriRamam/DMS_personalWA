@@ -38,6 +38,14 @@ function ProtectedRoute() {
   );
 }
 
+// Redirect to / if user's role doesn't have access to this route
+function RoleRoute({ allow, children }) {
+  const { user } = useAuth();
+  const role = user?.role;
+  if (!allow.includes(role)) return <Navigate to="/" replace />;
+  return children;
+}
+
 const router = createBrowserRouter([
   {
     path: '/login',
@@ -51,18 +59,18 @@ const router = createBrowserRouter([
     path: '/',
     element: <ProtectedRoute />,
     children: [
-      { path: '/', element: <AppointmentsPage /> },
-      { path: 'treatment/:id', element: <TreatmentPage /> },
-      { path: 'invoices', element: <InvoicesPage /> },
-      { path: 'patients', element: <PatientsPage /> },
-      { path: 'files', element: <PatientFilesPage /> },
-      { path: 'transactions', element: <TransactionsPage /> },
-      { path: 'lab', element: <LabPage /> },
-      { path: 'inventory', element: <InventoryPage /> },
-      { path: 'insights', element: <ReportsPage /> },
-      { path: 'promotions', element: <div>Promotions Page</div> },
-      { path: 'settings', element: <SettingsPage /> },
-      { path: 'whatsapp', element: <WhatsAppPage /> },
+      { path: '/',              element: <AppointmentsPage /> },
+      { path: 'treatment/:id',  element: <TreatmentPage /> },
+      { path: 'patients',       element: <PatientsPage /> },
+      { path: 'files',          element: <RoleRoute allow={['Owner','Assistant','Doctor']}><PatientFilesPage /></RoleRoute> },
+      { path: 'transactions',   element: <RoleRoute allow={['Owner','Assistant']}><TransactionsPage /></RoleRoute> },
+      { path: 'invoices',       element: <RoleRoute allow={['Owner','Assistant']}><InvoicesPage /></RoleRoute> },
+      { path: 'lab',            element: <RoleRoute allow={['Owner','Assistant','Doctor']}><LabPage /></RoleRoute> },
+      { path: 'inventory',      element: <RoleRoute allow={['Owner','Assistant']}><InventoryPage /></RoleRoute> },
+      { path: 'insights',       element: <RoleRoute allow={['Owner']}><ReportsPage /></RoleRoute> },
+      { path: 'whatsapp',       element: <RoleRoute allow={['Owner']}><WhatsAppPage /></RoleRoute> },
+      { path: 'settings',       element: <RoleRoute allow={['Owner']}><SettingsPage /></RoleRoute> },
+      { path: 'promotions',     element: <div>Promotions Page</div> },
     ],
   },
 ]);
