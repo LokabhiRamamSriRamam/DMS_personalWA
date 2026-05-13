@@ -51,6 +51,23 @@ export async function createAppointment(req, res) {
       }
     }
 
+    // Check if the doctor has any appointment at the proposed time
+    if (req.body.doctor_id && req.body.start_time && req.body.end_time) {
+      const proposedStart = new Date(req.body.start_time);
+      const proposedEnd = new Date(req.body.end_time);
+
+      const conflictingAppt = await Appointment.findOne({
+        doctor_id: req.body.doctor_id,
+        status: { $ne: 'Cancelled' },
+        start_time: { $lt: proposedEnd },
+        end_time: { $gt: proposedStart }
+      });
+
+      if (conflictingAppt) {
+        return res.status(400).json({ error: 'Doctor already has an appointment at this time. Please choose a different time slot.' });
+      }
+    }
+
     const newAppt = new Appointment(req.body);
     const saved = await newAppt.save();
 
@@ -123,6 +140,21 @@ export async function updateStatus(req, res) {
   const { Appointment } = req.tenantModels;
   try {
     const { status } = req.body;
+    const currentAppt = await Appointment.findById(req.params.id);
+
+    // Prevent starting a new appointment if doctor already has one in progress
+    if (status === 'In Progress' && currentAppt?.doctor_id) {
+      const inProgressAppt = await Appointment.findOne({
+        _id: { $ne: req.params.id },
+        doctor_id: currentAppt.doctor_id,
+        status: 'In Progress'
+      });
+
+      if (inProgressAppt) {
+        return res.status(400).json({ error: 'Doctor is currently busy with another appointment. Cannot start this appointment.' });
+      }
+    }
+
     const appt = await Appointment.findByIdAndUpdate(
       req.params.id,
       { status },
@@ -225,6 +257,29 @@ export async function updateAppointment(req, res) {
       const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       if (new Date(req.body.start_time) < oneHourAgo) {
         return res.status(400).json({ error: 'Cannot reschedule an appointment more than 1 hour in the past.' });
+      }
+    }
+
+    // Check if the doctor has any appointment at the proposed time
+    if (req.body.doctor_id || req.body.start_time) {
+      const existingAppt = await Appointment.findById(req.params.id);
+      const doctorId = req.body.doctor_id || existingAppt?.doctor_id;
+      const proposedStart = new Date(req.body.start_time || existingAppt?.start_time);
+      const proposedEnd = new Date(req.body.end_time || existingAppt?.end_time);
+
+      // Check for conflicts with other appointments for this doctor
+      if (doctorId && proposedStart && proposedEnd) {
+        const conflictingAppt = await Appointment.findOne({
+          _id: { $ne: req.params.id },
+          doctor_id: doctorId,
+          status: { $ne: 'Cancelled' },
+          start_time: { $lt: proposedEnd },
+          end_time: { $gt: proposedStart }
+        });
+
+        if (conflictingAppt) {
+          return res.status(400).json({ error: 'Doctor already has an appointment at this time. Please choose a different time slot.' });
+        }
       }
     }
 

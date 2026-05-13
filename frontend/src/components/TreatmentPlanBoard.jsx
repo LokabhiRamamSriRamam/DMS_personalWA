@@ -1,15 +1,39 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Trash2, Check, ArrowRight, X, Clock, FileText, AlertCircle, DollarSign, Calendar } from 'lucide-react';
 import API from '../services/api';
 
 // --- SUB-COMPONENT: DETAILED TREATMENT MODAL ---
 const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate, onDelete }) => {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [editData, setEditData] = React.useState({});
+
+  useEffect(() => {
+    if (treatment) {
+      setEditData({
+        treatment_name: treatment.treatmentName || '',
+        cost: treatment.cost || 0,
+        teeth_numbers: treatment.teeth || [],
+      });
+    }
+  }, [treatment]);
+
   if (!isOpen || !treatment) return null;
+
+  const handleEdit = async () => {
+    try {
+      await onUpdate(treatment.visitId, treatment.id, null, editData);
+      setIsEditing(false);
+    } catch (err) {
+      alert('Failed to update treatment');
+    }
+  };
+
+  const teethInput = editData.teeth_numbers?.join(', ') || '';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
           <h3 className="font-bold text-lg text-slate-800">Treatment Details</h3>
@@ -20,11 +44,20 @@ const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate, onDelete }
 
         {/* Content */}
         <div className="p-6 overflow-y-auto">
-          
+
           {/* Main Title & Status */}
           <div className="flex justify-between items-start mb-6">
-            <div>
-              <h4 className="text-2xl font-bold text-slate-900">{treatment.treatmentName}</h4>
+            <div className="flex-1">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editData.treatment_name}
+                  onChange={(e) => setEditData({ ...editData, treatment_name: e.target.value })}
+                  className="text-2xl font-bold text-slate-900 border-b-2 border-blue-400 focus:outline-none w-full mb-2"
+                />
+              ) : (
+                <h4 className="text-2xl font-bold text-slate-900">{treatment.treatmentName}</h4>
+              )}
               <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
                 <Calendar size={14} /> Created on {treatment.date}
               </p>
@@ -42,15 +75,34 @@ const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate, onDelete }
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-xs font-bold text-slate-400 uppercase block mb-1">Teeth Involved</span>
-              <span className="text-lg font-bold text-slate-800">
-                {treatment.teeth && treatment.teeth.length > 0 ? treatment.teeth.join(', ') : 'General'}
-              </span>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={teethInput}
+                  onChange={(e) => setEditData({ ...editData, teeth_numbers: e.target.value.split(',').map(t => t.trim()).filter(t => t) })}
+                  placeholder="e.g. 11, 12, 13"
+                  className="text-sm border border-blue-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              ) : (
+                <span className="text-lg font-bold text-slate-800">
+                  {treatment.teeth && treatment.teeth.length > 0 ? treatment.teeth.join(', ') : 'General'}
+                </span>
+              )}
             </div>
             <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
               <span className="text-xs font-bold text-slate-400 uppercase block mb-1">Cost Est.</span>
-              <span className="text-lg font-bold text-slate-800 flex items-center">
-                <DollarSign size={16} className="text-slate-400 mr-1"/> {treatment.cost}
-              </span>
+              {isEditing ? (
+                <input
+                  type="number"
+                  value={editData.cost}
+                  onChange={(e) => setEditData({ ...editData, cost: parseFloat(e.target.value) || 0 })}
+                  className="text-lg font-bold border border-blue-300 rounded px-2 py-1 w-full focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              ) : (
+                <span className="text-lg font-bold text-slate-800 flex items-center">
+                  <DollarSign size={16} className="text-slate-400 mr-1"/> {treatment.cost}
+                </span>
+              )}
             </div>
           </div>
 
@@ -83,37 +135,85 @@ const TreatmentStatusModal = ({ isOpen, onClose, treatment, onUpdate, onDelete }
 
           {/* Action Buttons */}
           <div className="flex flex-col gap-3 pt-4 border-t border-slate-100">
-            {treatment.status === 'Planned' && (
-              <button 
-                onClick={() => onUpdate(treatment.visitId, treatment.id, 'In Progress')}
-                className="w-full py-3.5 flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
-              >
-                <Clock size={20} /> Start Treatment (In Progress)
-              </button>
-            )}
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleEdit}
+                  className="w-full py-3 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl transition-all"
+                >
+                  <Check size={20} /> Save Changes
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="w-full py-3 flex items-center justify-center gap-2 bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="w-full py-3 flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white font-bold rounded-xl transition-all"
+                >
+                  ✏️ Edit Treatment
+                </button>
 
-            {treatment.status === 'In Progress' && (
-              <button 
-                onClick={() => onUpdate(treatment.visitId, treatment.id, 'Completed')}
-                className="w-full py-3.5 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-[0.98]"
-              >
-                <Check size={20} /> Mark as Completed
-              </button>
-            )}
+                {treatment.status === 'Planned' && (
+                  <button
+                    onClick={() => onUpdate(treatment.visitId, treatment.id, 'In Progress')}
+                    className="w-full py-3.5 flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
+                  >
+                    <Clock size={20} /> Start Treatment (In Progress)
+                  </button>
+                )}
 
-            {treatment.status === 'Completed' && (
-               <div className="py-3 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 justify-center font-bold border border-green-100">
-                  <Check size={20} /> Treatment Completed
-               </div>
-            )}
+                {treatment.status === 'In Progress' && (
+                  <>
+                    <button
+                      onClick={() => onUpdate(treatment.visitId, treatment.id, 'Completed')}
+                      className="w-full py-3.5 flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-[0.98]"
+                    >
+                      <Check size={20} /> Mark as Completed
+                    </button>
+                    <button
+                      onClick={() => onUpdate(treatment.visitId, treatment.id, 'Planned')}
+                      className="w-full py-3 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all"
+                    >
+                      ↩️ Revert to Planned
+                    </button>
+                  </>
+                )}
 
-            {treatment.status === 'Planned' && onDelete && (
-              <button
-                onClick={() => onDelete(treatment.visitId, treatment.id)}
-                className="w-full py-3 flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 hover:bg-red-50 font-semibold rounded-xl transition-all"
-              >
-                <Trash2 size={18} /> Delete Treatment
-              </button>
+                {treatment.status === 'Completed' && (
+                  <>
+                    <div className="py-3 bg-green-50 text-green-700 rounded-xl flex items-center gap-2 justify-center font-bold border border-green-100">
+                      <Check size={20} /> Treatment Completed
+                    </div>
+                    <button
+                      onClick={() => onUpdate(treatment.visitId, treatment.id, 'In Progress')}
+                      className="w-full py-3 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-xl transition-all"
+                    >
+                      ↩️ Revert to In Progress
+                    </button>
+                    <button
+                      onClick={() => onUpdate(treatment.visitId, treatment.id, 'Planned')}
+                      className="w-full py-3 flex items-center justify-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all"
+                    >
+                      ↩️ Revert to Planned
+                    </button>
+                  </>
+                )}
+
+                {treatment.status === 'Planned' && onDelete && (
+                  <button
+                    onClick={() => onDelete(treatment.visitId, treatment.id)}
+                    className="w-full py-3 flex items-center justify-center gap-2 text-red-600 bg-white border border-red-200 hover:bg-red-50 font-semibold rounded-xl transition-all"
+                  >
+                    <Trash2 size={18} /> Delete Treatment
+                  </button>
+                )}
+              </>
             )}
           </div>
 
@@ -227,18 +327,23 @@ const TreatmentPlanBoard = ({ visits = [], onRefresh }) => {
   }, [visits]);
 
   // API Call
-  const handleUpdateStatus = async (visitId, treatmentId, newStatus) => {
+  const handleUpdateStatus = async (visitId, treatmentId, newStatus, editData = null) => {
     try {
-        console.log(`Updating: Visit ${visitId}, Treatment ${treatmentId} -> ${newStatus}`);
-        
-        // This matches the backend route exactly
-        await API.patch(`/visits/${visitId}/treatments/${treatmentId}/status`, { status: newStatus });
-        
+        if (editData) {
+          // Update treatment details (name, cost, teeth, etc.)
+          console.log(`Updating treatment details:`, editData);
+          await API.put(`/visits/${visitId}/treatments/${treatmentId}`, editData);
+        } else if (newStatus) {
+          // Update status only
+          console.log(`Updating: Visit ${visitId}, Treatment ${treatmentId} -> ${newStatus}`);
+          await API.patch(`/visits/${visitId}/treatments/${treatmentId}/status`, { status: newStatus });
+        }
+
         setSelectedPlan(null);
         if (onRefresh) onRefresh(); // Reload data
     } catch (err) {
         console.error("Update failed", err);
-        alert("Failed to update status. Check console.");
+        alert("Failed to update treatment. Check console.");
     }
   };
 

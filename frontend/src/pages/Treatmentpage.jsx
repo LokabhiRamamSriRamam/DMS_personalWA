@@ -108,7 +108,8 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
     tobacco_smoking: false,
     tobacco_smokeless: false,
     tea_consumption: '',
-    coffee_consumption: ''
+    coffee_consumption: '',
+    dentition_type: 'Adult'
   });
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'saving' | 'saved' | 'error'
@@ -124,20 +125,22 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
         tobacco_smoking: patient.tobacco_smoking || false,
         tobacco_smokeless: patient.tobacco_smokeless || false,
         tea_consumption: patient.tea_consumption || '',
-        coffee_consumption: patient.coffee_consumption || ''
+        coffee_consumption: patient.coffee_consumption || '',
+        dentition_type: patient.dentition_type || 'Adult'
       });
     }
   }, [patient, currentVisit]);
 
   const handleSave = async () => {
-    // 1. Save medical_history, dental_history, and lifestyle habits to patient
+    // 1. Save medical_history, dental_history, lifestyle habits, and dentition type to patient
     onSaveHistory({
       medical_history: formData.medical_history,
       dental_history: formData.dental_history,
       tobacco_smoking: formData.tobacco_smoking,
       tobacco_smokeless: formData.tobacco_smokeless,
       tea_consumption: formData.tea_consumption,
-      coffee_consumption: formData.coffee_consumption
+      coffee_consumption: formData.coffee_consumption,
+      dentition_type: formData.dentition_type
     });
     // 2. Save chief_complaint to current visit (if a visit exists)
     if (currentVisit?._id) {
@@ -240,10 +243,32 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
 
         </div>
 
-        {/* Right Column: Lifestyle Habits */}
+        {/* Right Column: Dentition Type & Lifestyle Habits */}
         <div className="flex flex-col gap-5">
 
-          {/* 4. Tobacco Consumption */}
+          {/* 4. Dentition Type */}
+          <div className="flex flex-col gap-2">
+            <label className="font-semibold text-gray-700">Dentition Type</label>
+            {isEditing ? (
+                <div className="relative">
+                  <select
+                    value={formData.dentition_type}
+                    onChange={(e) => setFormData({...formData, dentition_type: e.target.value})}
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:outline-none focus:border-[#137fec] bg-white cursor-pointer"
+                  >
+                    <option value="Adult">Adult</option>
+                    <option value="Pedo">Pedo (Pediatric)</option>
+                    <option value="Mixed">Mixed</option>
+                  </select>
+                </div>
+            ) : (
+                <div className="p-2 bg-slate-50 rounded-md text-sm text-gray-700 min-h-[40px] flex items-center">
+                  {formData.dentition_type === 'Pedo' ? 'Pedo (Pediatric)' : formData.dentition_type}
+                </div>
+            )}
+          </div>
+
+          {/* 5. Tobacco Consumption */}
           <div className="flex flex-col gap-2">
             <label className="font-semibold text-gray-700">Tobacco Consumption</label>
             {isEditing ? (
@@ -279,7 +304,7 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
             )}
           </div>
 
-          {/* 5. Tea Consumption */}
+          {/* 6. Tea Consumption */}
           <div className="flex flex-col gap-2">
             <label className="font-semibold text-gray-700">Tea Consumption</label>
             {isEditing ? (
@@ -297,7 +322,7 @@ const ClinicalHistory = ({ patient, currentVisit, onSaveHistory, onSaveVisitComp
             )}
           </div>
 
-          {/* 6. Coffee Consumption */}
+          {/* 7. Coffee Consumption */}
           <div className="flex flex-col gap-2">
             <label className="font-semibold text-gray-700">Coffee Consumption</label>
             {isEditing ? (
@@ -696,6 +721,15 @@ const LabOrders = ({ patientId, onRefresh, onOrdersLoaded }) => {
     }).catch(() => {});
   }, [patientId]);
 
+  const handleItemSelect = (itemName) => {
+    const selectedItem = catalogItems.find(item => item.name === itemName);
+    const newForm = { ...form, item_name: itemName };
+    if (selectedItem && selectedItem.price) {
+      newForm.cost_to_clinic = selectedItem.price;
+    }
+    setForm(newForm);
+  };
+
   const handleAdd = async () => {
     if (!form.item_name.trim()) return;
     setSaving(true);
@@ -746,7 +780,7 @@ const LabOrders = ({ patientId, onRefresh, onOrdersLoaded }) => {
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[#137fec]"
                 placeholder="Type or select lab item..."
                 value={form.item_name}
-                onChange={e => setForm({ ...form, item_name: e.target.value })}
+                onChange={e => handleItemSelect(e.target.value)}
               />
               <datalist id="lab-catalog-items">
                 {catalogItems.map(item => <option key={item._id} value={item.name} />)}
@@ -1247,13 +1281,13 @@ export default function TreatmentPage({ patientIdProp }) {
         onSuccess={() => { setIsInvoiceOpen(false); fetchPageData(); }}
         initialPatient={patient}
         initialItems={[
-          // Unpaid treatments
+          // Unpaid treatments (no invoice or invoice status is not 'Paid')
           ...visits.flatMap(v =>
             (v.treatments || [])
               .filter(t => {
                   const inv = t.invoice_id;
-                  // Exclude only if fully paid; partial-payment or no invoice → still include
-                  return inv?.status !== 'Paid' && t.status !== 'Cancelled' && t.treatment_name !== 'Missing';
+                  const isUnpaid = !inv || inv.status !== 'Paid';
+                  return isUnpaid && t.status !== 'Cancelled' && t.treatment_name !== 'Missing';
               })
               .map(t => ({
                 name:           t.treatment_name,
@@ -1265,10 +1299,10 @@ export default function TreatmentPage({ patientIdProp }) {
                 _treatmentRef:  { visitId: v._id, treatmentId: t._id },
               }))
           ),
-          // Unpaid prescriptions
+          // Unpaid prescriptions (no invoice or invoice status is not 'Paid')
           ...visits.flatMap(v =>
             (v.prescriptions || [])
-              .filter(p => p.invoice_id?.status !== 'Paid')
+              .filter(p => !p.invoice_id || p.invoice_id.status !== 'Paid')
               .map(p => ({
                 name:               p.drug_name,
                 type:               'Pharmacy',
@@ -1279,9 +1313,9 @@ export default function TreatmentPage({ patientIdProp }) {
                 _prescriptionRef:   { visitId: v._id, prescriptionId: p._id },
               }))
           ),
-          // Unpaid lab orders
+          // Unpaid lab orders (no invoice or invoice status is not 'Paid')
           ...labOrders
-            .filter(o => o.invoice_id?.status !== 'Paid')
+            .filter(o => !o.invoice_id || o.invoice_id.status !== 'Paid')
             .map(o => ({
               name:     o.items?.[0]?.item_name || 'Lab Order',
               type:     'Lab',

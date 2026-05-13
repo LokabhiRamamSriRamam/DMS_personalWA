@@ -265,17 +265,22 @@ const TMJView = ({ selectedItems, onSelectionChange, visits = [], onContextMenuA
 };
 
 // --- Main Component ---
-const TreatmentTabs = ({ onTreatmentAdded, visits = [], patientId }) => {
+const TreatmentTabs = ({ onTreatmentAdded, visits = [], patientId, initialDentition = 'Adult' }) => {
   const [activeTab, setActiveTab] = useState('Dental Chart');
-  
+
   const [dentalSelections, setDentalSelections] = useState([]);
   const [softTissueSelections, setSoftTissueSelections] = useState([]);
   const [tmjSelections, setTmjSelections] = useState([]);
-  const [dentition, setDentition] = useState('Adult');
-  
+  const [dentition, setDentition] = useState(initialDentition);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState('Plan'); 
-  const [modalTargets, setModalTargets] = useState([]); 
+  const [modalMode, setModalMode] = useState('Plan');
+  const [modalTargets, setModalTargets] = useState([]);
+
+  // Sync dentition with patient's dentition_type when it changes
+  useEffect(() => {
+    setDentition(initialDentition);
+  }, [initialDentition]); 
 
   const toggleSelection = (item, currentSelections, setFunction) => {
     setFunction(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item]);
