@@ -232,7 +232,7 @@ const InventoryConsumption = ({ visits = [], patientId, onRefresh }) => {
                 <div className="flex items-center gap-4 shrink-0">
                   <div className="text-right">
                     <div className="font-semibold text-teal-700">
-                      {consumption.total_quantity} {item?.consumption_unit || 'unit'}
+                      {(consumption.total_quantity * (item?.consumption_unit || 1)).toFixed(2)} units
                     </div>
                     <div className="text-xs text-slate-500">
                       Stock: {item?.stock_on_hand || 0}

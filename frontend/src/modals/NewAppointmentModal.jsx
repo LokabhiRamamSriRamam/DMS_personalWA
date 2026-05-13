@@ -18,6 +18,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
   // --- Data States ---
   const [patients, setPatients] = useState([]); // Stores search results
   const [doctors, setDoctors] = useState([]);   // Stores fetched doctors
+  const [busyDoctors, setBusyDoctors] = useState(new Set()); // Doctors with In Progress appointments
   const [loading, setLoading] = useState(false);
 
   // --- UI States ---
@@ -144,6 +145,40 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
       API.get('/users/doctors')
         .then(res => setDoctors(res.data))
         .catch(err => console.error("Failed to load doctors", err));
+    }
+  }, [isOpen]);
+
+  // --- 2. Check for busy doctors (In Progress appointments) ---
+  useEffect(() => {
+    const checkBusyDoctors = async () => {
+      try {
+        const today = getIndiaDate();
+        const res = await API.get(`/appointments?date=${today}`);
+        const now = new Date();
+        const busy = new Set();
+
+        res.data.forEach(appt => {
+          if (appt.status === 'In Progress') {
+            const startTime = new Date(appt.start_time);
+            const endTime = new Date(appt.end_time);
+            if (startTime <= now && now <= endTime && appt.doctor_id) {
+              const doctorId = typeof appt.doctor_id === 'object' ? appt.doctor_id._id : appt.doctor_id;
+              busy.add(doctorId);
+            }
+          }
+        });
+
+        setBusyDoctors(busy);
+      } catch (err) {
+        console.error("Failed to check busy doctors", err);
+      }
+    };
+
+    if (isOpen) {
+      checkBusyDoctors();
+      // Re-check every 30 seconds to update busy status
+      const interval = setInterval(checkBusyDoctors, 30000);
+      return () => clearInterval(interval);
     }
   }, [isOpen]);
 
@@ -376,16 +411,21 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs font-semibold text-slate-500 uppercase">Doctor</label>
                   <div className="relative">
-                    <select 
+                    <select
                       required
                       className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 appearance-none"
                       value={formData.doctorId}
                       onChange={(e) => setFormData({...formData, doctorId: e.target.value})}
                     >
                       <option value="">Select Doctor</option>
-                      {doctors.map(d => (
-                        <option key={d._id} value={d._id}>{d.name} ({d.specialization || 'Gen'})</option>
-                      ))}
+                      {doctors.map(d => {
+                        const isBusy = busyDoctors.has(d._id);
+                        return (
+                          <option key={d._id} value={d._id} disabled={isBusy}>
+                            {d.name} ({d.specialization || 'Gen'}){isBusy ? ' — Busy' : ''}
+                          </option>
+                        );
+                      })}
                     </select>
                     <ChevronDown className="absolute right-3 top-3 text-slate-400 pointer-events-none" size={16} />
                   </div>

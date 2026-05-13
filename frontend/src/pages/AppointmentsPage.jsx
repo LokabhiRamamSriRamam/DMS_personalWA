@@ -568,6 +568,13 @@ const AppointmentsPage = () => {
                   const statusObj = getDoctorStatus(doc._id);
                   const fullName = doc.name || 'Unknown';
                   const initials = doc.name?.charAt(0) || 'Dr';
+                  const dotColorMap = { green: 'bg-green-500', orange: 'bg-orange-500', blue: 'bg-blue-500', slate: 'bg-slate-400' };
+                  const badgeStyleMap = {
+                    green: 'bg-green-50 text-green-700 border border-green-200',
+                    orange: 'bg-orange-50 text-orange-700 border border-orange-200',
+                    blue: 'bg-blue-50 text-blue-700 border border-blue-200',
+                    slate: 'bg-slate-50 text-slate-600 border border-slate-200'
+                  };
                   return (
                     <div key={doc._id} className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -575,14 +582,14 @@ const AppointmentsPage = () => {
                           <div className="size-10 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-500">
                             {initials}
                           </div>
-                          <span className={`absolute bottom-0 right-0 size-2.5 rounded-full bg-${statusObj.color}-500 border-2 border-white`}></span>
+                          <span className={`absolute bottom-0 right-0 size-2.5 rounded-full ${dotColorMap[statusObj.color]} border-2 border-white`}></span>
                         </div>
                         <div>
                           <p className="text-sm font-semibold text-slate-900">{fullName}</p>
                           <p className="text-xs text-slate-500">{doc.specialization || 'Dentist'}</p>
                         </div>
                       </div>
-                      <span className={`text-xs font-medium px-2 py-1 rounded bg-${statusObj.color}-50 text-${statusObj.color}-600`}>{statusObj.label}</span>
+                      <span className={`text-xs font-medium px-2 py-1 rounded ${badgeStyleMap[statusObj.color]}`}>{statusObj.label}</span>
                     </div>
                   );
                 }) : <p className="text-xs text-slate-400">Loading doctors...</p>}

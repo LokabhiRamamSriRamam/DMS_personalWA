@@ -436,6 +436,37 @@ export async function updateTreatmentStatus(req, res) {
   }
 }
 
+// PUT /api/visits/:visitId/treatments/:treatmentId
+export async function updateTreatment(req, res) {
+  const { Visit } = req.tenantModels;
+  try {
+    const { visitId, treatmentId } = req.params;
+    const { treatment_name, cost, qty, teeth_numbers, status } = req.body;
+
+    const updateObj = {};
+    if (treatment_name !== undefined) updateObj['treatments.$.treatment_name'] = treatment_name;
+    if (cost !== undefined) updateObj['treatments.$.cost'] = cost;
+    if (qty !== undefined) updateObj['treatments.$.qty'] = qty;
+    if (teeth_numbers !== undefined) updateObj['treatments.$.teeth_numbers'] = teeth_numbers;
+    if (status !== undefined) updateObj['treatments.$.status'] = status;
+
+    if (Object.keys(updateObj).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    const visit = await Visit.findOneAndUpdate(
+      { _id: visitId, 'treatments._id': treatmentId },
+      { $set: updateObj },
+      { new: true }
+    );
+
+    if (!visit) return res.status(404).json({ error: 'Visit or Treatment not found' });
+    res.json(visit);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+}
+
 // POST /api/visits/patient/:patientId/consumable
 export async function addConsumableToVisit(req, res) {
   const { Visit, InventoryItem, InventoryLog, User } = req.tenantModels;
