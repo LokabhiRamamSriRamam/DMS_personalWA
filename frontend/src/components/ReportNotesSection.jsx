@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText, Image as ImageIcon, FileBarChart, HardDrive,
-  ChevronLeft, Plus, Calendar, UploadCloud, X,
+  ChevronLeft, Plus, Calendar, UploadCloud, X, Trash2,
   SplitSquareHorizontal, ArrowLeft, Loader2,
 } from 'lucide-react';
 import API from '../services/api';
@@ -32,6 +32,8 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [compareFile, setCompareFile] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchFiles = async () => {
     try {
@@ -108,6 +110,33 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
     }
   };
 
+  const handleDeleteFile = async (file) => {
+    if (!window.confirm(`Delete "${file.file_name}"?`)) return;
+
+    try {
+      setDeleting(true);
+      await API.delete(`/files/${file._id}`, {
+        data: { patient_id: patientId }
+      });
+      setContextMenu(null);
+      fetchFiles();
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('Failed to delete file.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleContextMenu = (e, file) => {
+    e.preventDefault();
+    setContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      file
+    });
+  };
+
   // --- RENDERERS ---
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -159,6 +188,7 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
       <div
         key={file._id}
         onClick={() => handleFileClick(file)}
+        onContextMenu={(e) => handleContextMenu(e, file)}
         className={`flex items-center gap-3 p-3 bg-white border rounded-lg hover:shadow-md hover:border-[#137fec] transition-all cursor-pointer ${selectedFile?._id === file._id && mode === 'COMPARE' ? 'opacity-50 pointer-events-none bg-gray-50' : ''}`}
       >
         <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${category.bg} ${category.color}`}>
@@ -291,7 +321,10 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
   );
 
   return (
-    <div className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 relative">
+    <div
+      className="p-5 bg-white rounded-xl shadow-sm border border-gray-100 mb-6 relative"
+      onClick={() => setContextMenu(null)}
+    >
       <div className="flex justify-between items-center mb-6">
         <h3 className="font-semibold text-lg text-gray-800">Reports & Notes</h3>
         <button
@@ -313,6 +346,22 @@ const ReportsNotesSection = ({ patientId, refreshTrigger }) => {
           {view === 'PREVIEW' && renderFilePreview()}
           {view === 'COMPARE_VIEW' && renderCompareView()}
         </>
+      )}
+
+      {contextMenu && (
+        <div
+          className="fixed bg-white border border-slate-200 rounded-lg shadow-lg z-[250] py-1"
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => handleDeleteFile(contextMenu.file)}
+            disabled={deleting}
+            className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 disabled:opacity-50"
+          >
+            <Trash2 size={16} /> Delete
+          </button>
+        </div>
       )}
 
       {/* UPLOAD MODAL — inlined here (NOT a nested component) to prevent remount on state change */}
