@@ -6,8 +6,8 @@ export const TreatmentProvider = ({ children }) => {
   // Structure: { id: 'patientId', appointmentId: 'apptId', minimized: boolean } or null
   const [activeTreatment, setActiveTreatment] = useState(null);
 
-  const startTreatment = (patientId, appointmentId) => {
-    setActiveTreatment({ id: patientId, appointmentId: appointmentId || null, minimized: false });
+  const startTreatment = (patientId, appointmentId, patientName) => {
+    setActiveTreatment({ id: patientId, appointmentId: appointmentId || null, minimized: false, patientName: patientName || null });
   };
 
   const minimizeTreatment = () => {

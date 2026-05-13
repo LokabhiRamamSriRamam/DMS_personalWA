@@ -1815,7 +1815,7 @@ function JourneyStepEditor({
   const [activeLang, setActiveLang] = useState("en");
 
   // Fake event object matching LangEditor's expectations
-  const fakeEvent = { key: "postCare", variables: JOURNEY_VARIABLES };
+  const fakeEvent = { key: "postCare", variables: JOURNEY_VARIABLES, allowedContentTypes: ["text"] };
 
   // Build a fake "template" object from msg.languages[lang] so LangEditor
   // can load existing content on mount

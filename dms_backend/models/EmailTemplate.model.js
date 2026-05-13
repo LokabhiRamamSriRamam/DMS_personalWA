@@ -4,7 +4,7 @@ export const EmailTemplateSchema = new mongoose.Schema(
   {
     event: {
       type: String,
-      enum: ['aiReportReady', 'appointmentBooked', 'invoiceGenerated'],
+      enum: ['appointmentBooked', 'appointmentCompleted'],
       required: true,
     },
     language: {

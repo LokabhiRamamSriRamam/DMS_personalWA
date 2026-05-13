@@ -437,10 +437,16 @@ function InventoryTab() {
 // ─── Email Tab ────────────────────────────────────────────────────────────────
 
 const EVENT_LABELS = {
-  aiReportReady:     'AI Report Ready',
-  appointmentBooked: 'Appointment Booked',
-  invoiceGenerated:  'Invoice Generated',
+  appointmentBooked:    'Appointment Booked',
+  appointmentCompleted: 'Appointment Completed',
 };
+
+const COMPLETION_DOCS = [
+  { key: 'smartReport',  label: 'Smart Report',  sub: 'Treatments, notes & visit summary PDF' },
+  { key: 'prescription', label: 'Prescription',  sub: 'Medication list from the visit' },
+  { key: 'invoice',      label: 'Invoice',        sub: 'Latest invoice for this patient' },
+  { key: 'aiReport',     label: 'AI Report',      sub: 'Most recent AI-generated clinical report' },
+];
 
 const LANG_LABELS = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
 
@@ -463,6 +469,8 @@ function EmailTab() {
   const [testEmail, setTestEmail] = useState('');
   const [testStatus, setTestStatus] = useState(null); // null | 'sending' | 'ok' | 'fail'
   const [testError, setTestError] = useState('');
+  const [saveBanner, setSaveBanner] = useState(null); // null | { ok, msg }
+  const [showGuide, setShowGuide] = useState(false);
 
   // Templates state
   const [templates, setTemplates] = useState([]);
@@ -515,12 +523,21 @@ function EmailTab() {
 
   async function saveSettings() {
     setSettingsSaving(true);
+    setSaveBanner(null);
     try {
       await API.put('/email/settings', smtpForm);
       await fetchSettings();
-      alert('Email settings saved.');
+      setSaveBanner({ ok: true, msg: 'Settings saved successfully.' });
     } catch (err) {
-      alert('Failed to save: ' + (err.response?.data?.error || err.message));
+      const raw = err.response?.data?.error || err.message || 'Unknown error';
+      const hint = raw.includes('ECONNREFUSED')
+        ? `${raw} — Check that your SMTP host and port are correct.`
+        : raw.includes('535') || raw.includes('Invalid login')
+        ? `${raw} — Authentication failed. For Gmail, use an App Password (not your account password).`
+        : raw.includes('ETIMEDOUT')
+        ? `${raw} — Connection timed out. Check your SMTP host, port, and firewall.`
+        : raw;
+      setSaveBanner({ ok: false, msg: hint });
     } finally {
       setSettingsSaving(false);
     }
@@ -641,23 +658,133 @@ function EmailTab() {
               ))}
             </div>
             {smtpForm.mode === 'gmail' && (
-              <p className="mt-2 text-xs text-slate-500">
-                Gmail requires 2FA + an App Password (not your normal password).
-                Generate one at <span className="font-mono">myaccount.google.com/apppasswords</span>.
-              </p>
+              <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(g => !g)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-blue-100 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">📖</span>
+                    <div>
+                      <p className="text-sm font-bold text-blue-800">How to connect Gmail — Step by step</p>
+                      <p className="text-xs text-blue-600">Gmail blocks regular passwords — you need a special App Password</p>
+                    </div>
+                  </div>
+                  <span className="text-blue-500 font-bold text-lg leading-none">{showGuide ? '▲' : '▼'}</span>
+                </button>
+                {showGuide && (
+                  <div className="border-t border-blue-200 px-4 py-5 space-y-4 text-sm text-slate-700 bg-white">
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                      <strong>Why App Password?</strong> Google blocks sign-ins from apps using your regular Gmail password as a security measure. An App Password is a special 16-character code generated only for this app — it cannot be used to log into your Google account.
+                    </div>
+
+                    <ol className="space-y-4">
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">1</span>
+                        <div>
+                          <p className="font-semibold">Open your Google Account</p>
+                          <p className="text-xs text-slate-500 mt-0.5">In any browser, go to <span className="font-mono bg-slate-100 px-1 rounded border border-slate-200">myaccount.google.com</span> and sign in with the Gmail account you want to send emails from.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">2</span>
+                        <div>
+                          <p className="font-semibold">Go to Security settings</p>
+                          <p className="text-xs text-slate-500 mt-0.5">In the left sidebar click <strong>Security</strong>. Scroll down to the section titled <strong>"How you sign in to Google"</strong>.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">3</span>
+                        <div>
+                          <p className="font-semibold">Enable 2-Step Verification</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Click <strong>2-Step Verification</strong> and follow the steps to turn it on. You can use SMS or the Google Authenticator app. <span className="text-red-500 font-medium">This step is mandatory</span> — App Passwords are hidden until 2-Step Verification is active.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">4</span>
+                        <div>
+                          <p className="font-semibold">Find App Passwords</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Go back to <span className="font-mono bg-slate-100 px-1 rounded border border-slate-200">myaccount.google.com</span>, click the <strong>search bar at the top</strong> of the page and type <strong>"App Passwords"</strong>. Click the result that appears.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">5</span>
+                        <div>
+                          <p className="font-semibold">Generate a new App Password</p>
+                          <p className="text-xs text-slate-500 mt-0.5">In the <strong>"App name"</strong> field type <strong>Dental DMS</strong> and click <strong>Create</strong>. Google will show you a 16-character password like <span className="font-mono bg-slate-100 px-1 rounded border border-slate-200">abcd efgh ijkl mnop</span>.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">6</span>
+                        <div>
+                          <p className="font-semibold">Fill in the fields below</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            <strong>Email / SMTP Username</strong> = your full Gmail address (e.g. <span className="font-mono">clinic@gmail.com</span>)<br/>
+                            <strong>App Password</strong> = the 16-character code (spaces don't matter, copy it as-is)<br/>
+                            <strong>From Name</strong> = what patients will see as the sender (e.g. "City Dental Clinic")<br/>
+                            Host, Port and TLS are pre-filled correctly — do not change them.
+                          </p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">7</span>
+                        <div>
+                          <p className="font-semibold">Turn on "Enable Email Delivery" and save</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Toggle <strong>Enable Email Delivery</strong> to ON — this is the master switch that allows the system to actually send emails. Then click <strong>Save Settings</strong>.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">8</span>
+                        <div>
+                          <p className="font-semibold">Verify with a test email</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Scroll down to <strong>Send a Test Email</strong>, enter your own email address and click <strong>Send Test</strong>. If it arrives in your inbox, you're all set. If it fails, the error message will tell you exactly what's wrong.</p>
+                        </div>
+                      </li>
+                      <li className="flex gap-3">
+                        <span className="flex-shrink-0 w-7 h-7 rounded-full bg-[#137fec] text-white text-xs font-bold flex items-center justify-center">9</span>
+                        <div>
+                          <p className="font-semibold">Set up automatic emails (optional)</p>
+                          <p className="text-xs text-slate-500 mt-0.5">Once the test passes, go to the <strong>Automation</strong> tab (next to Connection at the top) to configure which emails are sent automatically — e.g. when an invoice is generated or an AI report is ready.</p>
+                        </div>
+                      </li>
+                    </ol>
+
+                    <div className="bg-slate-50 rounded-lg px-3 py-2 text-xs text-slate-500 border border-slate-200 space-y-0.5">
+                      <p><strong>Host:</strong> smtp.gmail.com &nbsp;·&nbsp; <strong>Port:</strong> 465 &nbsp;·&nbsp; <strong>TLS:</strong> On (pre-filled, do not change)</p>
+                      <p><strong>Tip:</strong> Check your Spam folder if the test email doesn't arrive in inbox.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {smtpForm.mode === 'custom' && (
+              <div className="mt-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600 space-y-1">
+                <p className="font-bold text-slate-700 mb-1">Common SMTP settings</p>
+                <p><strong>Outlook / Office 365:</strong> smtp.office365.com · Port 587 · TLS off</p>
+                <p><strong>Yahoo Mail:</strong> smtp.mail.yahoo.com · Port 465 · TLS on</p>
+                <p><strong>Zoho Mail:</strong> smtp.zoho.in · Port 465 · TLS on</p>
+                <p><strong>SendGrid:</strong> smtp.sendgrid.net · Port 587 · user = apikey</p>
+              </div>
             )}
           </div>
 
           {/* Enable toggle */}
-          <label className="flex items-center gap-3 cursor-pointer">
+          <div className="flex items-start gap-3 p-4 bg-slate-50 border border-slate-200 rounded-xl">
             <div
               onClick={() => setSmtpForm(f => ({ ...f, enabled: !f.enabled }))}
-              className={`w-10 h-5 rounded-full relative transition-colors ${smtpForm.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
+              className={`mt-0.5 flex-shrink-0 w-10 h-5 rounded-full relative transition-colors cursor-pointer ${smtpForm.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
             >
               <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.enabled ? 'left-5' : 'left-0.5'}`} />
             </div>
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Email Delivery</span>
-          </label>
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Enable Email Delivery</p>
+              <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                This is the master on/off switch for all emails sent by the system. When <strong>ON</strong>, the system can send treatment summaries, invoices and AI reports to patients. When <strong>OFF</strong>, no emails are sent even if your SMTP credentials are saved — useful if you want to configure first and enable later, or temporarily pause emails without losing your settings.
+              </p>
+            </div>
+          </div>
 
           {/* SMTP fields */}
           {smtpForm.mode === 'custom' && (
@@ -710,17 +837,33 @@ function EmailTab() {
             {settingsSaving ? 'Saving...' : 'Save Settings'}
           </button>
 
+          {saveBanner && (
+            <div className={`flex items-start gap-2 p-3 rounded-xl text-sm ${
+              saveBanner.ok
+                ? 'bg-green-50 text-green-700 border border-green-100'
+                : 'bg-red-50 text-red-700 border border-red-100'
+            }`}>
+              {saveBanner.ok
+                ? <CheckCircle size={14} className="mt-0.5 flex-shrink-0" />
+                : <XCircle    size={14} className="mt-0.5 flex-shrink-0" />}
+              {saveBanner.msg}
+            </div>
+          )}
+
           {/* Test send */}
-          <div className="border-t border-slate-200 dark:border-slate-700 pt-5">
-            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Send a Test Email</p>
+          <div className="border-t border-slate-200 dark:border-slate-700 pt-5 space-y-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Verify with a Test Email</p>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">After saving your settings, send a test email to confirm everything is working. Enter your own email address below and click <strong>Send Test</strong>. If it arrives in your inbox your setup is complete. Check your <strong>Spam folder</strong> if you don't see it within a minute. If it fails, the error message will tell you exactly what to fix.</p>
+            </div>
             <div className="flex gap-2">
-              <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="recipient@example.com" className={`${inputCls} flex-1`} />
+              <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="your@email.com" className={`${inputCls} flex-1`} />
               <button onClick={sendTestEmail} disabled={testStatus === 'sending'} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-60">
                 {testStatus === 'sending' ? 'Sending…' : 'Send Test'}
               </button>
             </div>
-            {testStatus === 'ok' && <p className="mt-2 text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Test email sent.</p>}
-            {testStatus === 'fail' && <p className="mt-2 text-sm text-red-600 flex items-center gap-1"><XCircle size={14} /> {testError}</p>}
+            {testStatus === 'ok' && <p className="mt-1 text-sm text-green-600 flex items-center gap-1"><CheckCircle size={14} /> Test email sent successfully — check your inbox.</p>}
+            {testStatus === 'fail' && <p className="mt-1 text-sm text-red-600 flex items-center gap-1"><XCircle size={14} /> {testError}</p>}
           </div>
         </div>
       )}
@@ -728,40 +871,75 @@ function EmailTab() {
       {/* ── Automation ── */}
       {emailSubTab === 'automation' && (
         <div className="max-w-lg space-y-6">
+
+          {/* Explainer guide */}
+          <div className="rounded-xl border border-green-200 bg-green-50 p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">⚡</span>
+              <p className="text-sm font-bold text-green-800">What is Automation?</p>
+            </div>
+            <p className="text-xs text-green-700 leading-relaxed">
+              Automation lets the system send emails to patients <strong>automatically</strong> — without you having to click anything. For example, the moment an invoice is created, the patient gets a copy by email. Or when an AI Report is generated, it is emailed directly to the patient.
+            </p>
+            <div className="bg-white border border-green-100 rounded-lg p-3 text-xs text-slate-600 space-y-1.5 leading-relaxed">
+              <p><strong>Prerequisites before using Automation:</strong></p>
+              <p>✅ Gmail (or SMTP) must be connected and tested in the <strong>Connection</strong> tab</p>
+              <p>✅ <strong>Enable Email Delivery</strong> must be turned ON in the Connection tab</p>
+              <p>✅ The <strong>Automation Master Switch</strong> below must be turned ON</p>
+              <p>✅ Each individual event (Invoice, AI Report, etc.) must also be turned ON</p>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              If Automation is <strong>OFF</strong>, emails are not sent automatically — the doctor can still send them manually using the <strong>Send Mail</strong> button on the Treatment page.
+            </p>
+          </div>
+
           {/* Master toggles */}
           <div className="p-4 bg-slate-50 dark:bg-slate-700 rounded-xl space-y-3">
-            <label className="flex items-center gap-3 cursor-pointer">
-              <div onClick={() => setSmtpForm(f => ({ ...f, automationEnabled: !f.automationEnabled }))} className={`w-10 h-5 rounded-full relative transition-colors ${smtpForm.automationEnabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}>
+            <div className="flex items-start gap-3">
+              <div onClick={() => setSmtpForm(f => ({ ...f, automationEnabled: !f.automationEnabled }))} className={`mt-0.5 flex-shrink-0 w-10 h-5 rounded-full relative transition-colors cursor-pointer ${smtpForm.automationEnabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}>
                 <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.automationEnabled ? 'left-5' : 'left-0.5'}`} />
               </div>
               <div>
                 <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Automation Master Switch</p>
-                <p className="text-xs text-slate-500">When OFF, doctor sends manually from the report modal.</p>
+                <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">The global on/off for all automatic emails. Individual event switches below only work when this is ON. Turn this OFF to pause all automated emails instantly without losing your per-event settings.</p>
               </div>
-            </label>
+            </div>
+          </div>
+
+          {/* Per-event explainer */}
+          <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed space-y-1">
+            <p className="font-semibold text-slate-600">Per-event settings</p>
+            <p><strong>Toggle</strong> — Turn individual events on or off. For example, you may want to auto-send invoices but not AI reports.</p>
+            <p><strong>Delay (minutes)</strong> — How many minutes after the event to wait before sending. Set to 0 to send immediately. Useful if you want to review before the email goes out.</p>
           </div>
 
           {/* Per-event toggles */}
           <div className="space-y-4">
             {Object.keys(EVENT_LABELS).map(event => (
-              <div key={event} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <div
-                      onClick={() => setSmtpForm(f => ({
-                        ...f,
-                        events: { ...f.events, [event]: { ...f.events[event], enabled: !f.events[event]?.enabled } }
-                      }))}
-                      className={`w-8 h-4 rounded-full relative transition-colors ${smtpForm.events?.[event]?.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
-                    >
-                      <span className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-all ${smtpForm.events?.[event]?.enabled ? 'left-4' : 'left-0.5'}`} />
-                    </div>
-                    <span className="text-xs text-slate-500">{smtpForm.events?.[event]?.enabled ? 'On' : 'Off'}</span>
-                  </label>
+              <div key={event} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3">
+                {/* Header row */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {event === 'appointmentBooked'    && 'Sends a confirmation email when a new appointment is created'}
+                      {event === 'appointmentCompleted' && 'Sends a summary email with selected documents when an appointment is marked Completed'}
+                    </p>
+                  </div>
+                  <div
+                    onClick={() => setSmtpForm(f => ({
+                      ...f,
+                      events: { ...f.events, [event]: { ...f.events[event], enabled: !f.events[event]?.enabled } }
+                    }))}
+                    className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-colors cursor-pointer ${smtpForm.events?.[event]?.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
+                  >
+                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.events?.[event]?.enabled ? 'left-5' : 'left-0.5'}`} />
+                  </div>
                 </div>
+
+                {/* Delay */}
                 <div className="flex items-center gap-2">
-                  <label className="text-xs text-slate-500 whitespace-nowrap">Delay (minutes):</label>
+                  <label className="text-xs text-slate-500 whitespace-nowrap">Send after (minutes):</label>
                   <input
                     type="number" min="0"
                     value={smtpForm.events?.[event]?.delayMinutes || 0}
@@ -769,9 +947,44 @@ function EmailTab() {
                       ...f,
                       events: { ...f.events, [event]: { ...f.events[event], delayMinutes: Number(e.target.value) } }
                     }))}
-                    className="w-24 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none"
+                    className="w-20 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none"
                   />
+                  <span className="text-xs text-slate-400">0 = immediately</span>
                 </div>
+
+                {/* Document selection — only for appointmentCompleted */}
+                {event === 'appointmentCompleted' && (
+                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Documents to attach</p>
+                    {COMPLETION_DOCS.map(doc => (
+                      <label key={doc.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={smtpForm.events?.appointmentCompleted?.include?.[doc.key] ?? false}
+                          onChange={() => setSmtpForm(f => ({
+                            ...f,
+                            events: {
+                              ...f.events,
+                              appointmentCompleted: {
+                                ...f.events?.appointmentCompleted,
+                                include: {
+                                  ...f.events?.appointmentCompleted?.include,
+                                  [doc.key]: !f.events?.appointmentCompleted?.include?.[doc.key],
+                                },
+                              },
+                            },
+                          }))}
+                          className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-700">{doc.label}</p>
+                          <p className="text-xs text-slate-400">{doc.sub}</p>
+                        </div>
+                      </label>
+                    ))}
+                    <p className="text-xs text-slate-400 pt-1">Only documents that exist for the patient at the time of completion will be attached. If none exist, the email is skipped.</p>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -785,11 +998,35 @@ function EmailTab() {
       {/* ── Templates ── */}
       {emailSubTab === 'templates' && (
         <div>
-          <div className="flex justify-between items-center mb-4">
-            <p className="text-sm text-slate-500">Manage per-event email templates with <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">{'{{variable}}'}</code> substitution.</p>
+          <div className="flex justify-between items-center mb-3">
+            <p className="text-sm font-semibold text-slate-700">Email Templates</p>
             <button onClick={() => setTemplateModal('new')} className="flex items-center gap-2 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors">
               <Plus size={16} /> New Template
             </button>
+          </div>
+
+          {/* Guide card */}
+          <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 text-xs text-slate-600">
+            <p className="text-sm font-bold text-slate-700">How templates work</p>
+            <p className="leading-relaxed">Templates define the <strong>subject line and body text</strong> of the email. They apply to both automated emails (when an appointment is completed) and the manual <strong>Send Mail</strong> button on the Treatment page. The selected PDF documents (Smart Report, Invoice, etc.) are attached automatically — you only write the message here.</p>
+            <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
+              <p className="font-bold text-slate-700">Available variables — type these in your subject or body:</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {[
+                  ['{{name}}',        'Patient full name (e.g. Rahul Sharma)'],
+                  ['{{first_name}}',  'Patient first name only (e.g. Rahul)'],
+                  ['{{doctor}}',      'Doctor\'s name'],
+                  ['{{date}}',        'Today\'s date (e.g. 12 May 2026)'],
+                  ['{{treatments}}',  'Comma-separated treatment names from the visit'],
+                ].map(([v, d]) => (
+                  <div key={v} className="flex gap-2 items-start">
+                    <code className="bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">{v}</code>
+                    <span className="text-slate-500">{d}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <p className="text-slate-400">Each event can have one active template per language. If no template is set for an event, a sensible default message is used automatically.</p>
           </div>
 
           {templatesLoading ? (

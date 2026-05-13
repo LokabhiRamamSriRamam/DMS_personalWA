@@ -50,50 +50,24 @@ export function invalidateTransporterCache(settingsId) {
   transporterCache.delete(settingsId);
 }
 
-// Build email message from template with variable substitution
-export async function buildEmailMessage({ tenantModels, eventType, data, language = 'en' }) {
-  const { EmailTemplate, EmailSettings } = tenantModels;
+// Build email message from template with variable substitution.
+// Falls back to defaultSubject/defaultBody if no template is configured — never throws on missing template.
+export async function buildEmailMessage({ tenantModels, eventType, data, language = 'en', defaultSubject, defaultBody }) {
+  const { EmailTemplate } = tenantModels;
 
-  // Look up active template for event + language, fall back to 'en' if not found
-  let template = await EmailTemplate.findOne({
-    event: eventType,
-    language,
-    isActive: true,
-  });
-
+  // Look up active template for event + language, fall back to 'en'
+  let template = await EmailTemplate.findOne({ event: eventType, language, isActive: true });
   if (!template && language !== 'en') {
-    template = await EmailTemplate.findOne({
-      event: eventType,
-      language: 'en',
-      isActive: true,
-    });
+    template = await EmailTemplate.findOne({ event: eventType, language: 'en', isActive: true });
   }
 
-  if (!template) {
-    throw new Error(`No active email template found for event: ${eventType}`);
-  }
+  const rawSubject = template ? template.subject : (defaultSubject || `Message from your clinic`);
+  const rawBody    = template ? template.body    : (defaultBody    || `Dear {{first_name}},\n\nPlease find your documents attached.\n\nWarm regards,\n{{doctor}}`);
 
-  // Substitute variables in subject and body
-  const subject = replacePlaceholders(template.subject, data);
-  const body = replacePlaceholders(template.body, data);
+  const subject = replacePlaceholders(rawSubject, data);
+  const body    = replacePlaceholders(rawBody,    data);
 
-  // Compute scheduledAt if delay is set (from EmailSettings event config)
-  let scheduledAt = null;
-  const settings = await EmailSettings.findOne({});
-  if (settings && settings.events && settings.events[eventType]) {
-    const delayMinutes = settings.events[eventType].delayMinutes;
-    if (delayMinutes && delayMinutes > 0) {
-      scheduledAt = new Date(Date.now() + delayMinutes * 60 * 1000);
-    }
-  }
-
-  return {
-    to: data.to,
-    subject,
-    body,
-    attachments: data.attachments || [],
-    scheduledAt,
-  };
+  return { subject, body };
 }
 
 // Generate PDF from report text

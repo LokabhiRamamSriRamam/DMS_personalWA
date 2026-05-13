@@ -24,8 +24,12 @@ Dental Management System (DMS) for dentists. Covers appointments, treatment char
 - **Recharts + Chart.js** — data visualization
 - **React Modal** — modals
 
-### WhatsApp Backend (`wa-backend/`)
-- Separate service, not yet fully integrated
+### WhatsApp (`dms_backend/` — integrated)
+- **WAAPI** — external WhatsApp gateway; called via REST from `dms_backend/services/whatsapp.service.js`
+- Messages are built from tenant-stored templates with `{{placeholder}}` substitution
+- Scheduling (e.g. appointment reminders) uses WAAPI's native `scheduledAt` field — no local cron
+- Supported content types: text, image, video, document, audio, sticker, location, contact, poll
+- **Not supported**: sending actual file attachments (PDFs, X-rays) — text-only notifications only
 
 ---
 
@@ -39,8 +43,11 @@ DentalClinic_Demo/
 │   ├── middleware/
 │   │   └── auth.js            # JWT authenticate middleware
 │   ├── services/
-│   │   └── googleDrive.service.js  # Drive folder creation, file upload/delete/list
-│   ├── models/                # 14 Mongoose models
+│   │   ├── googleDrive.service.js   # Drive folder creation, file upload/delete/list
+│   │   ├── whatsapp.service.js      # buildMessage, triggerWhatsApp, triggerJourney
+│   │   ├── email.service.js         # Email notifications
+│   │   └── cloudinary.service.js    # Cloudinary media storage
+│   ├── models/                # Mongoose models (see Database Models section)
 │   ├── controllers/           # Business logic
 │   ├── routes/                # API route definitions
 │   └── seed.js                # Data seeding utility
@@ -55,9 +62,14 @@ DentalClinic_Demo/
 │       │   └── AppointmentTimeline.jsx  # Per-patient appointment history timeline
 │       ├── modals/            # All modal components
 │       │   └── RichTextEditorModal.jsx  # Rich text editor for notes/advice
+│       ├── modals/
+│       │   ├── RichTextEditorModal.jsx    # Rich text editor for notes/advice
+│       │   ├── TemplateEditorModal.jsx    # WhatsApp template create/edit
+│       │   ├── FeedbackPollModal.jsx      # Feedback poll configuration UI
+│       │   └── ClinicalReportModal.jsx    # AI clinical report modal
 │       └── pages/             # One file per page/feature
-│           └── LoginPage.jsx  # Email/password login form
-└── wa-backend/                # WhatsApp notification service
+│           ├── LoginPage.jsx  # Email/password login form
+│           └── WhatsAppPage.jsx  # WhatsApp admin: Messages / Settings / Logs tabs
 ```
 
 ---
@@ -79,6 +91,10 @@ DentalClinic_Demo/
 | LabCatalogItem | `LabCatalogItem.model.js` | name, category, price, turnaround_time, preferred_vendor_id |
 | LabOrder | `LabOrder.model.js` | patient_id, doctor_id, vendor_id (Lab), order_date, expected_delivery, items[]{item_name,shade,instructions,cost}, status (Sent/In Process/Received/Delivered to Patient), cost_to_clinic |
 | Services | `Services.model.js` | name, cost, category, description, isActive |
+| WhatsAppSettings | `WhatsAppSettings.model.js` | enabled, defaultLanguage, fallbackLanguage (en/hi/mr), events{appointmentBooked, appointmentReminder{enabled,hoursBeforeAppointment}, appointmentRescheduled, treatmentCompleted, feedbackMessage, feedbackPoll{enabled,pollTemplateId}, postCare} |
+| WhatsAppTemplate | `WhatsAppTemplate.model.js` | eventType, language, contentType (text/image/video/document/audio/sticker/location/contact/poll), content{} with `{{placeholder}}` variables, isActive |
+| WhatsAppLog | `WhatsAppLog.model.js` | patientId, event, to (phone), status (scheduled/sent/failed), scheduledAt, sentAt, messageType, error; indexed by (patientId,sentAt) and (event,sentAt) |
+| WhatsAppMedia | `WhatsAppMedia.model.js` | file metadata for reusable media assets uploaded via Cloudinary |
 
 ---
 
@@ -171,6 +187,29 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `POST /api/services`
 - `PUT /api/services/:id`
 
+### WhatsApp (`/api/whatsapp`)
+- `GET /api/whatsapp/settings` — fetch WhatsApp config (enabled flag, event toggles, language)
+- `PUT /api/whatsapp/settings` — update config
+- `GET /api/whatsapp/templates` — list all templates
+- `POST /api/whatsapp/templates` — create template
+- `PUT /api/whatsapp/templates/:id` — update template
+- `DELETE /api/whatsapp/templates/:id` — delete template
+- `GET /api/whatsapp/media` — list uploaded media assets
+- `POST /api/whatsapp/media` — upload media file (multipart)
+- `DELETE /api/whatsapp/media/:id` — delete media asset
+- `GET /api/whatsapp/journeys` — list post-care treatment journeys
+- `GET /api/whatsapp/journeys/treatments` — list treatment names that have journeys configured
+- `POST /api/whatsapp/journeys` — create journey
+- `PUT /api/whatsapp/journeys/:id` — update journey
+- `DELETE /api/whatsapp/journeys/:id` — delete journey
+- `GET /api/whatsapp/logs` — message log with filters (`?event=`, `?status=`, `?dateFrom=`, `?dateTo=`); max 200 entries
+- `GET /api/whatsapp/logs/scheduled` — pending (status=scheduled) messages only
+- `GET /api/whatsapp/logs/summary` — KPI aggregates `{ byStatus, byEvent, recentFailed }`
+- `POST /api/whatsapp/test-send` — send a test message to a phone number
+- `POST /api/whatsapp/send-report` — send AI clinical report via WhatsApp
+- `POST /api/whatsapp/feedback/send` — manually trigger feedback poll for a patient
+- `GET /api/whatsapp/feedback` — list received poll responses
+
 ---
 
 ## Frontend Pages & Components
@@ -188,6 +227,7 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 | Lab Orders | `LabOrdersPage.jsx` | Lab orders, catalog, vendor labs; create/edit modals; CSV export |
 | Inventory | `InventoryPage.jsx` | 5 tabs: Stock Overview, Purchase Orders, Item List, Logs, Vendors |
 | Reports | `ReportsPage.jsx` | 17 report types via left sidebar, date range filters, charts |
+| WhatsApp | `WhatsAppPage.jsx` | 3 tabs: Messages (template editor + journey editor), Settings (event toggles, language, WAAPI config), Logs (KPI cards + filterable message log) |
 
 ### Key Components (`frontend/src/components/`)
 
@@ -207,6 +247,9 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `CashTransactionModal.jsx` — record cash transactions
 - `AddTreatmentModal.jsx` — add treatment to plan
 - `RichTextEditorModal.jsx` — rich text editor (bold/italic/underline/lists/font size) for consultation notes and advice; `type='note'|'advice'`
+- `TemplateEditorModal.jsx` — create/edit WhatsApp message templates; supports all content types and `{{placeholder}}` variables
+- `FeedbackPollModal.jsx` — configure and send feedback polls to patients
+- `ClinicalReportModal.jsx` — AI-generated clinical report viewer/sender
 
 ### Global State (`frontend/src/Context/`)
 
@@ -233,6 +276,18 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 6. **Invoice Creation**: InvoicePage → search patient → add services/medicines → set quantities → record payment → auto-deducts pharmacy inventory + creates transaction
 7. **Inventory Restocking**: InventoryPage → create Purchase Order → mark as Received → auto-increments stock + creates audit log
 8. **Reporting**: ReportsPage → select report type → set date range → view charts/tables
+9. **WhatsApp — Automatic triggers** (fire silently in background, never block the main action):
+   - Appointment created → `appointmentBooked` message sent to patient
+   - Appointment reminder → `appointmentReminder` scheduled X hours before appointment start via WAAPI `scheduledAt`
+   - Appointment rescheduled → `appointmentRescheduled` message sent
+   - Treatment marked Completed → `triggerJourney()` fires post-care message series (if a matching TreatmentJourney is configured)
+   - Invoice created → `invoiceCreated` text notification sent
+   - Consultation note added → `noteAdded` notification sent
+10. **WhatsApp — Manual actions** (from WhatsAppPage):
+    - Send test message to any phone number
+    - Manually trigger feedback poll for a specific patient
+    - Create/edit message templates and post-care journeys
+    - Monitor message logs with KPI summary (Sent / Pending / Failed)
 
 ---
 
@@ -240,7 +295,9 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 
 - **Password Hashing**: Login compares plain text passwords — bcrypt not implemented yet
 - **Google Drive Setup**: Requires one-time OAuth flow (`/auth/google`) to obtain `GOOGLE_REFRESH_TOKEN`; `credentials.json` file present but service-account flow replaced by OAuth2
-- **WhatsApp Integration**: `wa-backend/` exists, not connected to invoice/appointment flows
+- **WhatsApp — File Attachments**: PDF invoices, X-rays, prescriptions cannot be sent as attachments — WhatsApp notifications are text-only (document/image content types exist in the service layer but actual file sending is not wired up)
+- **WhatsApp — Webhook / Delivery Confirmation**: WAAPI scheduled message delivery is fire-and-forget; log status stays "scheduled" permanently (no callback to flip it to "sent")
+- **WhatsApp — Retry Logic**: Failed messages have no automatic retry; manual resend not implemented in UI
 - **Promotions Page**: Route placeholder, no implementation
 - **Settings Page**: Route placeholder, no implementation
 - **Dark Mode Toggle**: TailwindCSS dark mode configured but no UI toggle
@@ -263,6 +320,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback
 GOOGLE_DRIVE_FOLDER_ID=       # Root Drive folder for all patient folders
 GOOGLE_REFRESH_TOKEN=         # Obtained via /auth/google one-time OAuth flow
+WAAPI_BASE_URL=               # WhatsApp gateway base URL (e.g. https://waapi.app/api/v1/instances/XXXX)
 ```
 
 ### Frontend
@@ -284,3 +342,9 @@ GOOGLE_REFRESH_TOKEN=         # Obtained via /auth/google one-time OAuth flow
 - Patient `last_visit_date` is updated automatically when a Visit is created
 - `invoice_id` and `patientId` are auto-incremented strings (not ObjectId) — logic is in the controller
 - `seed.js` can populate the DB with test data
+- WhatsApp messages are fire-and-forget — `triggerWhatsApp` and `triggerJourney` never throw to callers; all errors are caught and logged internally
+- Phone numbers are auto-normalized to Indian format (`91XXXXXXXXXX`) by `normalizePhone()` in `whatsapp.service.js` — bare 10-digit numbers are accepted everywhere
+- All times in WhatsApp templates are formatted in IST (Asia/Kolkata) regardless of server timezone; UTC is used for scheduling calculations
+- WhatsApp is silently skipped (no error) if: `WAAPI_BASE_URL` is not set, `WhatsAppSettings.enabled` is false, or the specific event toggle is off
+- Post-care journeys are matched to treatment names case-insensitively; a journey must exist in `TreatmentJourney` collection for `triggerJourney` to send anything
+- `setupWhatsAppDefaults.js` in `dms_backend/seeds/` can seed default settings and templates for a new tenant

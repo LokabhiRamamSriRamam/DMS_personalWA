@@ -8,6 +8,8 @@ import {
   updateTemplate,
   deleteTemplate,
   sendReportEmail,
+  getPatientEmailStatus,
+  sendTreatmentSummary,
   getLogs,
 } from '../controllers/email.controller.js';
 
@@ -24,8 +26,10 @@ router.post('/templates', createTemplate);
 router.put('/templates/:id', updateTemplate);
 router.delete('/templates/:id', deleteTemplate);
 
-// Send Report
+// Send (must register specific paths before /:id wildcards)
+router.get('/patient-status/:patientId', getPatientEmailStatus);
 router.post('/send-report', sendReportEmail);
+router.post('/send-treatment-summary', sendTreatmentSummary);
 
 // Logs
 router.get('/logs', getLogs);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  X, Calendar, Clock, Stethoscope, FileText, 
-  ChevronDown, Search, Plus, Phone 
+import {
+  X, Calendar, Clock, Stethoscope, FileText,
+  ChevronDown, Search, Plus, Phone, Mail
 } from 'lucide-react';
 
 // Import your API helper
@@ -83,6 +83,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
   // --- Form State ---
   const [formData, setFormData] = useState({
     selectedPatient: null,
+    patientEmail: '',
     doctorId: '',
     date: getIndiaDate(),
     time: getIndiaTime(),
@@ -105,6 +106,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
 
         setFormData({
             selectedPatient: appointmentToEdit.patient,
+            patientEmail: appointmentToEdit.patient?.contact?.email || '',
             doctorId: doctorId || '',
             date: dateStr,
             time: timeStr,
@@ -120,6 +122,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
     } else if (isOpen && !appointmentToEdit) {
         setFormData({
             selectedPatient: defaultPatient || null,
+            patientEmail: defaultPatient?.contact?.email || '',
             doctorId: '',
             date: getIndiaDate(),
             time: getIndiaTime(),
@@ -226,13 +229,21 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
         return;
       }
 
+      // Save email back to patient if it was added/changed
+      const existingEmail = formData.selectedPatient?.contact?.email || '';
+      if (formData.patientEmail.trim() && formData.patientEmail.trim() !== existingEmail) {
+        await API.put(`/patients/${formData.selectedPatient._id}`, {
+          contact: { ...formData.selectedPatient.contact, email: formData.patientEmail.trim() },
+        });
+      }
+
       let res;
       if (appointmentToEdit) {
           res = await API.put(`/appointments/${appointmentToEdit._id}`, appointmentPayload);
       } else {
           res = await API.post('/appointments', appointmentPayload);
       }
-      
+
       if (onSave) onSave(res.data);
       onClose();
     } catch (err) {
@@ -307,7 +318,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
                         <div 
                           key={p._id} // MongoDB uses _id
                           onClick={() => {
-                            setFormData({...formData, selectedPatient: p});
+                            setFormData({ ...formData, selectedPatient: p, patientEmail: p.contact?.email || '' });
                             setSearchTerm(`${p.first_name} ${p.last_name || ''}`);
                             setShowDropdown(false);
                           }}
@@ -336,6 +347,29 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
                   </div>
                 )}
               </div>
+
+              {/* --- PATIENT EMAIL (shown after patient selected) --- */}
+              {formData.selectedPatient && (
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-1.5">
+                    Patient Email
+                    <span className="normal-case font-normal text-slate-400">(for appointment documents)</span>
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                    <input
+                      type="email"
+                      placeholder="patient@example.com"
+                      className="w-full pl-10 pr-4 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+                      value={formData.patientEmail}
+                      onChange={e => setFormData({ ...formData, patientEmail: e.target.value })}
+                    />
+                  </div>
+                  {!formData.patientEmail && (
+                    <p className="text-xs text-amber-600">No email on file — add one to enable email delivery for this patient.</p>
+                  )}
+                </div>
+              )}
 
               {/* --- DOCTOR & TREATMENT --- */}
               <div className="grid grid-cols-2 gap-4">

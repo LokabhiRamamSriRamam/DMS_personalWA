@@ -34,8 +34,8 @@ const GlobalTreatmentOverlay = () => {
                 <Activity size={20} />
               </div>
               <div>
-                <p className="text-xs text-slate-400 font-bold uppercase">Patient ID</p>
-                <p className="text-sm font-bold text-slate-800 font-mono">#{activeTreatment.id.slice(-6)}</p>
+                <p className="text-xs text-slate-400 font-bold uppercase">Patient</p>
+                <p className="text-sm font-bold text-slate-800">{activeTreatment.patientName || `#${activeTreatment.id.slice(-6)}`}</p>
               </div>
            </div>
            <button 

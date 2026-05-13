@@ -1,5 +1,6 @@
 import { logEvent } from '../services/analyticsLogger.js';
 import { triggerWhatsApp, triggerJourney } from '../services/whatsapp.service.js';
+import { triggerAppointmentCompleted } from './email.controller.js';
 
 // GET /api/appointments?date=2025-12-25
 export async function getAppointments(req, res) {
@@ -211,6 +212,13 @@ export async function updateStatus(req, res) {
         .catch(err => {
           console.error('Error triggering WhatsApp messages:', err.message);
         });
+
+      // Fire-and-forget email on completion
+      triggerAppointmentCompleted({
+        tenantModels: req.tenantModels,
+        patientId: appt.patient_id.toString(),
+        doctorName: req.user?.name || 'Attending Doctor',
+      });
     }
 
     res.json(appt);

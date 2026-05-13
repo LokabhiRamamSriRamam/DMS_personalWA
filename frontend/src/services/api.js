@@ -1,6 +1,30 @@
 import axios from 'axios';
 import { API_BASE_URL, API_FALLBACK_URL, API_MAX_RETRIES } from '../config/env.js';
 
+// ── Circuit breaker ────────────────────────────────────────────────────────────
+// primaryDown: true while backup is active. Every new request skips primary entirely.
+// Probe runs only while backup is active, pinging primary every 2 min.
+// When primary responds, circuit closes and probe stops.
+let primaryDown = false;
+let probeInterval = null;
+
+const PRIMARY_HEALTH_URL = new URL(API_BASE_URL).origin + '/health';
+const PROBE_INTERVAL_MS  = 2 * 60 * 1000; // 2 minutes
+
+function startProbe() {
+  if (probeInterval) return;
+  probeInterval = setInterval(async () => {
+    try {
+      await fetch(PRIMARY_HEALTH_URL);
+      primaryDown = false;
+      clearInterval(probeInterval);
+      probeInterval = null;
+    } catch {
+      // still down — keep probing
+    }
+  }, PROBE_INTERVAL_MS);
+}
+
 const api = axios.create({ baseURL: API_BASE_URL });
 
 // Axios interceptors are synchronous — read from localStorage directly.
@@ -13,10 +37,14 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Circuit open — route straight to fallback, skip primary entirely
+  if (primaryDown && API_FALLBACK_URL) {
+    config.baseURL      = API_FALLBACK_URL;
+    config._usedFallback = true;
+  }
   return config;
 });
 
-// Retry on network errors, fallback to secondary URL after primary retries exhausted
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -34,18 +62,22 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // Network error / timeout — retry primary first
-    config._retryCount = config._retryCount || 0;
-    if (config._retryCount < API_MAX_RETRIES) {
-      config._retryCount++;
-      return api(config);
-    }
+    // Network error — only retry/fallback if still on primary
+    if (!config._usedFallback) {
+      config._retryCount = config._retryCount || 0;
+      if (config._retryCount < API_MAX_RETRIES) {
+        config._retryCount++;
+        return api(config);
+      }
 
-    // Primary exhausted — try fallback once
-    if (API_FALLBACK_URL && !config._usedFallback) {
-      config._usedFallback = true;
-      config.baseURL = API_FALLBACK_URL;
-      return api(config);
+      // Primary exhausted — open circuit, start background probe, use fallback
+      if (API_FALLBACK_URL) {
+        primaryDown          = true;
+        config._usedFallback = true;
+        config.baseURL       = API_FALLBACK_URL;
+        startProbe();
+        return api(config);
+      }
     }
 
     return Promise.reject(error);

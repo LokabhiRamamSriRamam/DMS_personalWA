@@ -38,13 +38,11 @@ export default function LoginPage() {
       <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 w-full max-w-md border border-white/20">
         {/* Logo / Brand */}
         <div className="mb-10 text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#137fec] shadow-lg shadow-blue-200 mb-6 transform rotate-3">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                d="M9 12h6m-3-3v6M5.5 7.5C5.5 5 7.5 3 10 3c1.4 0 2.6.6 3.5 1.5C14.4 3.6 15.6 3 17 3c2.5 0 4.5 2 4.5 4.5 0 5-8 11-8 11S5.5 12.5 5.5 7.5z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">DentalClinic DMS</h1>
+          <img
+            src="/MolarisLandscapeName.png"
+            alt="Molaris"
+            className="h-16 mx-auto mb-4 object-contain"
+          />
           <p className="text-gray-500 mt-2 font-medium">Welcome back to your practice</p>
         </div>
 
