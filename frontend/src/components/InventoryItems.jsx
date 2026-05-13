@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Pill, Syringe, Plus, X, Edit, Trash2, Loader2, Upload, ExternalLink, CheckCircle, AlertCircle } from 'lucide-react';
+import { Pill, Syringe, Plus, X, Edit, Trash2, Loader2, Upload, ExternalLink, CheckCircle, AlertCircle, ChevronDown } from 'lucide-react';
 import API from '../services/api';
 
 // ─── Shared internal result/error display ─────────────────────────────────
@@ -393,7 +393,10 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
   const [isBulkMedOpen, setIsBulkMedOpen]         = useState(false);
   const [isBulkConOpen, setIsBulkConOpen]         = useState(false);
   const [contextMenu, setContextMenu] = useState(null);
+  const [expandedSections, setExpandedSections]   = useState({ pharmacy: true, consumable: true });
   const contextMenuRef = useRef(null);
+
+  const toggleSection = (type) => setExpandedSections(prev => ({ ...prev, [type]: !prev[type] }));
 
   const fetchInventory = async () => {
     setLoading(true);
@@ -447,14 +450,18 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
         <div className={`grid grid-cols-1 ${SECTIONS.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 flex-1 min-h-0`}>
           {SECTIONS.map((sec, idx) => (
             <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-              {/* Section header with Bulk Upload button for pharmacy */}
+              {/* Section header with Bulk Upload button */}
               <div className={`flex items-center justify-between p-3 border-b border-slate-200 ${sec.c}`}>
-                <div className="flex items-center gap-2">
+                <button
+                  onClick={() => toggleSection(sec.type)}
+                  className="flex items-center gap-2 flex-1 text-left"
+                >
                   <div className="p-1.5 bg-white/60 rounded-lg shadow-sm">
                     <sec.i size={16} className="text-slate-700" />
                   </div>
                   <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
-                </div>
+                  <ChevronDown size={14} className={`text-slate-400 transition-transform ${expandedSections[sec.type] ? '' : '-rotate-90'}`} />
+                </button>
                 <div className="flex items-center gap-2">
                   {sec.type === 'pharmacy' && (
                     <button
@@ -475,7 +482,7 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
                   <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-semibold text-slate-600">{sec.d.length} Items</span>
                 </div>
               </div>
-              <div className="overflow-auto flex-1">
+              {expandedSections[sec.type] && <div className="overflow-auto flex-1">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
                     <tr>
@@ -511,7 +518,7 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </div>}
             </div>
           ))}
         </div>

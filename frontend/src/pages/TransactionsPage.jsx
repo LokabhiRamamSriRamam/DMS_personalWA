@@ -203,11 +203,11 @@ const TransactionsPage = () => {
   };
 
   return (
-      <div className="flex flex-col h-full relative">
-        
-        {/* KPI Cards (Unchanged) */}
-        <div className="pb-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+      <div className="flex flex-col min-h-full md:h-full relative">
+
+        {/* KPI Cards */}
+        <div className="px-6 md:px-8 pt-6 pb-2">
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
             <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
               <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-500"><ArrowUpRight size={28} /></div>
               <div>
@@ -243,7 +243,7 @@ const TransactionsPage = () => {
         </div>
 
         {/* Title & Filters */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-6 md:px-8 pt-6 pb-4">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 px-6 md:px-8 pt-4 pb-4">
             <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-8">
               <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Transactions</h1>
               <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex text-sm font-medium w-fit">
@@ -345,8 +345,8 @@ const TransactionsPage = () => {
             </div>
         </div>
 
-        {/* Table Area (Unchanged) */}
-        <div className="flex-1 overflow-auto px-6 md:px-8 pb-8">
+        {/* Table Area */}
+        <div className="md:flex-1 md:overflow-auto overflow-x-auto px-6 md:px-8 pb-8">
           <div className="bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
             <table className="w-full text-left border-collapse">
               <thead className="bg-[#F7F2F2] dark:bg-slate-800/50 sticky top-0 z-10">
@@ -424,7 +424,7 @@ const TransactionsPage = () => {
         </div>
 
         {/* FABs */}
-        <div className="absolute bottom-8 right-8 flex flex-col gap-4 z-30 items-end">
+        <div className="fixed bottom-8 right-8 flex flex-col gap-4 z-30 items-end md:absolute">
           <div className="group flex items-center justify-end">
             <button 
               onClick={handleExportCSV}
