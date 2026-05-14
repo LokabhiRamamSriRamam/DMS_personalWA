@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Pill, Syringe, Loader2 } from 'lucide-react'; 
+import { Pill, Syringe, Loader2, ChevronDown } from 'lucide-react';
 import API from '../services/api';
 
 const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, medicineEnabled = true, consumableEnabled = true }) => {
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState({ pharmacy: [], consumables: [] });
+  const [pharmacyExpanded, setPharmacyExpanded] = useState(true);
+  const [consumablesExpanded, setConsumablesExpanded] = useState(true);
 
   // Get current month name (e.g., "Jan")
   const currentMonth = new Date().toLocaleString('default', { month: 'short' });
@@ -53,7 +55,14 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
       {/* Left: Pharmacy */}
       {medicineEnabled && (
       <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-        <SectionHeader title="Pharmacy Stock" icon={Pill} colorClass="bg-blue-50/50" count={pharmacyData.length} />
+        <button
+          onClick={() => setPharmacyExpanded(v => !v)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <SectionHeader title="Pharmacy Stock" icon={Pill} colorClass="bg-blue-50/50" count={pharmacyData.length} />
+          <ChevronDown size={16} className={`mr-3 text-slate-400 transition-transform ${pharmacyExpanded ? '' : '-rotate-90'}`} />
+        </button>
+        {pharmacyExpanded && (
         <div className="overflow-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
@@ -73,7 +82,7 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
                     <div className="text-xs text-slate-400">{item.manufacturer}</div>
                   </td>
                   <td className="p-3 text-slate-500 text-xs">{item.category}</td>
-                  
+
                   {/* Monthly Sold Count */}
                   <td className="p-3 text-right font-medium text-slate-600">
                     {item.usage_count > 0 ? item.usage_count : <span className="text-slate-300">-</span>}
@@ -88,7 +97,7 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
                         <span className="text-[10px] text-slate-400">Min: {item.min_stock_level}</span>
                     </div>
                   </td>
-                  
+
                   <td className="p-3 text-center">
                     <StockBadge status={item.status} />
                   </td>
@@ -98,13 +107,21 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
             </tbody>
           </table>
         </div>
+        )}
       </div>
       )}
 
       {/* Right: Consumables */}
       {consumableEnabled && (
       <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-        <SectionHeader title="In-Clinic Consumables" icon={Syringe} colorClass="bg-teal-50/50" count={consumablesData.length} />
+        <button
+          onClick={() => setConsumablesExpanded(v => !v)}
+          className="flex items-center justify-between w-full text-left"
+        >
+          <SectionHeader title="In-Clinic Consumables" icon={Syringe} colorClass="bg-teal-50/50" count={consumablesData.length} />
+          <ChevronDown size={16} className={`mr-3 text-slate-400 transition-transform ${consumablesExpanded ? '' : '-rotate-90'}`} />
+        </button>
+        {consumablesExpanded && (
         <div className="overflow-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
@@ -124,7 +141,7 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
                     <div className="text-xs text-slate-400">{item.manufacturer}</div>
                   </td>
                   <td className="p-3 text-slate-500 text-xs">{item.category}</td>
-                  
+
                   {/* Monthly Used Count */}
                   <td className="p-3 text-right font-medium text-slate-600">
                     {item.usage_count > 0 ? item.usage_count : <span className="text-slate-300">-</span>}
@@ -149,6 +166,7 @@ const InventoryStocks = ({ StockBadge, SectionHeader, searchQuery, isLowStock, m
             </tbody>
           </table>
         </div>
+        )}
       </div>
       )}
     </div>

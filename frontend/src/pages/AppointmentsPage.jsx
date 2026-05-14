@@ -378,10 +378,10 @@ const AppointmentsPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
           {/* ... (Keep Left Column - List/Calendar) ... */}
           <div className="lg:col-span-2 flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-lg font-bold text-slate-900">Schedule</h3>
-              <div className="flex bg-slate-100 rounded-lg p-1 items-center">
-                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none text-xs font-medium text-slate-700 focus:ring-0 px-2 py-1 outline-none"/>
+              <div className="flex bg-slate-100 rounded-lg p-1 items-center shrink-0">
+                <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="bg-transparent border-none text-xs font-medium text-slate-700 focus:ring-0 px-2 py-1 outline-none w-full max-w-[150px] sm:max-w-none"/>
               </div>
             </div>
 
