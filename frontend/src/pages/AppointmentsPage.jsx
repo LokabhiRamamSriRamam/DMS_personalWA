@@ -101,7 +101,7 @@ const AppointmentsPage = () => {
   const [editPatientModal, setEditPatientModal] = useState(null); // { patientId, first_name, last_name, email, mobile }
   const [editPatientSaving, setEditPatientSaving] = useState(false);
 
-  const ALL_STATUSES = ['Scheduled', 'Checked In', 'Completed', 'Cancelled'];
+  const ALL_STATUSES = ['Pending', 'Scheduled', 'Confirmed', 'Checked In', 'Completed', 'Cancelled'];
 
   // Click Outside Hook
   useEffect(() => {
@@ -116,14 +116,15 @@ const AppointmentsPage = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'Pending':     return 'amber';
       case 'In Progress': return 'green';
-      case 'Checked In': return 'blue';
-      case 'Scheduled': return 'slate';
-      case 'Confirmed': return 'blue';
-      case 'Completed': return 'green';
-      case 'Waiting': return 'orange';
-      case 'Cancelled': return 'red';
-      case 'No Show': return 'red';
+      case 'Checked In':  return 'blue';
+      case 'Scheduled':   return 'slate';
+      case 'Confirmed':   return 'blue';
+      case 'Completed':   return 'green';
+      case 'Waiting':     return 'orange';
+      case 'Cancelled':   return 'red';
+      case 'No Show':     return 'red';
       default: return 'slate';
     }
   };
@@ -175,6 +176,7 @@ const AppointmentsPage = () => {
           doctorId: doctorId,
           status: apt.status,
           statusColor: getStatusColor(apt.status),
+          source: apt.source || 'dashboard',
           notes: apt.notes
         };
       });
@@ -341,6 +343,7 @@ const AppointmentsPage = () => {
     const map = {
       green: 'bg-green-100 text-green-700 border-green-200',
       blue: 'bg-blue-100 text-blue-700 border-blue-200',
+      amber: 'bg-amber-100 text-amber-700 border-amber-200',
       orange: 'bg-orange-100 text-orange-700 border-orange-200',
       slate: 'bg-slate-100 text-slate-600 border-slate-200',
       red: 'bg-red-100 text-red-700 border-red-200',
@@ -348,7 +351,7 @@ const AppointmentsPage = () => {
     return map[color] || map.slate;
   };
   const getDotColor = (color) => {
-    const map = { green: 'bg-green-500', blue: 'bg-blue-500', orange: 'bg-orange-500', slate: 'bg-slate-400', red: 'bg-red-500' };
+    const map = { green: 'bg-green-500', blue: 'bg-blue-500', amber: 'bg-amber-500', orange: 'bg-orange-500', slate: 'bg-slate-400', red: 'bg-red-500' };
     return map[color] || 'bg-slate-400';
   };
 
@@ -398,7 +401,16 @@ const AppointmentsPage = () => {
                     <>
                     {/* Mobile dropdown — fixed top-right */}
                     <div ref={dropdownRef} className="md:hidden fixed right-3 top-24 w-64 max-h-96 bg-white border border-slate-200 rounded-xl shadow-2xl z-[60] overflow-y-auto text-left">
-                      {!['Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
+                      {apt.status === 'Pending' && (
+                        <div className="sticky top-0 bg-amber-50 p-1.5 border-b border-amber-100 z-10 space-y-1">
+                          <div className="flex gap-1.5">
+                            <button onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-2 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg">Confirm</button>
+                            <button onClick={() => handleStatusChange(apt.id, 'Cancelled')} className="flex-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg">Decline</button>
+                          </div>
+                          <button onClick={() => handleEdit(apt)} className="w-full px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">Reschedule</button>
+                        </div>
+                      )}
+                      {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                         <div className="sticky top-0 bg-white p-1.5 border-b border-slate-100 z-10">
                           <button
                             onClick={() => handleStartVisit(apt)}
@@ -428,7 +440,16 @@ const AppointmentsPage = () => {
                       style={{ top: dropdownPos.top, right: dropdownPos.right }}
                       onMouseDown={e => e.stopPropagation()}
                     >
-                      {!['Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
+                      {apt.status === 'Pending' && (
+                        <div className="sticky top-0 bg-amber-50 p-1 border-b border-amber-100 z-10 space-y-1">
+                          <div className="flex gap-1">
+                            <button onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-2 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-md">Confirm</button>
+                            <button onClick={() => handleStatusChange(apt.id, 'Cancelled')} className="flex-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-md">Decline</button>
+                          </div>
+                          <button onClick={() => handleEdit(apt)} className="w-full px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-md">Reschedule</button>
+                        </div>
+                      )}
+                      {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                         <div className="sticky top-0 bg-white p-1 border-b border-slate-100 z-10">
                           <button
                             onClick={() => handleStartVisit(apt)}
@@ -506,9 +527,14 @@ const AppointmentsPage = () => {
                               <td className="px-6 py-4 text-slate-600">{apt.treatment}</td>
                               <td className="px-6 py-4 text-slate-600">{apt.doctor}</td>
                               <td className="px-6 py-4">
-                                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusStyles(apt.statusColor)}`}>
-                                  <span className={`size-1.5 rounded-full ${getDotColor(apt.statusColor)}`}></span>{apt.status}
-                                </span>
+                                <div className="flex flex-col gap-1">
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusStyles(apt.statusColor)}`}>
+                                    <span className={`size-1.5 rounded-full ${getDotColor(apt.statusColor)}`}></span>{apt.status}
+                                  </span>
+                                  {apt.source === 'online' && (
+                                    <span className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider">Online Booking</span>
+                                  )}
+                                </div>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <div className="inline-block">

@@ -125,9 +125,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
 
   // Share panel state
   const [showEmailPanel, setShowEmailPanel] = useState(false);
-  const [showWaPanel, setShowWaPanel]       = useState(false);
   const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' });
-  const [waForm, setWaForm]       = useState({ to: '', caption: '' });
   const [sending, setSending]     = useState(null);
   const [sendResult, setSendResult] = useState(null);
 
@@ -172,9 +170,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
     setJobId(null);
     setCachedTranscript(false);
     setShowEmailPanel(false);
-    setShowWaPanel(false);
     setEmailForm({ to: '', subject: '', body: '' });
-    setWaForm({ to: '', caption: '' });
     setSending(null);
     setSendResult(null);
     if (jobPollRef.current) { clearInterval(jobPollRef.current); jobPollRef.current = null; }
@@ -213,7 +209,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
       body:    `Hi ${patientName},\n\nPlease find your visit summary attached.\n\nWarm regards,\n${user?.name || 'Your Doctor'}`,
     });
     setShowEmailPanel(true);
-    setShowWaPanel(false);
     setSendResult(null);
 
     API.get('/email/templates', { params: { event: 'aiReportReady', language: 'en' } })
@@ -232,14 +227,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
       .catch(() => {});
   }
 
-  function openWaPanel() {
-    const patientMobile = patient?.contact?.mobile || '';
-    const patientName   = patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : '';
-    setWaForm({ to: patientMobile, caption: `Hi ${patientName}, please find your visit summary attached.` });
-    setShowWaPanel(true);
-    setShowEmailPanel(false);
-    setSendResult(null);
-  }
 
   async function handleSendEmail() {
     if (!emailForm.to.trim()) return;
@@ -255,19 +242,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
     } finally { setSending(null); }
   }
 
-  async function handleSendWhatsApp() {
-    if (!waForm.to.trim()) return;
-    setSending('whatsapp'); setSendResult(null);
-    try {
-      await API.post('/whatsapp/send-report', {
-        patient_id: patientId, to: waForm.to.trim(), caption: waForm.caption,
-        report_text: reportText, template_name: selectedTemplate?.name || 'Clinical Report',
-      });
-      setSendResult({ channel: 'whatsapp', status: 'ok', message: `WhatsApp sent to ${waForm.to}` });
-    } catch (err) {
-      setSendResult({ channel: 'whatsapp', status: 'fail', message: err.response?.data?.error || err.message });
-    } finally { setSending(null); }
-  }
 
   // ── Recording ─────────────────────────────────────────────────────────────────
   function pickMimeType() {
@@ -985,12 +959,6 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
                       }`}>
                       <Mail size={13} /> Email
                     </button>
-                    <button onClick={openWaPanel}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        showWaPanel ? 'bg-green-600 text-white' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
-                      }`}>
-                      <MessageSquare size={13} /> WhatsApp
-                    </button>
                   </div>
                 </div>
 
@@ -1038,37 +1006,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
                   </div>
                 )}
 
-                {showWaPanel && (
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">To (with country code)</label>
-                      <input type="tel" value={waForm.to} onChange={e => setWaForm(f => ({ ...f, to: e.target.value }))}
-                        placeholder="+919876543210"
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">Caption</label>
-                      <textarea value={waForm.caption} onChange={e => setWaForm(f => ({ ...f, caption: e.target.value }))} rows={2}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none" />
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Attachment: {selectedTemplate?.name || 'Report'}_{(patient?.first_name || 'patient')}_{new Date().toISOString().slice(0,10)}.pdf
-                    </p>
-                    <div className="flex gap-2">
-                      <button onClick={handleSendWhatsApp} disabled={!waForm.to.trim() || sending === 'whatsapp'}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">
-                        {sending === 'whatsapp' ? <Loader2 size={13} className="animate-spin" /> : <MessageSquare size={13} />}
-                        {sending === 'whatsapp' ? 'Sending…' : 'Send via WhatsApp'}
-                      </button>
-                      <button onClick={() => setShowWaPanel(false)}
-                        className="px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {!showEmailPanel && !showWaPanel && !sendResult && (
+                {!showEmailPanel && !sendResult && (
                   <div className="px-4 py-3 text-xs text-slate-400 text-center">
                     Choose a channel above to send the report to the patient.
                   </div>

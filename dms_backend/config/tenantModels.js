@@ -10,15 +10,10 @@ import { VendorSchema }             from '../models/Vendor.model.js';
 import { LabCatalogItemSchema }     from '../models/LabCatalogItem.model.js';
 import { LabOrderSchema }           from '../models/LabOrder.model.js';
 import { ServiceSchema }            from '../models/Services.model.js';
-import DoctorModel                  from '../models/Doctor.model.js';
+import DoctorModel                  from '../models/Doctor.model.js'; // keep for ClinicalFinding/Diagnosis refs
 import ClinicalFindingModel         from '../models/ClinicalFinding.model.js';
 import DiagnosisModel               from '../models/Diagnosis.model.js';
 import SuggestedTreatmentModel      from '../models/SuggestedTreatment.model.js';
-import { WhatsAppSettingsSchema }   from '../models/WhatsAppSettings.model.js';
-import { WhatsAppTemplateSchema }   from '../models/WhatsAppTemplate.model.js';
-import { WhatsAppMediaSchema }      from '../models/WhatsAppMedia.model.js';
-import { WhatsAppLogSchema }        from '../models/WhatsAppLog.model.js';
-import { TreatmentJourneySchema }   from '../models/TreatmentJourney.model.js';
 import { PollResponseSchema }       from '../models/PollResponse.model.js';
 
 import { PollTemplateSchema }       from '../models/PollTemplate.model.js';
@@ -27,6 +22,12 @@ import { InventorySettingsSchema }  from '../models/InventorySettings.model.js';
 import { EmailTemplateSchema }      from '../models/EmailTemplate.model.js';
 import { EmailLogSchema }           from '../models/EmailLog.model.js';
 import { ReportJobSchema }          from '../models/ReportJob.model.js';
+import { WaSenderConfigSchema }     from '../models/WaSenderConfig.model.js';
+import { ChatbotFlowSchema }        from '../models/ChatbotFlow.model.js';
+import { ChatbotSessionSchema }     from '../models/ChatbotSession.model.js';
+import { ScheduledMessageSchema }   from '../models/ScheduledMessage.model.js';
+import { BookingSettingsSchema }    from '../models/BookingSettings.model.js';
+import { DoctorSchema }             from '../models/Doctor.model.js';
 
 /**
  * Returns all clinic Mongoose models bound to the given tenant connection.
@@ -51,15 +52,10 @@ export function getTenantModels(conn) {
     LabCatalogItem:  getOrCreate('LabCatalogItem',  LabCatalogItemSchema),
     LabOrder:        getOrCreate('LabOrder',        LabOrderSchema),
     Service:         getOrCreate('Service',         ServiceSchema),
-    Doctor:          getOrCreate('Doctor',          DoctorModel.schema),
+    Doctor:          getOrCreate('Doctor',          DoctorSchema),
     ClinicalFinding:    getOrCreate('ClinicalFinding',    ClinicalFindingModel.schema),
     Diagnosis:          getOrCreate('Diagnosis',          DiagnosisModel.schema),
     SuggestedTreatment: getOrCreate('SuggestedTreatment', SuggestedTreatmentModel.schema),
-    WhatsAppSettings:   getOrCreate('WhatsAppSettings',   WhatsAppSettingsSchema),
-    WhatsAppTemplate:   getOrCreate('WhatsAppTemplate',   WhatsAppTemplateSchema),
-    WhatsAppMedia:      getOrCreate('WhatsAppMedia',      WhatsAppMediaSchema),
-    WhatsAppLog:        getOrCreate('WhatsAppLog',        WhatsAppLogSchema),
-    TreatmentJourney:   getOrCreate('TreatmentJourney',   TreatmentJourneySchema),
     PollResponse:       getOrCreate('PollResponse',       PollResponseSchema),
 
     PollTemplate:       getOrCreate('PollTemplate',       PollTemplateSchema),
@@ -68,6 +64,12 @@ export function getTenantModels(conn) {
     EmailTemplate:      getOrCreate('EmailTemplate',      EmailTemplateSchema),
     EmailLog:           getOrCreate('EmailLog',           EmailLogSchema),
     ReportJob:          getOrCreate('ReportJob',          ReportJobSchema),
+
+    WaSenderConfig:     getOrCreate('WaSenderConfig',     WaSenderConfigSchema),
+    ChatbotFlow:        getOrCreate('ChatbotFlow',        ChatbotFlowSchema),
+    ChatbotSession:     getOrCreate('ChatbotSession',     ChatbotSessionSchema),
+    ScheduledMessage:   getOrCreate('ScheduledMessage',   ScheduledMessageSchema),
+    BookingSettings:    getOrCreate('BookingSettings',    BookingSettingsSchema),
   };
 
   return conn._dmsModels;

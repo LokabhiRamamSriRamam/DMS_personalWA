@@ -1,6 +1,71 @@
 import { logEvent } from '../services/analyticsLogger.js';
-import { triggerWhatsApp, triggerJourney } from '../services/whatsapp.service.js';
 import { triggerAppointmentCompleted } from './email.controller.js';
+import { triggerFlow } from '../services/chatbot.service.js';
+
+// Fetch session API key + trigger a WaSender flow (fire-and-forget)
+async function fireFlow(tenantModels, triggerType, phone, templateData, options = {}) {
+  try {
+    const config = await tenantModels.WaSenderConfig?.findOne({ isActive: true });
+    if (!config?.sessionApiKey) return;
+    await triggerFlow(tenantModels, config.sessionApiKey, triggerType, phone, templateData, options);
+  } catch (err) {
+    console.error('[appointment] fireFlow error', triggerType, err.message);
+  }
+}
+
+function formatDate(d) {
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+}
+function formatTime(d) {
+  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' });
+}
+
+async function buildApptTemplateData(tenantModels, appt) {
+  try {
+    const patient = await tenantModels.Patient?.findById(appt.patient_id).select('first_name last_name contact').lean();
+    const doctor  = await tenantModels.Doctor?.findById(appt.doctor_id).select('name').lean();
+    return {
+      name:       patient ? `${patient.first_name} ${patient.last_name}` : '',
+      firstName:  patient?.first_name || '',
+      phone:      patient?.contact?.mobile || '',
+      date:       formatDate(appt.start_time),
+      time:       formatTime(appt.start_time),
+      doctorName: doctor?.name || '',
+    };
+  } catch { return {}; }
+}
+
+async function scheduleReminder(tenantModels, appt) {
+  try {
+    const { ChatbotFlow, ScheduledMessage, WaSenderConfig } = tenantModels;
+    const config = await WaSenderConfig?.findOne({ isActive: true });
+    if (!config?.sessionApiKey) return;
+    // Cancel any existing pending reminder for this appointment
+    await ScheduledMessage?.deleteMany({ 'templateData.appointmentId': String(appt._id), status: 'pending' });
+    const flow = await ChatbotFlow?.findOne({ triggerType: 'appointment_reminder', isActive: true, isTemplate: false });
+    if (!flow) return;
+    const rootNode = (flow.nodes || []).find(n => n.id === flow.rootNodeId) || flow.nodes?.[0];
+    if (!rootNode) return;
+    const offsetHours = flow.reminderOffsetHours ?? 24;
+    const scheduledAt = new Date(new Date(appt.start_time).getTime() - offsetHours * 3_600_000);
+    if (scheduledAt <= new Date()) return; // already past
+    const templateData = await buildApptTemplateData(tenantModels, appt);
+    templateData.appointmentId = String(appt._id);
+    const patient = await tenantModels.Patient?.findById(appt.patient_id).select('contact').lean();
+    const phone = patient?.contact?.mobile;
+    if (!phone) return;
+    await ScheduledMessage?.create({
+      sessionApiKey: config.sessionApiKey,
+      phone,
+      flowId: flow._id,
+      nextNodeId: rootNode.id,
+      templateData,
+      scheduledAt,
+    });
+  } catch (err) {
+    console.error('[appointment] scheduleReminder error', err.message);
+  }
+}
 
 // GET /api/appointments?date=2025-12-25
 export async function getAppointments(req, res) {
@@ -71,62 +136,14 @@ export async function createAppointment(req, res) {
     // Log to analytics
     logEvent(req.user.tenantId, 'appointment_created', { appointmentId: saved._id, status: saved.status });
 
-    // Fire-and-forget WhatsApp notifications
-    if (saved.patient_id) {
-      req.tenantModels.Patient.findById(saved.patient_id)
-        .select('first_name last_name contact patientId total_due')
-        .lean()
-        .then(async patient => {
-          if (!patient?.contact?.mobile) {
-            console.log('[Appointment WhatsApp] Patient has no mobile contact');
-            return;
-          }
-
-          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
-          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
-          const firstName = patient.first_name;
-          const name = `${firstName} ${patient.last_name || ''}`.trim();
-          const lang = saved.whatsapp_language || null;
-          const patientId = patient._id.toString();
-
-          let doctor = null;
-          if (saved.doctor_id && req.tenantModels.Doctor) {
-            try {
-              doctor = await req.tenantModels.Doctor.findById(saved.doctor_id).select('name specialization').lean();
-            } catch (err) {
-              console.log('[Appointment WhatsApp] Doctor lookup failed:', err.message);
-            }
-          }
-
-          // Format UTC appointment time in IST via explicit timeZone — never
-          // manually +5:30 the milliseconds, since toLocaleString applies the
-          // host timezone on top and the result becomes environment-dependent.
-          const startInstant = new Date(saved.start_time);
-          const data = {
-            name,
-            firstName,
-            patientId: patient.patientId,
-            mobile: phone,
-            date: startInstant.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'long', day: 'numeric' }),
-            time: startInstant.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
-            doctorName: doctor?.name || 'Doctor',
-            appointmentType: saved.type || 'Consultation',
-          };
-
-          console.log('[Appointment WhatsApp] Queuing messages for patient', patientId, 'phone', phone);
-
-          // 1. Appointment booked — immediate
-          triggerWhatsApp(req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-            'appointmentBooked', phone, data, patientId, lang);
-
-          // 2. Appointment reminder — scheduled X hours before start_time
-          triggerWhatsApp(req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-            'appointmentReminder', phone, data, patientId, lang, saved.start_time);
-        })
-        .catch(err => {
-          console.error('[Appointment WhatsApp] Error queuing messages:', err.message);
-        });
-    }
+    // WaSender flows (fire-and-forget)
+    buildApptTemplateData(req.tenantModels, saved).then(templateData => {
+      const phone = templateData.phone;
+      if (phone) {
+        fireFlow(req.tenantModels, 'appointment_booked', phone, templateData);
+        scheduleReminder(req.tenantModels, saved);
+      }
+    });
 
     res.status(201).json(saved);
   } catch (err) { res.status(400).json({ error: err.message }); }
@@ -146,94 +163,22 @@ export async function updateStatus(req, res) {
       { new: true }
     );
 
-    // Fire-and-forget WhatsApp notifications on completion
+    // Fire-and-forget email on completion
     if (status === 'Completed' && appt?.patient_id) {
-      Promise.all([
-        req.tenantModels.Patient.findById(appt.patient_id).select('first_name last_name contact patientId').lean(),
-        req.tenantModels.Doctor ? req.tenantModels.Doctor.findById(appt.doctor_id).select('name').lean() : Promise.resolve(null),
-        req.tenantModels.Visit ? req.tenantModels.Visit.findOne({ appointment_id: appt._id }).lean() : Promise.resolve(null),
-      ])
-        .then(([patient, doctor, visit]) => {
-          if (!patient?.contact?.mobile) return;
-          const firstName = patient.first_name;
-          const name = `${firstName} ${patient.last_name || ''}`.trim();
-
-          // Normalize phone: prepend 91 if not already present
-          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
-          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
-
-          // Format UTC appointment time in IST via explicit timeZone (host-tz independent).
-          const startInstant = new Date(appt.start_time);
-          const baseData = {
-            name,
-            firstName,
-            patientId: patient.patientId,
-            mobile: phone,
-            date: startInstant.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'long', day: 'numeric' }),
-            time: startInstant.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
-            doctorName: doctor?.name || 'Doctor',
-          };
-
-          const patientMongoId  = patient._id.toString();
-          const appointmentId   = appt._id.toString();
-
-          // 1. Send feedback message if enabled (scheduled with delayMinutes from settings)
-          triggerWhatsApp(
-            req.tenantModels,
-            req.user.tenantId,
-            process.env.WAAPI_BASE_URL,
-            'feedbackMessage',
-            phone,
-            baseData,
-            patientMongoId,
-            appt.whatsapp_language || null
-          );
-
-          // 1b. Send feedback poll if enabled (uses selected PollTemplate)
-          triggerWhatsApp(
-            req.tenantModels,
-            req.user.tenantId,
-            process.env.WAAPI_BASE_URL,
-            'feedbackPoll',
-            phone,
-            baseData,
-            patientMongoId,
-            appt.whatsapp_language || null,
-            null,
-            appointmentId
-          );
-
-          // 2. Trigger post-care journeys for each treatment in the visit
-          if (visit?.treatments && Array.isArray(visit.treatments)) {
-            for (const treatment of visit.treatments) {
-              if (treatment.treatment_name) {
-                triggerJourney(
-                  req.tenantModels,
-                  req.user.tenantId,
-                  process.env.WAAPI_BASE_URL,
-                  phone,
-                  treatment.treatment_name,
-                  new Date(),
-                  {
-                    ...baseData,
-                    treatment: treatment.treatment_name,
-                  },
-                  patient._id.toString(),
-                  appt.whatsapp_language || null
-                );
-              }
-            }
-          }
-        })
-        .catch(err => {
-          console.error('Error triggering WhatsApp messages:', err.message);
-        });
-
-      // Fire-and-forget email on completion
       triggerAppointmentCompleted({
         tenantModels: req.tenantModels,
         patientId: appt.patient_id.toString(),
         doctorName: req.user?.name || 'Attending Doctor',
+      });
+    }
+
+    // WaSender flows (fire-and-forget)
+    if (['Completed', 'Confirmed', 'Cancelled'].includes(status) && appt?.patient_id) {
+      buildApptTemplateData(req.tenantModels, appt).then(templateData => {
+        const phone = templateData.phone;
+        if (!phone) return;
+        if (status === 'Completed')  fireFlow(req.tenantModels, 'appointment_completed',  phone, templateData);
+        if (status === 'Confirmed')  fireFlow(req.tenantModels, 'appointment_confirmed',  phone, templateData);
       });
     }
 
@@ -272,44 +217,19 @@ export async function updateAppointment(req, res) {
       }
     }
 
+    const prevAppt = await Appointment.findById(req.params.id).lean();
     const appt = await Appointment.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
-    // Fire-and-forget WhatsApp notification if start_time changed
-    if (req.body.start_time && appt?.patient_id) {
-      Promise.all([
-        req.tenantModels.Patient.findById(appt.patient_id).select('first_name last_name contact patientId').lean(),
-        req.tenantModels.Doctor ? req.tenantModels.Doctor.findById(appt.doctor_id).select('name').lean() : Promise.resolve(null),
-      ])
-        .then(([patient, doctor]) => {
-          if (!patient?.contact?.mobile) return;
-          const firstName = patient.first_name;
-          const name = `${firstName} ${patient.last_name || ''}`.trim();
-          const rawPhone = patient.contact.mobile.toString().replace(/\D/g, '');
-          const phone = rawPhone.startsWith('91') ? rawPhone : `91${rawPhone}`;
-
-          // Format UTC appointment time in IST via explicit timeZone (host-tz independent).
-          const startInstant = new Date(appt.start_time);
-          triggerWhatsApp(
-            req.tenantModels,
-            req.user.tenantId,
-            process.env.WAAPI_BASE_URL,
-            'appointmentRescheduled',
-            phone,
-            {
-              name,
-              firstName,
-              patientId: patient.patientId,
-              mobile: phone,
-              date: startInstant.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: 'long', day: 'numeric' }),
-              time: startInstant.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }),
-              doctorName: doctor?.name || 'Doctor',
-              appointmentType: appt.type || 'Consultation',
-            },
-            patient._id.toString(),
-            appt.whatsapp_language || null
-          );
-        })
-        .catch(() => {});
+    // If start_time changed → fire rescheduled flow + reschedule reminder
+    if (appt && req.body.start_time && prevAppt &&
+        String(prevAppt.start_time) !== String(appt.start_time)) {
+      buildApptTemplateData(req.tenantModels, appt).then(templateData => {
+        const phone = templateData.phone;
+        if (phone) {
+          fireFlow(req.tenantModels, 'appointment_rescheduled', phone, templateData);
+          scheduleReminder(req.tenantModels, appt);
+        }
+      });
     }
 
     res.json(appt);

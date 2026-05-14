@@ -17,6 +17,7 @@ import InventoryPage from './pages/InventoryPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
 import SettingsPage from './pages/SettingsPage.jsx';
 import WhatsAppPage from './pages/WhatsAppPage.jsx';
+import BookingPage from './pages/BookingPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 
@@ -56,6 +57,10 @@ const router = createBrowserRouter([
     element: <RegisterPage />,
   },
   {
+    path: '/book/:tenantId',
+    element: <BookingPage />,
+  },
+  {
     path: '/',
     element: <ProtectedRoute />,
     children: [
@@ -68,8 +73,8 @@ const router = createBrowserRouter([
       { path: 'lab',            element: <RoleRoute allow={['Owner','Assistant','Doctor']}><LabPage /></RoleRoute> },
       { path: 'inventory',      element: <RoleRoute allow={['Owner','Assistant']}><InventoryPage /></RoleRoute> },
       { path: 'insights',       element: <RoleRoute allow={['Owner']}><ReportsPage /></RoleRoute> },
-      { path: 'whatsapp',       element: <RoleRoute allow={['Owner']}><WhatsAppPage /></RoleRoute> },
       { path: 'settings',       element: <RoleRoute allow={['Owner']}><SettingsPage /></RoleRoute> },
+      { path: 'whatsapp',       element: <RoleRoute allow={['Owner']}><WhatsAppPage /></RoleRoute> },
       { path: 'promotions',     element: <div>Promotions Page</div> },
     ],
   },

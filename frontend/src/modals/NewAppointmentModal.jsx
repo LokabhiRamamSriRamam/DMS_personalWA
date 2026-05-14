@@ -91,7 +91,6 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
     duration: '30',
     type: 'Consultation',
     notes: '',
-    whatsapp_language: '',
   });
 
   // --- Populate Form on Edit ---
@@ -114,7 +113,6 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
             duration: '30',
             type: appointmentToEdit.type,
             notes: appointmentToEdit.notes || '',
-            whatsapp_language: appointmentToEdit.whatsapp_language || '',
         });
 
         if (appointmentToEdit.patient) {
@@ -130,7 +128,6 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
             duration: '30',
             type: 'Consultation',
             notes: '',
-            whatsapp_language: '',
         });
         setSearchTerm(defaultPatient
             ? `${defaultPatient.first_name} ${defaultPatient.last_name || ''}`.trim()
@@ -255,7 +252,6 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
         status: appointmentToEdit ? appointmentToEdit.status : 'Scheduled',
         room_number: 'Room 1',
         notes: formData.notes,
-        ...(formData.whatsapp_language ? { whatsapp_language: formData.whatsapp_language } : {}),
       };
 
       if (!appointmentPayload.patient_id || !appointmentPayload.doctor_id) {
@@ -484,27 +480,6 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
                     <option value="45">45 Mins</option>
                     <option value="60">1 Hour</option>
                   </select>
-                </div>
-              </div>
-
-              {/* --- WHATSAPP LANGUAGE --- */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-1.5">
-                  <span>WhatsApp Language</span>
-                  <span className="normal-case font-normal text-slate-400">(optional — uses clinic default if blank)</span>
-                </label>
-                <div className="relative">
-                  <select
-                    className="w-full px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 appearance-none"
-                    value={formData.whatsapp_language}
-                    onChange={e => setFormData({ ...formData, whatsapp_language: e.target.value })}
-                  >
-                    <option value="">Use clinic default</option>
-                    <option value="en">🇬🇧 English</option>
-                    <option value="hi">🇮🇳 Hindi</option>
-                    <option value="mr">🟠 Marathi</option>
-                  </select>
-                  <ChevronDown className="absolute right-3 top-3 text-slate-400 pointer-events-none" size={16} />
                 </div>
               </div>
 

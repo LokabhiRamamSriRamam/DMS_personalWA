@@ -122,7 +122,7 @@ const NavigationLayout = ({ children }) => {
   const isDoctor    = role === 'Doctor';
   const showDoctorRoutes    = isOwner || isAssistant || isDoctor;  // Files, Lab
   const showAssistantRoutes = isOwner || isAssistant;              // + Transactions, Invoices, Inventory
-  const showOwnerRoutes     = isOwner;                             // + Insights, WhatsApp, Settings
+  const showOwnerRoutes     = isOwner;                             // + Insights, Settings
 
   function handleLogout() {
     logout();

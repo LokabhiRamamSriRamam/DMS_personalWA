@@ -24,12 +24,15 @@ Dental Management System (DMS) for dentists. Covers appointments, treatment char
 - **Recharts + Chart.js** — data visualization
 - **React Modal** — modals
 
-### WhatsApp (`dms_backend/` — integrated)
-- **WAAPI** — external WhatsApp gateway; called via REST from `dms_backend/services/whatsapp.service.js`
-- Messages are built from tenant-stored templates with `{{placeholder}}` substitution
-- Scheduling (e.g. appointment reminders) uses WAAPI's native `scheduledAt` field — no local cron
-- Supported content types: text, image, video, document, audio, sticker, location, contact, poll
-- **Not supported**: sending actual file attachments (PDFs, X-rays) — text-only notifications only
+### WhatsApp (`dms_backend/` — WaSender integration)
+- **WaSender** (`https://wasenderapi.com`) — external WhatsApp gateway
+- Two credentials per tenant: **PAT** (Personal Access Token, account-level, for session management) and **Session API Key** (session-level, for sending messages)
+- Event-driven **Flows** (not keyword chatbots): flows trigger on DMS events and walk a node graph
+- Flow node types: message (text/image/video/document/audio/poll/location), delay, condition, subflow, end
+- Delay nodes write `ScheduledMessage` documents → `scheduledMessageJob` (runs every 60s) fires them — survives server restarts
+- Template placeholder substitution: `{{name}}`, `{{firstName}}`, `{{date}}`, `{{time}}`, `{{doctorName}}`, `{{treatment}}`, `{{invoiceId}}`, `{{amount}}`
+- Webhook at `POST /api/wasender/webhook` (public) handles inbound messages and poll votes to advance flow sessions
+- Frontend flow builder uses `@xyflow/react` visual canvas
 
 ---
 
@@ -187,28 +190,26 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `POST /api/services`
 - `PUT /api/services/:id`
 
-### WhatsApp (`/api/whatsapp`)
-- `GET /api/whatsapp/settings` — fetch WhatsApp config (enabled flag, event toggles, language)
-- `PUT /api/whatsapp/settings` — update config
-- `GET /api/whatsapp/templates` — list all templates
-- `POST /api/whatsapp/templates` — create template
-- `PUT /api/whatsapp/templates/:id` — update template
-- `DELETE /api/whatsapp/templates/:id` — delete template
-- `GET /api/whatsapp/media` — list uploaded media assets
-- `POST /api/whatsapp/media` — upload media file (multipart)
-- `DELETE /api/whatsapp/media/:id` — delete media asset
-- `GET /api/whatsapp/journeys` — list post-care treatment journeys
-- `GET /api/whatsapp/journeys/treatments` — list treatment names that have journeys configured
-- `POST /api/whatsapp/journeys` — create journey
-- `PUT /api/whatsapp/journeys/:id` — update journey
-- `DELETE /api/whatsapp/journeys/:id` — delete journey
-- `GET /api/whatsapp/logs` — message log with filters (`?event=`, `?status=`, `?dateFrom=`, `?dateTo=`); max 200 entries
-- `GET /api/whatsapp/logs/scheduled` — pending (status=scheduled) messages only
-- `GET /api/whatsapp/logs/summary` — KPI aggregates `{ byStatus, byEvent, recentFailed }`
-- `POST /api/whatsapp/test-send` — send a test message to a phone number
-- `POST /api/whatsapp/send-report` — send AI clinical report via WhatsApp
-- `POST /api/whatsapp/feedback/send` — manually trigger feedback poll for a patient
-- `GET /api/whatsapp/feedback` — list received poll responses
+### WaSender Session + Inbox (`/api/wasender`)
+- `GET /api/wasender/config` — fetch credentials (PAT/apiKey masked as `****last4`)
+- `PUT /api/wasender/config` — save credentials (skips fields already masked)
+- `GET /api/wasender/session/status` — proxy to WaSender; updates DB status
+- `GET /api/wasender/session/qrcode` — fetch QR code when status = need_scan
+- `POST /api/wasender/session/connect` — initiate session connection
+- `POST /api/wasender/send` — send any message type (`{ to, type, text|imageUrl|videoUrl|documentUrl|audioUrl|poll|location, caption?, replyTo? }`)
+- `GET /api/wasender/inbox` — list conversations grouped by contactPhone
+- `GET /api/wasender/inbox/:phone` — message thread for a phone number
+- `POST /api/wasender/webhook` — **PUBLIC** inbound webhook (HMAC-SHA256 verified); handles messages.received, poll.results, session.status
+
+### Chatbot Flows (`/api/chatbot`)
+- `GET /api/chatbot/templates` — list built-in template flows (isTemplate:true)
+- `GET /api/chatbot/flows` — list all user flows
+- `GET /api/chatbot/flows/:id` — get flow with nodes + edges
+- `POST /api/chatbot/flows` — create flow
+- `PUT /api/chatbot/flows/:id` — update flow (saves nodes + edges)
+- `DELETE /api/chatbot/flows/:id` — delete flow
+- `PATCH /api/chatbot/flows/:id/toggle` — toggle isActive
+- `POST /api/chatbot/flows/:id/duplicate` — clone flow (sets isTemplate:false)
 
 ---
 
@@ -227,7 +228,7 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 | Lab Orders | `LabOrdersPage.jsx` | Lab orders, catalog, vendor labs; create/edit modals; CSV export |
 | Inventory | `InventoryPage.jsx` | 5 tabs: Stock Overview, Purchase Orders, Item List, Logs, Vendors |
 | Reports | `ReportsPage.jsx` | 17 report types via left sidebar, date range filters, charts |
-| WhatsApp | `WhatsAppPage.jsx` | 3 tabs: Messages (template editor + journey editor), Settings (event toggles, language, WAAPI config), Logs (KPI cards + filterable message log) |
+| WhatsApp | `WhatsAppPage.jsx` | 3 tabs: Session Health (credentials + QR connect), Inbox (conversation list + thread + patient info), Flows (visual react-flow canvas builder) |
 
 ### Key Components (`frontend/src/components/`)
 
@@ -238,6 +239,9 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `GlobalTreatmentOverlay.jsx` — minimizable floating treatment session window
 - `ReportSummary.jsx`, `ReportFinancials.jsx`, `ReportClinical.jsx`, `ReportPatients.jsx`, `ReportInventory.jsx`, `ReportNotesSection.jsx` — report panel components
 - `InventoryStocks.jsx`, `InventoryItems.jsx`, `InventoryLogs.jsx`, `InventoryOrders.jsx`, `InventoryVendors.jsx` — inventory tab components
+- `whatsapp/SessionHealthPanel.jsx` — credentials form + session status badge + QR code display (polls every 15s)
+- `whatsapp/InboxPanel.jsx` — conversation list + message thread + patient info card; send text messages
+- `whatsapp/ChatbotBuilderPanel.jsx` — flow list + @xyflow/react canvas; 5 custom node types (MessageNode/DelayNode/ConditionNode/SubflowNode/EndNode); template picker
 
 ### Modals (`frontend/src/modals/`)
 
@@ -247,9 +251,9 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `CashTransactionModal.jsx` — record cash transactions
 - `AddTreatmentModal.jsx` — add treatment to plan
 - `RichTextEditorModal.jsx` — rich text editor (bold/italic/underline/lists/font size) for consultation notes and advice; `type='note'|'advice'`
-- `TemplateEditorModal.jsx` — create/edit WhatsApp message templates; supports all content types and `{{placeholder}}` variables
-- `FeedbackPollModal.jsx` — configure and send feedback polls to patients
 - `ClinicalReportModal.jsx` — AI-generated clinical report viewer/sender
+- `ChatbotNodeModal.jsx` — create/edit flow nodes; supports all 5 node types and 7 message subtypes
+- `ChatbotFlowModal.jsx` — create/edit flow metadata (name, trigger type, treatmentName, reminderOffsetHours, keywords)
 
 ### Global State (`frontend/src/Context/`)
 
@@ -276,18 +280,18 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 6. **Invoice Creation**: InvoicePage → search patient → add services/medicines → set quantities → record payment → auto-deducts pharmacy inventory + creates transaction
 7. **Inventory Restocking**: InventoryPage → create Purchase Order → mark as Received → auto-increments stock + creates audit log
 8. **Reporting**: ReportsPage → select report type → set date range → view charts/tables
-9. **WhatsApp — Automatic triggers** (fire silently in background, never block the main action):
-   - Appointment created → `appointmentBooked` message sent to patient
-   - Appointment reminder → `appointmentReminder` scheduled X hours before appointment start via WAAPI `scheduledAt`
-   - Appointment rescheduled → `appointmentRescheduled` message sent
-   - Treatment marked Completed → `triggerJourney()` fires post-care message series (if a matching TreatmentJourney is configured)
-   - Invoice created → `invoiceCreated` text notification sent
-   - Consultation note added → `noteAdded` notification sent
+9. **WhatsApp — Automatic flow triggers** (fire-and-forget from DMS controllers):
+   - Appointment created → `triggerFlow('appointment_booked', ...)` + creates `ScheduledMessage` for `appointment_reminder` at `start_time - reminderOffsetHours`
+   - Appointment completed → `triggerFlow('appointment_completed', ...)`
+   - Appointment rescheduled → cancels old reminder `ScheduledMessage`, creates new one + `triggerFlow('appointment_rescheduled', ...)`
+   - Treatment marked Completed → `triggerFlow('treatment_completed', ...)` + `triggerFlow('post_treatment_care', ..., { treatmentName })`
+   - Invoice created → `triggerFlow('invoice_created', ...)`
+   - Inbound customer message → webhook → `processIncomingMessage()` — advances waiting `ChatbotSession` or starts `first_message`/`custom_keyword` flow
 10. **WhatsApp — Manual actions** (from WhatsAppPage):
-    - Send test message to any phone number
-    - Manually trigger feedback poll for a specific patient
-    - Create/edit message templates and post-care journeys
-    - Monitor message logs with KPI summary (Sent / Pending / Failed)
+    - Enter/update WaSender credentials (PAT, Session ID, Session API Key, webhook secret)
+    - Connect/reconnect session; scan QR code when status = need_scan
+    - View conversation inbox; read threads; reply with text
+    - Build automated flows on visual canvas; activate/deactivate flows
 
 ---
 
@@ -320,7 +324,7 @@ GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://localhost:5000/auth/google/callback
 GOOGLE_DRIVE_FOLDER_ID=       # Root Drive folder for all patient folders
 GOOGLE_REFRESH_TOKEN=         # Obtained via /auth/google one-time OAuth flow
-WAAPI_BASE_URL=               # WhatsApp gateway base URL (e.g. https://waapi.app/api/v1/instances/XXXX)
+WASENDER_BASE_URL=https://wasenderapi.com   # WaSender API base URL
 ```
 
 ### Frontend
@@ -342,9 +346,10 @@ WAAPI_BASE_URL=               # WhatsApp gateway base URL (e.g. https://waapi.ap
 - Patient `last_visit_date` is updated automatically when a Visit is created
 - `invoice_id` and `patientId` are auto-incremented strings (not ObjectId) — logic is in the controller
 - `seed.js` can populate the DB with test data
-- WhatsApp messages are fire-and-forget — `triggerWhatsApp` and `triggerJourney` never throw to callers; all errors are caught and logged internally
-- Phone numbers are auto-normalized to Indian format (`91XXXXXXXXXX`) by `normalizePhone()` in `whatsapp.service.js` — bare 10-digit numbers are accepted everywhere
-- All times in WhatsApp templates are formatted in IST (Asia/Kolkata) regardless of server timezone; UTC is used for scheduling calculations
-- WhatsApp is silently skipped (no error) if: `WAAPI_BASE_URL` is not set, `WhatsAppSettings.enabled` is false, or the specific event toggle is off
-- Post-care journeys are matched to treatment names case-insensitively; a journey must exist in `TreatmentJourney` collection for `triggerJourney` to send anything
-- `setupWhatsAppDefaults.js` in `dms_backend/seeds/` can seed default settings and templates for a new tenant
+- WaSender flows are fire-and-forget — `triggerFlow` and `processIncomingMessage` never throw to callers
+- `ChatbotSession` tracks which node a customer is paused at; TTL index auto-abandons sessions idle for 24h
+- Delay nodes write `ScheduledMessage` to MongoDB (not setTimeout) — `scheduledMessageJob` runs every 60s and fires pending records; survives server restarts
+- Post-treatment care flows are per-treatmentName; multiple flows for different treatment types; matched case-insensitively via `$regex` in `triggerFlow`
+- Appointment reminder timing: when appointment is created/updated, a `ScheduledMessage` is created at `start_time - reminderOffsetHours`; old reminder cancelled on reschedule
+- `setupWaSenderDefaults.js` in `dms_backend/seeds/` seeds 8 template flows (isTemplate:true) — these appear in the "New Flow" template picker but are never directly activated
+- Webhook resolves tenant by scanning WaSenderConfig documents for matching sessionId; verifies HMAC-SHA256 signature against `webhookSecret`

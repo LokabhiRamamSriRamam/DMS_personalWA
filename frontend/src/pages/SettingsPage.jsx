@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe } from 'lucide-react';
 import API from '../services/api';
 import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
 import { useInventorySettings } from '../Context/SettingsContext';
@@ -1164,6 +1164,55 @@ function EmailTab() {
   );
 }
 
+// ─── Booking: Day Row ─────────────────────────────────────────────────────────
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function DayRow({ day, dayData = {}, onChange }) {
+  const breaks = dayData.breaks || [];
+  const addBreak = () => onChange(day, 'breaks', [...breaks, { start: '13:00', end: '14:00' }]);
+  const removeBreak = (i) => onChange(day, 'breaks', breaks.filter((_, idx) => idx !== i));
+  const updateBreak = (i, field, val) => {
+    const updated = [...breaks];
+    updated[i] = { ...updated[i], [field]: val };
+    onChange(day, 'breaks', updated);
+  };
+  return (
+    <div className="py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
+      <div className="flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2 cursor-pointer w-28">
+          <input type="checkbox" checked={!!dayData.isOpen} onChange={e => onChange(day, 'isOpen', e.target.checked)} className="w-4 h-4 rounded accent-[#137fec]" />
+          <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-300">{day}</span>
+        </label>
+        {dayData.isOpen ? (
+          <>
+            <input type="time" value={dayData.start || '09:00'} onChange={e => onChange(day, 'start', e.target.value)}
+              className="px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
+            <span className="text-slate-400 text-sm">to</span>
+            <input type="time" value={dayData.end || '17:00'} onChange={e => onChange(day, 'end', e.target.value)}
+              className="px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
+            <button type="button" onClick={addBreak} className="text-xs text-[#137fec] hover:underline ml-1">+ Add Break</button>
+          </>
+        ) : (
+          <span className="text-xs text-slate-400 italic">Closed</span>
+        )}
+      </div>
+      {dayData.isOpen && breaks.map((brk, i) => (
+        <div key={i} className="flex items-center gap-2 ml-32 mt-1.5 text-xs text-slate-600 dark:text-slate-400">
+          <Clock size={12} className="text-slate-400" />
+          <span>Break:</span>
+          <input type="time" value={brk.start} onChange={e => updateBreak(i, 'start', e.target.value)}
+            className="px-1.5 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-800" />
+          <span>–</span>
+          <input type="time" value={brk.end} onChange={e => updateBreak(i, 'end', e.target.value)}
+            className="px-1.5 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-800" />
+          <button onClick={() => removeBreak(i)} className="text-red-400 hover:text-red-600 ml-1"><X size={12} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
 const SettingsPage = () => {
@@ -1215,6 +1264,36 @@ const SettingsPage = () => {
     isActive: true
   });
 
+  // Booking settings state
+  const defaultDay = (open, start = '09:00', end = '17:00') => ({ isOpen: open, start, end, breaks: [] });
+  const [bookingSettings, setBookingSettings] = useState({
+    isBookingEnabled: false,
+    slotDurationMinutes: 30,
+    clinicDisplayName: '',
+    clinicTagline: '',
+    clinicLogoUrl: '',
+    workingHours: {
+      monday:    defaultDay(true),
+      tuesday:   defaultDay(true),
+      wednesday: defaultDay(true),
+      thursday:  defaultDay(true),
+      friday:    defaultDay(true),
+      saturday:  defaultDay(true, '10:00', '14:00'),
+      sunday:    defaultDay(false),
+    },
+    blockedDates: [],
+  });
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [newBlockedDate, setNewBlockedDate] = useState('');
+  const [newBlockedReason, setNewBlockedReason] = useState('');
+
+  // Doctor schedule state
+  const [bookingDoctors, setBookingDoctors] = useState([]);
+  const [doctorSchedModal, setDoctorSchedModal] = useState({ open: false, doctor: null });
+  const [scheduleForm, setScheduleForm] = useState(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+
   // Fetch data based on active tab
   useEffect(() => {
     if (activeTab === 'doctors') {
@@ -1223,6 +1302,10 @@ const SettingsPage = () => {
       fetchTreatmentData();
     } else if (activeTab === 'services') {
       fetchServices();
+    } else if (activeTab === 'booking') {
+      fetchBookingSettings();
+    } else if (activeTab === 'doctorSchedules') {
+      fetchBookingDoctors();
     }
   }, [activeTab, treatmentTab]);
 
@@ -1266,6 +1349,154 @@ const SettingsPage = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // ── Booking settings ──
+  const fetchBookingSettings = async () => {
+    setBookingLoading(true);
+    try {
+      const res = await API.get('/settings/booking');
+      if (res.data && Object.keys(res.data).length > 0) {
+        // Strip Mongoose metadata before merging into state
+        const { _id, __v, createdAt, updatedAt, ...data } = res.data;
+        setBookingSettings(prev => ({ ...prev, ...data }));
+      }
+    } catch (err) {
+      console.error('Failed to load booking settings:', err);
+      alert('Failed to load booking settings: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleSaveBookingSettings = async () => {
+    setBookingSaving(true);
+    try {
+      // Strip any stale Mongoose metadata before sending
+      const { _id, __v, createdAt, updatedAt, ...payload } = bookingSettings;
+      const res = await API.put('/settings/booking', payload);
+      // Update state with what the server confirmed (strips metadata)
+      const { _id: i2, __v: v2, createdAt: c2, updatedAt: u2, ...saved } = res.data;
+      setBookingSettings(prev => ({ ...prev, ...saved }));
+      alert('Booking settings saved!');
+    } catch (err) {
+      alert('Failed to save: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setBookingSaving(false);
+    }
+  };
+
+  const updateWorkingHourField = (day, field, value) => {
+    setBookingSettings(prev => ({
+      ...prev,
+      workingHours: {
+        ...prev.workingHours,
+        [day]: { ...prev.workingHours[day], [field]: value },
+      },
+    }));
+  };
+
+  // Saves ONLY blockedDates — never touches isBookingEnabled or other fields
+  const saveBlockedDates = async (newList) => {
+    try {
+      await API.put('/settings/booking', { blockedDates: newList });
+    } catch (err) {
+      alert('Failed to save blocked date: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const addBlockedDate = async () => {
+    if (!newBlockedDate) return;
+    const newList = [...(bookingSettings.blockedDates || []), { date: newBlockedDate, reason: newBlockedReason }];
+    setBookingSettings(prev => ({ ...prev, blockedDates: newList }));
+    setNewBlockedDate('');
+    setNewBlockedReason('');
+    await saveBlockedDates(newList);
+  };
+
+  const removeBlockedDate = async (i) => {
+    const newList = bookingSettings.blockedDates.filter((_, idx) => idx !== i);
+    setBookingSettings(prev => ({ ...prev, blockedDates: newList }));
+    await saveBlockedDates(newList);
+  };
+
+  // Parse a date value (ISO string or YYYY-MM-DD) without UTC timezone shift
+  const formatBlockedDate = (dateVal) => {
+    const str = typeof dateVal === 'string' ? dateVal.slice(0, 10) : new Date(dateVal).toISOString().slice(0, 10);
+    const [y, m, d] = str.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  // ── Doctor schedules ──
+  const fetchBookingDoctors = async () => {
+    try {
+      const res = await API.get('/doctors');
+      setBookingDoctors(res.data);
+    } catch (err) {
+      console.error('Failed to load doctors:', err);
+    }
+  };
+
+  const openDoctorSchedule = async (doctor) => {
+    try {
+      const res = await API.get(`/settings/doctors/${doctor._id}/schedule`);
+      const s = res.data || {};
+      const dd = (open, start = '09:00', end = '17:00') => ({ isOpen: open, start, end, breaks: [] });
+      // Merge server values with defaults per-day so no day key is ever missing
+      const defaultWH = {
+        monday: dd(true), tuesday: dd(true), wednesday: dd(true),
+        thursday: dd(true), friday: dd(true),
+        saturday: dd(true, '10:00', '14:00'), sunday: dd(false),
+      };
+      const serverWH = s.bookingWorkingHours || {};
+      const mergedWH = {};
+      for (const day of Object.keys(defaultWH)) {
+        mergedWH[day] = { ...defaultWH[day], ...(serverWH[day] || {}) };
+        mergedWH[day].breaks = serverWH[day]?.breaks || [];
+      }
+      setScheduleForm({
+        isBookable:          s.isBookable ?? false,
+        bookingWorkingHours: mergedWH,
+        holidays:            s.holidays    || [],
+        blockedSlots:        s.blockedSlots || [],
+      });
+      setDoctorSchedModal({ open: true, doctor });
+    } catch (err) {
+      alert('Failed to load schedule: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
+  const handleSaveDoctorSchedule = async () => {
+    setScheduleSaving(true);
+    try {
+      // Only send the four schedule fields — no Mongoose metadata
+      const payload = {
+        isBookable:          scheduleForm.isBookable,
+        bookingWorkingHours: scheduleForm.bookingWorkingHours,
+        holidays:            scheduleForm.holidays,
+        blockedSlots:        scheduleForm.blockedSlots,
+      };
+      await API.put(`/settings/doctors/${doctorSchedModal.doctor._id}/schedule`, payload);
+      setBookingDoctors(prev => prev.map(d =>
+        d._id === doctorSchedModal.doctor._id ? { ...d, isBookable: scheduleForm.isBookable } : d
+      ));
+      setDoctorSchedModal({ open: false, doctor: null });
+      alert('Schedule saved!');
+    } catch (err) {
+      alert('Failed to save: ' + (err.response?.data?.message || err.message));
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
+  const updateSchedDayField = (day, field, value) => {
+    setScheduleForm(prev => ({
+      ...prev,
+      bookingWorkingHours: {
+        ...prev.bookingWorkingHours,
+        [day]: { ...prev.bookingWorkingHours[day], [field]: value },
+      },
+    }));
   };
 
   const handleAddDoctor = () => {
@@ -1561,6 +1792,26 @@ const SettingsPage = () => {
             }`}
           >
             Email
+          </button>
+          <button
+            onClick={() => setActiveTab('booking')}
+            className={`px-6 py-3 font-semibold transition-all ${
+              activeTab === 'booking'
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            Online Booking
+          </button>
+          <button
+            onClick={() => setActiveTab('doctorSchedules')}
+            className={`px-6 py-3 font-semibold transition-all ${
+              activeTab === 'doctorSchedules'
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            Doctor Schedules
           </button>
         </div>
 
@@ -1953,6 +2204,150 @@ const SettingsPage = () => {
 
         {/* Email Tab */}
         {activeTab === 'email' && <EmailTab />}
+
+        {/* Online Booking Tab */}
+        {activeTab === 'booking' && (
+          <div className="space-y-6">
+            {bookingLoading ? (
+              <div className="text-center py-12 text-slate-500">Loading...</div>
+            ) : (
+              <>
+                {/* General Settings */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Globe size={22} className="text-[#137fec]" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">General</h2>
+                  </div>
+                  <div className="grid grid-cols-1 gap-5">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                      <div>
+                        <p className="font-semibold text-slate-800 dark:text-white">Enable Online Booking</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Allow patients to book appointments via the public link</p>
+                      </div>
+                      <ToggleSwitch
+                        enabled={bookingSettings.isBookingEnabled}
+                        onChange={v => setBookingSettings(p => ({ ...p, isBookingEnabled: v }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Clinic Display Name</label>
+                        <input type="text" value={bookingSettings.clinicDisplayName || ''} placeholder="e.g. Bright Smiles Dental"
+                          onChange={e => setBookingSettings(p => ({ ...p, clinicDisplayName: e.target.value }))}
+                          className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase">Slot Duration (minutes)</label>
+                        <select value={bookingSettings.slotDurationMinutes || 30}
+                          onChange={e => setBookingSettings(p => ({ ...p, slotDurationMinutes: Number(e.target.value) }))}
+                          className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                          {[15, 20, 30, 45, 60].map(m => <option key={m} value={m}>{m} min</option>)}
+                        </select>
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs font-bold text-slate-500 uppercase">Tagline</label>
+                        <input type="text" value={bookingSettings.clinicTagline || ''} placeholder="e.g. Your smile is our priority"
+                          onChange={e => setBookingSettings(p => ({ ...p, clinicTagline: e.target.value }))}
+                          className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 text-slate-800 dark:text-white" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Working Hours */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Clock size={22} className="text-[#137fec]" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Clinic Working Hours</h2>
+                    <span className="text-xs text-slate-400 ml-1">(default schedule — override per doctor in Doctor Schedules tab)</span>
+                  </div>
+                  {DAYS.map(day => (
+                    <DayRow key={day} day={day} dayData={bookingSettings.workingHours?.[day] || {}} onChange={updateWorkingHourField} />
+                  ))}
+                </div>
+
+                {/* Blocked Dates */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Calendar size={22} className="text-[#137fec]" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Blocked Dates</h2>
+                  </div>
+                  <div className="flex gap-3 mb-4 flex-wrap sm:flex-nowrap">
+                    <input type="date" value={newBlockedDate} onChange={e => setNewBlockedDate(e.target.value)}
+                      className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-[#137fec] outline-none w-full sm:w-auto" />
+                    <input type="text" value={newBlockedReason} onChange={e => setNewBlockedReason(e.target.value)}
+                      placeholder="Reason (optional, e.g. Public Holiday)"
+                      onKeyDown={e => e.key === 'Enter' && addBlockedDate()}
+                      className="flex-1 px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-xl text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:ring-2 focus:ring-[#137fec] outline-none w-full sm:w-auto" />
+                    <button onClick={addBlockedDate} disabled={!newBlockedDate}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#137fec] text-white rounded-xl text-sm font-semibold hover:bg-blue-600 disabled:opacity-40 transition-colors whitespace-nowrap">
+                      <Plus size={16} /> Add Date
+                    </button>
+                  </div>
+                  {(bookingSettings.blockedDates || []).length === 0 ? (
+                    <p className="text-sm text-slate-400 italic">No blocked dates. The clinic is open every working day.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {bookingSettings.blockedDates.map((bd, i) => (
+                        <div key={i} className="flex items-center justify-between px-4 py-2.5 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                          <div>
+                            <span className="font-semibold text-sm text-slate-800 dark:text-white">{formatBlockedDate(bd.date)}</span>
+                            {bd.reason && <span className="ml-3 text-xs text-slate-500">{bd.reason}</span>}
+                          </div>
+                          <button onClick={() => removeBlockedDate(i)} className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Save Button */}
+                <div className="flex justify-end">
+                  <button onClick={handleSaveBookingSettings} disabled={bookingSaving}
+                    className="px-8 py-3 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-60">
+                    {bookingSaving ? 'Saving...' : 'Save Booking Settings'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Doctor Schedules Tab */}
+        {activeTab === 'doctorSchedules' && (
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <Calendar size={22} className="text-[#137fec]" />
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Doctor Booking Schedules</h2>
+              <span className="text-xs text-slate-400 ml-1">Configure per-doctor availability for online booking</span>
+            </div>
+            {bookingDoctors.length === 0 ? (
+              <p className="text-slate-500 text-center py-8">No doctors added yet. Add doctors in the Doctors tab first.</p>
+            ) : (
+              <div className="space-y-3">
+                {bookingDoctors.map(doctor => (
+                  <div key={doctor._id} className="flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                    <div>
+                      <p className="font-semibold text-slate-800 dark:text-white">{doctor.name}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{doctor.specialization || 'General'}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${doctor.isBookable ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                        {doctor.isBookable ? 'Bookable' : 'Not Bookable'}
+                      </span>
+                      <button onClick={() => openDoctorSchedule(doctor)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#137fec] text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors">
+                        <Edit2 size={14} /> Configure
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Service Modal */}
@@ -2060,6 +2455,83 @@ const SettingsPage = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Doctor Schedule Modal */}
+      {doctorSchedModal.open && scheduleForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800 dark:text-white">Booking Schedule — {doctorSchedModal.doctor?.name}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Configure working hours for online bookings</p>
+              </div>
+              <button onClick={() => setDoctorSchedModal({ open: false, doctor: null })}
+                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1 p-6 space-y-6">
+              {/* Bookable Toggle */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                <div>
+                  <p className="font-semibold text-slate-800 dark:text-white">Bookable Online</p>
+                  <p className="text-xs text-slate-500">Show this doctor as an option in the public booking page</p>
+                </div>
+                <ToggleSwitch
+                  enabled={scheduleForm.isBookable}
+                  onChange={v => setScheduleForm(p => ({ ...p, isBookable: v }))}
+                />
+              </div>
+
+              {/* Working Hours */}
+              {scheduleForm.isBookable && (
+                <div>
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Working Hours</h4>
+                  {DAYS.map(day => (
+                    <DayRow key={day} day={day} dayData={scheduleForm.bookingWorkingHours?.[day] || {}} onChange={updateSchedDayField} />
+                  ))}
+                </div>
+              )}
+
+              {/* Holidays */}
+              {scheduleForm.isBookable && (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">Holidays / Days Off</h4>
+                    <button type="button" onClick={() => setScheduleForm(p => ({ ...p, holidays: [...p.holidays, { date: '', reason: '' }] }))}
+                      className="text-xs text-[#137fec] hover:underline flex items-center gap-1">
+                      <Plus size={12} /> Add
+                    </button>
+                  </div>
+                  {scheduleForm.holidays.length === 0 && <p className="text-xs text-slate-400 italic">No holidays configured.</p>}
+                  {scheduleForm.holidays.map((h, i) => (
+                    <div key={i} className="flex items-center gap-2 mb-2">
+                      <input type="date" value={h.date ? h.date.slice(0, 10) : ''}
+                        onChange={e => { const hs = [...scheduleForm.holidays]; hs[i] = { ...hs[i], date: e.target.value }; setScheduleForm(p => ({ ...p, holidays: hs })); }}
+                        className="px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-white" />
+                      <input type="text" value={h.reason || ''} placeholder="Reason"
+                        onChange={e => { const hs = [...scheduleForm.holidays]; hs[i] = { ...hs[i], reason: e.target.value }; setScheduleForm(p => ({ ...p, holidays: hs })); }}
+                        className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-800 dark:text-white" />
+                      <button onClick={() => setScheduleForm(p => ({ ...p, holidays: p.holidays.filter((_, idx) => idx !== i) }))}
+                        className="text-red-400 hover:text-red-600"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 shrink-0">
+              <button onClick={() => setDoctorSchedModal({ open: false, doctor: null })}
+                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-100 transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleSaveDoctorSchedule} disabled={scheduleSaving}
+                className="px-6 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-600 text-white font-semibold text-sm transition-colors disabled:opacity-60">
+                {scheduleSaving ? 'Saving...' : 'Save Schedule'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,5 +1,22 @@
 import { logEvent } from '../services/analyticsLogger.js';
-import { triggerWhatsApp } from '../services/whatsapp.service.js';
+import { triggerFlow } from '../services/chatbot.service.js';
+
+async function fireInvoiceFlow(tenantModels, invoice) {
+  try {
+    const config = await tenantModels.WaSenderConfig?.findOne({ isActive: true });
+    if (!config?.sessionApiKey || !invoice.patient_phone) return;
+    const templateData = {
+      name:       invoice.patient_name || '',
+      firstName:  (invoice.patient_name || '').split(' ')[0],
+      phone:      invoice.patient_phone,
+      invoiceId:  invoice.invoice_id,
+      amount:     invoice.total_amount,
+    };
+    await triggerFlow(tenantModels, config.sessionApiKey, 'invoice_created', invoice.patient_phone, templateData);
+  } catch (err) {
+    console.error('[invoice] fireInvoiceFlow error', err.message);
+  }
+}
 
 // Helper: Generate ID
 const generateInvoiceId = async (Invoice) => {
@@ -114,48 +131,9 @@ export async function createInvoice(req, res) {
         }
     }
 
-    // Fire-and-forget WhatsApp notification (invoice + latest prescription)
-    if (newInvoice.patient_phone && newInvoice.patient_id) {
-      const patientIdStr = newInvoice.patient_id?.toString();
-      // Fetch patient details and latest prescription from today's visit
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      Promise.all([
-        req.tenantModels.Patient.findById(newInvoice.patient_id).select('first_name last_name patientId contact').lean(),
-        req.tenantModels.Visit.findOne({
-          patient_id: newInvoice.patient_id,
-          date: { $gte: today },
-        }).sort({ date: -1 }).lean(),
-      ])
-        .then(([patient, visit]) => {
-          if (!patient) return;
-          const firstName = patient.first_name;
-          const fullName = `${firstName} ${patient.last_name || ''}`.trim();
-          const rx = visit?.prescriptions?.[visit.prescriptions.length - 1];
-          const amount = Number(newInvoice.total_amount) || 0;
-          const formatted = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
-          triggerWhatsApp(
-            req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-            'invoiceAndPrescription',
-            newInvoice.patient_phone,
-            {
-              name: fullName,
-              firstName,
-              patientId: patient.patientId,
-              mobile: patient.contact?.mobile || '',
-              amount: formatted,
-              paidAmount: String(newInvoice.paid_amount),
-              pendingAmount: String(newInvoice.pending_amount),
-              paymentMethod: newInvoice.payment_method || '',
-              invoiceId: newInvoice.invoice_id,
-              drug: rx?.drug_name || '',
-              dosage: rx?.dosage || '',
-              duration: rx?.duration || '',
-            },
-            patientIdStr
-          );
-        })
-        .catch(() => {});
-    }
+
+    // WaSender flow (fire-and-forget)
+    fireInvoiceFlow(req.tenantModels, newInvoice);
 
     res.status(201).json(newInvoice);
 

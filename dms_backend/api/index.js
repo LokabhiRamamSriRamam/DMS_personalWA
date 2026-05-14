@@ -27,7 +27,6 @@ import fileRoutes from '../routes/files.js';
 import transcribeRoutes from '../routes/transcribe.routes.js';
 import reportRoutes from '../routes/report.routes.js';
 import analyticsRoutes from '../routes/analytics.routes.js';
-import whatsappRoutes from '../routes/whatsapp.routes.js';
 import feedbackRoutes from '../routes/feedback.routes.js';
 
 dotenv.config();
@@ -48,8 +47,6 @@ app.get("/health", (req, res) => {
 app.use('/api/users', userRoutes);
 
 // Webhook Routes (public, no auth required)
-import { handlePollResponse } from '../controllers/whatsapp.controller.js';
-app.post('/api/whatsapp/feedback/webhook', handlePollResponse);
 
 // Multi-Tenant Aware Routes
 const tenantStack = [authenticate, resolveTenant];
@@ -70,7 +67,6 @@ app.use('/api/files',                tenantStack, fileRoutes);
 app.use('/api/transcribe',           tenantStack, transcribeRoutes);
 app.use('/api/report',               tenantStack, reportRoutes);
 app.use('/api/analytics',            tenantStack, analyticsRoutes);
-app.use('/api/whatsapp',             tenantStack, whatsappRoutes);
 app.use('/api/feedback',             tenantStack, feedbackRoutes);
 
 // Global error handler

@@ -1,6 +1,28 @@
-import { triggerWhatsApp, triggerJourney } from '../services/whatsapp.service.js';
 import PDFDocument from 'pdfkit';
 import { uploadFile } from '../services/cloudinary.service.js';
+import { triggerFlow } from '../services/chatbot.service.js';
+
+async function fireTreatmentFlows(tenantModels, visit, treatment) {
+  try {
+    const config = await tenantModels.WaSenderConfig?.findOne({ isActive: true });
+    if (!config?.sessionApiKey) return;
+    const patient = await tenantModels.Patient?.findById(visit.patient_id)
+      .select('first_name last_name contact').lean();
+    if (!patient?.contact?.mobile) return;
+    const phone = patient.contact.mobile;
+    const templateData = {
+      name:          `${patient.first_name} ${patient.last_name}`,
+      firstName:     patient.first_name,
+      phone,
+      treatment:     treatment.treatment_name,
+      date:          new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
+    };
+    await triggerFlow(tenantModels, config.sessionApiKey, 'treatment_completed', phone, templateData, { treatmentName: treatment.treatment_name });
+    await triggerFlow(tenantModels, config.sessionApiKey, 'post_treatment_care', phone, templateData, { treatmentName: treatment.treatment_name });
+  } catch (err) {
+    console.error('[visit] fireTreatmentFlows error', err.message);
+  }
+}
 
 const calculateStatus = (stock, minStock) => {
   if (stock <= 0) return 'Out of Stock';
@@ -234,23 +256,6 @@ export async function addPrescription(req, res) {
           console.error('[Prescription PDF] Generation failed:', pdfErr.message);
         }
 
-        triggerWhatsApp(
-          req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-          'prescriptionIssued',
-          patient.contact.mobile,
-          {
-            name: fullName,
-            firstName,
-            patientId: patient.patientId,
-            mobile: patient.contact.mobile,
-            drug: drug_name,
-            dosage: dosage || '',
-            duration: duration || '',
-            instructions: instructions || '',
-            prescriptionUrl: prescriptionUrl || '',
-          },
-          patientId
-        );
       })
       .catch(() => {});
 
@@ -382,52 +387,10 @@ export async function updateTreatmentStatus(req, res) {
 
     if (!visit) return res.status(404).json({ error: "Visit or Treatment not found" });
 
-    // Fire-and-forget WhatsApp notifications on treatment completion
-    if (status === 'Completed' && visit.patient_id) {
-      const treatment = visit.treatments?.find(t => t._id.toString() === treatmentId);
-      const completedAt = new Date();
-
-      req.tenantModels.Patient.findById(visit.patient_id)
-        .select('first_name last_name contact patientId')
-        .lean()
-        .then(async patient => {
-          if (!patient?.contact?.mobile) return;
-          const phone = patient.contact.mobile;
-          const firstName = patient.first_name;
-          const fullName = `${firstName} ${patient.last_name || ''}`.trim();
-          const patientId = patient._id.toString();
-          const data = {
-            name: fullName,
-            firstName,
-            patientId: patient.patientId,
-            mobile: phone,
-            date: completedAt.toLocaleDateString('en-IN'),
-            treatment: treatment?.treatment_name ?? '',
-            teethNumbers: treatment?.teeth_numbers?.join(', ') ?? '',
-            doctorName: visit.doctor_id ? (await req.tenantModels.Doctor?.findById(visit.doctor_id).select('name').lean() || {}).name || '' : '',
-          };
-
-          // 1. Immediate treatment-completed message
-          triggerWhatsApp(
-            req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-            'treatmentScheduled', phone, data, patientId
-          );
-
-          // 2. Post-care journey — only if not already started for this treatment
-          if (treatment && !treatment.journey_started) {
-            // Mark journey_started to prevent duplicate sends on re-complete
-            await req.tenantModels.Visit.updateOne(
-              { _id: visitId, 'treatments._id': treatmentId },
-              { $set: { 'treatments.$.journey_started': true } }
-            ).catch(() => {});
-
-            triggerJourney(
-              req.tenantModels, req.user.tenantId, process.env.WAAPI_BASE_URL,
-              phone, treatment.treatment_name, completedAt, data, patientId
-            );
-          }
-        })
-        .catch(() => {});
+    // If marked Completed → fire WaSender treatment flows (fire-and-forget)
+    if (status === 'Completed') {
+      const treatment = visit.treatments.find(t => String(t._id) === treatmentId);
+      if (treatment) fireTreatmentFlows(req.tenantModels, visit, treatment);
     }
 
     res.json(visit);

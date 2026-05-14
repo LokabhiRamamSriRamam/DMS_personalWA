@@ -136,11 +136,6 @@ const ViewInvoiceModal = ({ invoiceId, onClose }) => {
 
   if (!invoiceId) return null;
 
-  const handleShareWhatsApp = () => {
-    if (!invoice) return;
-    const message = `Hello ${invoice.patient_name}, here is your invoice #${invoice.invoice_id} for ₹${invoice.total_amount}.`;
-    window.open(`https://wa.me/${invoice.patient_phone}?text=${encodeURIComponent(message)}`, '_blank');
-  };
   const handleShareMail = () => {
     if (!invoice) return;
     const subject = `Invoice ${invoice.invoice_id}`;
@@ -183,7 +178,6 @@ const ViewInvoiceModal = ({ invoiceId, onClose }) => {
           </div>
           <div className="flex items-center gap-1">
             {invoice && <>
-              <button onClick={handleShareWhatsApp} title="WhatsApp" className="p-2 hover:bg-green-50 text-slate-400 hover:text-green-600 rounded-lg transition-colors"><Share2 size={17} /></button>
               <button onClick={handleShareMail} title="Email" className="p-2 hover:bg-blue-50 text-slate-400 hover:text-blue-600 rounded-lg transition-colors"><Mail size={17} /></button>
               <button onClick={() => printInvoice(invoice)} title="Print" className="p-2 hover:bg-slate-100 text-slate-400 hover:text-slate-700 rounded-lg transition-colors"><Printer size={17} /></button>
             </>}

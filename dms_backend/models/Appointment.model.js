@@ -11,16 +11,16 @@ const AppointmentSchema = new mongoose.Schema({
   title: String, // "Root Canal - John Doe"
   type: { type: String, default: 'Consultation' },
   
-  status: { 
-    type: String, 
-    enum: ['Scheduled', 'Confirmed', 'Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'],
-    default: 'Scheduled'
+  status: {
+    type: String,
+    enum: ['Pending', 'Scheduled', 'Confirmed', 'Checked In', 'In Progress', 'Completed', 'Cancelled', 'No Show'],
+    default: 'Scheduled',
   },
-  
+  source: { type: String, enum: ['dashboard', 'online'], default: 'dashboard' },
+
   room_number: String,
   token_number: Number,
   notes: { type: String },
-  whatsapp_language: { type: String, enum: ['en', 'hi', 'mr'], default: null },
 }, { timestamps: true });
 
 export { AppointmentSchema };
