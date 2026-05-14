@@ -29,3 +29,7 @@ frontend/android/build
 frontend/android/app/build
 frontend/android/local.properties
 frontend/android/.idea
+
+# Secrets
+dms_backend/.env
+dms_backend/credentials.json
