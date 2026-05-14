@@ -500,12 +500,17 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
     const adviceHtml = payload.advice || (Array.isArray(payload.advices) ? payload.advices.filter(Boolean).join('') : '');
     if (adviceHtml) calls.push(API.post(`/visits/patient/${patientId}/advice`, { content: adviceHtml }));
     if (Array.isArray(payload.treatment_plan) && payload.treatment_plan.length > 0) {
-      const treatments = payload.treatment_plan.map(t => ({
-        treatment_name: [t.suggested_treatment, t.diagnosis].filter(Boolean).join(' — ') || 'Treatment',
-        teeth_numbers: Array.isArray(t.tooth_numbers) ? t.tooth_numbers.map(String) : [],
-        cost: Number(t.estimated_price) || 0, qty: 1, status: 'Planned',
-      }));
-      calls.push(API.post(`/visits/patient/${patientId}/treatments`, { treatments }));
+      payload.treatment_plan.forEach(t => {
+        calls.push(API.post(`/visits/patient/${patientId}/treatments`, {
+          treatments: [{
+            treatment_name: [t.suggested_treatment, t.diagnosis].filter(Boolean).join(' — ') || 'Treatment',
+            teeth_numbers: Array.isArray(t.tooth_numbers) ? t.tooth_numbers.map(String) : [],
+            cost: Number(t.estimated_price) || 0,
+            qty: 1,
+            status: 'Planned',
+          }],
+        }));
+      });
     }
     (payload.medications || []).forEach(m => {
       if (m?.drug_name) {
