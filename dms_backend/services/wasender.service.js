@@ -16,8 +16,26 @@ async function apiCall(method, path, token, body) {
   return data;
 }
 
+export async function createSession(pat, name, webhookUrl, webhookSecret) {
+  return apiCall('POST', '/api/whatsapp-sessions', pat, {
+    name,
+    log_messages: true,
+    webhook_url: webhookUrl,
+    webhook_secret: webhookSecret,
+    webhook_enabled: true,
+  });
+}
+
 export async function getSessionStatus(sessionId, pat) {
   return apiCall('GET', `/api/whatsapp-sessions/${sessionId}`, pat);
+}
+
+export async function regenerateApiKey(sessionId, pat) {
+  return apiCall('POST', `/api/whatsapp-sessions/${sessionId}/regenerate-key`, pat);
+}
+
+export async function disconnectSession(sessionId, pat) {
+  return apiCall('POST', `/api/whatsapp-sessions/${sessionId}/disconnect`, pat);
 }
 
 export async function getQrCode(sessionId, pat) {

@@ -37,15 +37,21 @@ function NodeWrapper({ children, borderColor, selected, onEdit, onDelete, hasTar
     <div className={`relative rounded-xl border-2 bg-white shadow-sm min-w-[180px] max-w-[240px] ${borderColor} ${selected ? 'ring-2 ring-offset-1 ring-blue-400' : ''}`}>
       {hasTarget  && <Handle type="target"  position={Position.Top}    className="!bg-blue-500 !size-3" />}
       {hasSource  && <Handle type="source"  position={Position.Bottom} className="!bg-blue-500 !size-3" />}
-      <div className="flex items-center justify-end gap-1 absolute -top-3 right-2">
-        <button onMouseDown={e => { e.stopPropagation(); onEdit();   }} className="size-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-blue-600 flex items-center justify-center shadow-sm">
-          <span className="material-symbols-outlined text-[14px]">edit</span>
+      {children}
+      <div className="nodrag nopan flex items-center justify-end gap-1 border-t border-slate-100 px-2 py-1">
+        <button
+          onClick={e => { e.stopPropagation(); onEdit(); }}
+          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-blue-600 px-1.5 py-0.5 rounded hover:bg-blue-50 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[13px]">edit</span>Edit
         </button>
-        <button onMouseDown={e => { e.stopPropagation(); onDelete(); }} className="size-6 rounded-full bg-white border border-slate-200 text-slate-500 hover:text-red-500 flex items-center justify-center shadow-sm">
-          <span className="material-symbols-outlined text-[14px]">delete</span>
+        <button
+          onClick={e => { e.stopPropagation(); onDelete(); }}
+          className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-500 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors"
+        >
+          <span className="material-symbols-outlined text-[13px]">delete</span>
         </button>
       </div>
-      {children}
     </div>
   );
 }
@@ -126,12 +132,12 @@ const NODE_TYPES = { messageNode: MessageNode, delayNode: DelayNode, conditionNo
 const TYPE_TO_NODETYPE = { message: 'messageNode', delay: 'delayNode', condition: 'conditionNode', subflow: 'subflowNode', end: 'endNode' };
 
 // ── Convert DB nodes/edges to ReactFlow format ────────────────────────────────
-function toRfNodes(dbNodes, handlers) {
+function toRfNodes(dbNodes, handlersRef) {
   return (dbNodes || []).map(n => ({
     id: n.id,
     type: TYPE_TO_NODETYPE[n.data?.nodeType] || 'messageNode',
     position: n.position || { x: 100, y: 100 },
-    data: { ...n.data, onEdit: () => handlers.onEdit(n.id), onDelete: () => handlers.onDelete(n.id) },
+    data: { ...n.data, onEdit: () => handlersRef.current.onEdit(n.id), onDelete: () => handlersRef.current.onDelete(n.id) },
   }));
 }
 
@@ -161,6 +167,10 @@ export default function ChatbotBuilderPanel() {
   const [nodeModal, setNodeModal]   = useState({ open: false, node: null, nodeId: null });
   const [templatePicker, setTemplatePicker] = useState(false);
 
+  // Edge label editor
+  const [edgeEdit, setEdgeEdit] = useState(null); // { edgeId, label, x, y }
+  const edgeEditRef = useRef('');
+
   const handlersRef = useRef({});
   const nodesRef    = useRef([]);
 
@@ -187,10 +197,7 @@ export default function ChatbotBuilderPanel() {
 
   function loadFlow(flow) {
     setSelectedFlow(flow);
-    const rfNodes = toRfNodes(flow.nodes, {
-      onEdit:   id => setNodeModal({ open: true, nodeId: id, node: flow.nodes.find(n => n.id === id) }),
-      onDelete: id => deleteNode(id),
-    });
+    const rfNodes = toRfNodes(flow.nodes, handlersRef);
     const rfEdges = toRfEdges(flow.edges);
     setNodes(rfNodes);
     setEdges(rfEdges);
@@ -211,9 +218,26 @@ export default function ChatbotBuilderPanel() {
   }
 
   const onConnect = useCallback((params) => {
-    const label = window.prompt('Edge label (reply text, poll option, or * for any, empty for auto-advance):') ?? '';
-    setEdges(es => addEdge({ ...params, label, type: 'smoothstep', style: { stroke: '#94a3b8' }, labelStyle: { fontSize: 11, fill: '#475569' } }, es));
+    const id = `e_${Date.now()}`;
+    setEdges(es => addEdge({ ...params, id, label: '', type: 'smoothstep', style: { stroke: '#94a3b8' }, labelStyle: { fontSize: 11, fill: '#475569' } }, es));
+    // open label editor immediately after connecting
+    setTimeout(() => {
+      setEdgeEdit({ edgeId: id, label: '', x: window.innerWidth / 2 - 100, y: window.innerHeight / 2 - 60 });
+      edgeEditRef.current = '';
+    }, 50);
   }, [setEdges]);
+
+  const onEdgeClick = useCallback((_evt, edge) => {
+    const rect = _evt.target.getBoundingClientRect();
+    setEdgeEdit({ edgeId: edge.id, label: edge.label || '', x: rect.left, y: rect.top });
+    edgeEditRef.current = edge.label || '';
+  }, []);
+
+  function commitEdgeLabel() {
+    const label = edgeEditRef.current;
+    setEdges(es => es.map(e => e.id === edgeEdit.edgeId ? { ...e, label } : e));
+    setEdgeEdit(null);
+  }
 
   function addNode(formData) {
     const nodeType = TYPE_TO_NODETYPE[formData.nodeType] || 'messageNode';
@@ -389,6 +413,7 @@ export default function ChatbotBuilderPanel() {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
+                onEdgeClick={onEdgeClick}
                 nodeTypes={NODE_TYPES}
                 fitView
                 defaultEdgeOptions={{ type: 'smoothstep', style: { stroke: '#94a3b8' } }}
@@ -407,6 +432,31 @@ export default function ChatbotBuilderPanel() {
           </div>
         )}
       </div>
+
+      {/* Edge label editor popover */}
+      {edgeEdit && (
+        <div
+          className="fixed z-50 bg-white rounded-xl shadow-2xl border border-slate-200 p-4 w-72"
+          style={{ left: Math.min(edgeEdit.x, window.innerWidth - 300), top: Math.min(edgeEdit.y, window.innerHeight - 160) }}
+        >
+          <p className="text-xs font-bold text-slate-700 mb-1">Edge Label — Response Match</p>
+          <p className="text-[11px] text-slate-400 mb-3">
+            Type the exact reply text, poll option, <code className="bg-slate-100 px-1 rounded">*</code> to match any reply, or leave empty for auto-advance.
+          </p>
+          <input
+            autoFocus
+            defaultValue={edgeEdit.label}
+            onChange={e => { edgeEditRef.current = e.target.value; }}
+            onKeyDown={e => { if (e.key === 'Enter') commitEdgeLabel(); if (e.key === 'Escape') setEdgeEdit(null); }}
+            placeholder='e.g. yes  /  Excellent  /  *  /  (empty)'
+            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <div className="flex gap-2 mt-3">
+            <button onClick={commitEdgeLabel} className="flex-1 bg-[#137fec] text-white text-xs font-semibold py-2 rounded-lg hover:bg-blue-700">Save</button>
+            <button onClick={() => setEdgeEdit(null)} className="flex-1 border border-slate-200 text-slate-600 text-xs font-semibold py-2 rounded-lg hover:bg-slate-50">Cancel</button>
+          </div>
+        </div>
+      )}
 
       {/* Template picker modal */}
       {templatePicker && (

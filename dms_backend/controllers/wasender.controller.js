@@ -58,6 +58,28 @@ export async function saveConfig(req, res) {
 
 // ── Session ───────────────────────────────────────────────────────────────────
 
+export async function createSessionHandler(req, res) {
+  try {
+    const { WaSenderConfig } = req.tenantModels;
+    const config = await WaSenderConfig.findOne();
+    if (!config?.personalAccessToken) {
+      return res.status(400).json({ message: 'Save your Personal Access Token first' });
+    }
+    const sessionName = req.body.sessionName || config.sessionName || 'DMS WhatsApp';
+    const webhookUrl = req.body.webhookUrl || '';
+    const data = await wasender.createSession(config.personalAccessToken, sessionName, webhookUrl, config.webhookSecret || '');
+    const sessionId = data?.data?.id || data?.data?.sessionId || data?.id;
+    if (!sessionId) return res.status(500).json({ message: 'WaSender did not return a session ID', raw: data });
+    await WaSenderConfig.findOneAndUpdate({}, { $set: { sessionId, sessionName, status: 'disconnected' } }, { upsert: true, new: true });
+    // Immediately connect
+    await wasender.connectSession(sessionId, config.personalAccessToken).catch(() => {});
+    res.json({ sessionId, sessionName, message: 'Session created and connection initiated' });
+  } catch (err) {
+    console.error('[wasender] createSession', err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
 export async function getSessionStatus(req, res) {
   try {
     const { WaSenderConfig } = req.tenantModels;
@@ -68,10 +90,41 @@ export async function getSessionStatus(req, res) {
     const data = await wasender.getSessionStatus(config.sessionId, config.personalAccessToken);
     const status = data?.data?.status || 'unknown';
     const connectedPhone = data?.data?.phone || config.connectedPhone;
-    await config.updateOne({ status, connectedPhone });
+    // Auto-capture session API key when connected (if WaSender returns it)
+    const apiKey = data?.data?.api_key || data?.data?.apiKey;
+    const updateFields = { status, connectedPhone };
+    if (apiKey && !config.sessionApiKey) updateFields.sessionApiKey = apiKey;
+    await config.updateOne(updateFields);
     res.json({ status, connectedPhone, sessionId: config.sessionId, sessionName: config.sessionName });
   } catch (err) {
     console.error('[wasender] getSessionStatus', err);
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function disconnectSessionHandler(req, res) {
+  try {
+    const { WaSenderConfig } = req.tenantModels;
+    const config = await WaSenderConfig.findOne();
+    if (!config?.sessionId || !config?.personalAccessToken) return res.status(400).json({ message: 'No session configured' });
+    await wasender.disconnectSession(config.sessionId, config.personalAccessToken);
+    await config.updateOne({ status: 'disconnected' });
+    res.json({ status: 'disconnected' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function regenerateKeyHandler(req, res) {
+  try {
+    const { WaSenderConfig } = req.tenantModels;
+    const config = await WaSenderConfig.findOne();
+    if (!config?.sessionId || !config?.personalAccessToken) return res.status(400).json({ message: 'No session configured' });
+    const data = await wasender.regenerateApiKey(config.sessionId, config.personalAccessToken);
+    const apiKey = data?.data?.api_key || data?.data?.apiKey || data?.api_key;
+    if (apiKey) await config.updateOne({ sessionApiKey: apiKey });
+    res.json({ message: 'API key regenerated', masked: apiKey ? `****${apiKey.slice(-4)}` : null });
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 }
