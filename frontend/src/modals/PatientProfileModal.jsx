@@ -66,7 +66,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
         email: res.data.contact?.email || '',
         blood_group: res.data.blood_group || '',
         emergency_contact_name: res.data.emergency_contact?.name || '',
-        emergency_contact_phone: res.data.emergency_contact?.phone || ''
+        emergency_contact_phone: (res.data.emergency_contact?.phone || '').replace(/^\+91/, '')
       });
     } catch (err) {
       console.error("Failed to fetch patient details", err);
@@ -117,7 +117,7 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
         blood_group: editFormData.blood_group,
         emergency_contact: {
           name: editFormData.emergency_contact_name,
-          phone: editFormData.emergency_contact_phone,
+          phone: editFormData.emergency_contact_phone ? `+91${editFormData.emergency_contact_phone}` : '',
           relation: p.emergency_contact?.relation || ''
         }
       };
@@ -484,13 +484,18 @@ const PatientProfileModal = ({ isOpen, onClose, patient: initialPatient }) => {
 
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Emergency Contact Phone</label>
-                  <input
-                    type="tel"
-                    value={editFormData.emergency_contact_phone}
-                    onChange={(e) => setEditFormData({...editFormData, emergency_contact_phone: e.target.value})}
-                    placeholder="Enter phone number"
-                    className="w-full px-4 py-2.5 bg-[#F7F2F2] border-none rounded-lg text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none"
-                  />
+                  <div className="flex items-stretch bg-[#F7F2F2] rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-[#137fec]">
+                    <span className="px-3 flex items-center text-sm font-semibold text-slate-600 bg-slate-200/60 select-none border-r border-slate-300/50">🇮🇳 +91</span>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      value={editFormData.emergency_contact_phone}
+                      onChange={(e) => setEditFormData({...editFormData, emergency_contact_phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
+                      maxLength={10}
+                      placeholder="10-digit number"
+                      className="flex-1 px-4 py-2.5 bg-transparent text-slate-900 placeholder-slate-400 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
 

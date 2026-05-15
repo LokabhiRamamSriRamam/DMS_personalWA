@@ -1,4 +1,6 @@
 import express from "express";
+import http from "http";
+import { Server as SocketIO } from "socket.io";
 import dotenv from "dotenv";
 import cors from "cors";
 
@@ -40,10 +42,22 @@ import settingsRoutes from './routes/settings.routes.js';
 dotenv.config();
 
 const app = express();
+const httpServer = http.createServer(app);
+
+// Socket.io — used to push webhook events (QR update, session status) to frontend in real-time
+export const io = new SocketIO(httpServer, {
+  cors: { origin: '*' },
+});
+io.on('connection', socket => {
+  const { tenantId } = socket.handshake.query;
+  if (tenantId) socket.join(`tenant:${tenantId}`);
+});
 
 // Basic Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({
+  verify: (req, _res, buf) => { req.rawBody = buf; }, // preserve raw bytes for HMAC verification
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Health check
@@ -55,6 +69,9 @@ app.get("/health", (req, res) => {
 app.use('/api/users', userRoutes);
 
 // WaSender webhook (public — no auth)
+// Tenant-scoped URL is the deterministic path; the legacy bare URL is kept
+// for sessions registered before tenant-scoped URLs existed.
+app.post('/api/wasender/webhook/:tenantId', handleWebhook);
 app.post('/api/wasender/webhook', handleWebhook);
 
 // Webhook Routes (public, no auth required)
@@ -102,7 +119,7 @@ const PORT = process.env.PORT || 5000;
 async function startServer() {
   try {
     await connectAnalyticsDb();
-    app.listen(PORT, () => {
+    httpServer.listen(PORT, () => {
       console.log(`🚀 DMS Multi-Tenant Backend running on port ${PORT}`);
       // Start background appointment status transitions
       startAppointmentStatusJob();

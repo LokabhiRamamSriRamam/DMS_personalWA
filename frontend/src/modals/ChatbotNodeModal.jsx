@@ -33,8 +33,68 @@ function merge(target, source) {
   return { ...target, ...source, content: { ...target.content, ...(source.content || {}), poll: { ...target.content.poll, ...(source.content?.poll || {}) }, location: { ...target.content.location, ...(source.content?.location || {}) } } };
 }
 
-export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, flows = [] }) {
+// Available placeholder variables by trigger type
+const PLACEHOLDERS = {
+  first_message:           ['name', 'firstName', 'phone'],
+  appointment_received:    ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_booked:      ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_confirmed:   ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_reminder:    ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_completed:   ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_rescheduled: ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  treatment_completed:     ['name', 'firstName', 'phone', 'treatment', 'doctorName'],
+  post_treatment_care:     ['name', 'firstName', 'phone', 'treatment', 'doctorName'],
+  invoice_created:         ['name', 'firstName', 'phone', 'invoiceId', 'amount'],
+  custom_keyword:          ['name', 'firstName', 'phone'],
+};
+
+const SAMPLE_DATA = {
+  name: 'John Smith', firstName: 'John', phone: '9876543210',
+  date: '15 Mar 2025', time: '10:30 AM', doctorName: 'Dr. Sharma',
+  treatment: 'Root Canal', invoiceId: 'INV-2025-042', amount: '4500',
+};
+
+function substitute(text, data) {
+  if (!text) return '';
+  return text.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? `{{${key}}}`);
+}
+
+// Placeholder chip picker: clickable chips that insert {{var}} at cursor position
+function PlaceholderPicker({ triggerType, onInsert }) {
+  const vars = PLACEHOLDERS[triggerType] || PLACEHOLDERS.first_message;
+  return (
+    <div className="flex flex-wrap gap-1.5 mb-2">
+      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider self-center mr-1">Insert:</span>
+      {vars.map(v => (
+        <button key={v} type="button"
+          onClick={() => onInsert(`{{${v}}}`)}
+          className="text-[11px] bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors font-mono">
+          {`{{${v}}}`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, flows = [], triggerType = 'first_message' }) {
   const [form, setForm] = useState(DEFAULT);
+  const textRef = React.useRef(null);
+  const captionRef = React.useRef(null);
+  const pollQuestionRef = React.useRef(null);
+
+  // Insert text at cursor in given ref'd input
+  const insertAtCursor = (ref, field, isContent = true, isPoll = false) => (placeholder) => {
+    const el = ref.current;
+    if (!el) return;
+    const start = el.selectionStart || 0;
+    const end   = el.selectionEnd   || 0;
+    const current = isPoll ? form.content.poll[field] || '' : isContent ? form.content[field] || '' : form[field] || '';
+    const next = current.slice(0, start) + placeholder + current.slice(end);
+    if (isPoll) setPoll(field, next);
+    else if (isContent) setContent(field, next);
+    else set(field, next);
+    setTimeout(() => { el.focus(); el.setSelectionRange(start + placeholder.length, start + placeholder.length); }, 0);
+  };
 
   useEffect(() => {
     if (nodeData) {
@@ -128,14 +188,21 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
               {form.messageType === 'text' && (
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message Text</label>
+                  <PlaceholderPicker triggerType={triggerType} onInsert={insertAtCursor(textRef, 'text', true)} />
                   <textarea
+                    ref={textRef}
                     rows={4}
                     value={form.content.text}
                     onChange={e => setContent('text', e.target.value)}
-                    placeholder="Hello {{firstName}}! Use {{name}}, {{date}}, {{time}}, {{doctorName}}, {{treatment}}, {{invoiceId}}, {{amount}}"
+                    placeholder="Hello {{firstName}}! Tap a chip above to insert variables."
                     className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                   />
-                  <p className="text-xs text-slate-400">Supports: {'{{'+'name}}'},  {'{{'+'firstName}}'},  {'{{'+'date}}'},  {'{{'+'time}}'},  {'{{'+'doctorName}}'},  {'{{'+'treatment}}'},  {'{{'+'amount}}'}</p>
+                  {form.content.text && (
+                    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Live Preview</p>
+                      <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{substitute(form.content.text, SAMPLE_DATA)}</p>
+                    </div>
+                  )}
                 </div>
               )}
               {form.messageType === 'image' && (
@@ -162,7 +229,20 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
               )}
               {form.messageType === 'poll' && (
                 <div className="flex flex-col gap-3">
-                  <InputField label="Poll Question" value={form.content.poll.question} onChange={v => setPoll('question', v)} placeholder="How was your experience?" />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Poll Question</label>
+                    <PlaceholderPicker triggerType={triggerType} onInsert={insertAtCursor(pollQuestionRef, 'question', false, true)} />
+                    <input ref={pollQuestionRef} type="text" value={form.content.poll.question}
+                      onChange={e => setPoll('question', e.target.value)}
+                      placeholder="How was your experience?"
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    {form.content.poll.question && (
+                      <div className="mt-1 rounded-xl border border-emerald-200 bg-emerald-50 p-2">
+                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-0.5">Preview</p>
+                        <p className="text-sm text-slate-800">{substitute(form.content.poll.question, SAMPLE_DATA)}</p>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Options</label>
                     {(form.content.poll.options || []).map((opt, i) => (

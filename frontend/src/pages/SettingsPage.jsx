@@ -1530,7 +1530,7 @@ const SettingsPage = () => {
 
   const handleEditDoctor = (doctor) => {
     setEditingDoctor(doctor);
-    setDoctorFormData(doctor);
+    setDoctorFormData({ ...doctor, phone: (doctor.phone || '').replace(/^\+91/, '') });
     setShowModal(true);
   };
 
@@ -1550,11 +1550,12 @@ const SettingsPage = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      const doctorPayload = { ...doctorFormData, phone: doctorFormData.phone ? `+91${doctorFormData.phone}` : '' };
       if (editingDoctor) {
-        const res = await API.put(`/doctors/${editingDoctor._id}`, doctorFormData);
+        const res = await API.put(`/doctors/${editingDoctor._id}`, doctorPayload);
         setDoctors(doctors.map(d => d._id === editingDoctor._id ? res.data : d));
       } else {
-        const res = await API.post('/doctors', doctorFormData);
+        const res = await API.post('/doctors', doctorPayload);
         setDoctors([...doctors, res.data]);
       }
       setShowModal(false);
@@ -2589,14 +2590,19 @@ const SettingsPage = () => {
                   onChange={handleDoctorChange}
                   className="px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
                 />
-                <input
-                  type="tel"
-                  name="phone"
-                  placeholder="Phone"
-                  value={doctorFormData.phone}
-                  onChange={handleDoctorChange}
-                  className="px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                />
+                <div className="flex items-stretch border border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#137fec] bg-white dark:bg-slate-800">
+                  <span className="px-3 flex items-center text-sm font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 select-none border-r border-slate-300 dark:border-slate-600">🇮🇳 +91</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    name="phone"
+                    placeholder="10-digit number"
+                    value={doctorFormData.phone}
+                    onChange={e => setDoctorFormData(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                    maxLength={10}
+                    className="flex-1 px-3 py-2.5 text-sm outline-none bg-transparent"
+                  />
+                </div>
                 <input
                   type="text"
                   name="license_number"

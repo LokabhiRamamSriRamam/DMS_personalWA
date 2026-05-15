@@ -2,11 +2,13 @@ import React, { useState } from 'react';
 import SessionHealthPanel from '../components/whatsapp/SessionHealthPanel.jsx';
 import InboxPanel from '../components/whatsapp/InboxPanel.jsx';
 import ChatbotBuilderPanel from '../components/whatsapp/ChatbotBuilderPanel.jsx';
+import LogsPanel from '../components/whatsapp/LogsPanel.jsx';
 
 const TABS = [
   { id: 'session',  label: 'Session Health', icon: 'wifi' },
   { id: 'inbox',    label: 'Inbox',           icon: 'inbox' },
-  { id: 'chatbots', label: 'Flows',            icon: 'account_tree' },
+  { id: 'chatbots', label: 'Flows',           icon: 'account_tree' },
+  { id: 'logs',     label: 'Logs & Stats',    icon: 'analytics' },
 ];
 
 export default function WhatsAppPage() {
@@ -48,6 +50,7 @@ export default function WhatsAppPage() {
         {activeTab === 'session'  && <SessionHealthPanel />}
         {activeTab === 'inbox'    && <InboxPanel />}
         {activeTab === 'chatbots' && <ChatbotBuilderPanel />}
+        {activeTab === 'logs'     && <LogsPanel />}
       </div>
     </div>
   );

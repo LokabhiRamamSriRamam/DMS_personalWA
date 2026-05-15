@@ -19,7 +19,7 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
           name: editVendor.name || '',
           type: editVendor.type || 'General',
           contact_person: editVendor.contact_person || '',
-          phone: editVendor.phone || '',
+          phone: (editVendor.phone || '').replace(/^\+91/, ''),
           email: editVendor.email || '',
           address: editVendor.address || '',
           gst_number: editVendor.gst_number || ''
@@ -37,10 +37,11 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
     e.preventDefault();
     setLoading(true);
     try {
+        const payload = { ...formData, phone: formData.phone ? `+91${formData.phone}` : '' };
         if (editVendor) {
-            await API.put(`/vendors/${editVendor._id}`, formData);
+            await API.put(`/vendors/${editVendor._id}`, payload);
         } else {
-            await API.post('/vendors', formData);
+            await API.post('/vendors', payload);
         }
         
         if(onSave) onSave();
@@ -106,9 +107,9 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
             </div>
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Phone Number</label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-slate-400"><Phone size={16}/></span>
-                <input type="tel" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="9876..." className="w-full pl-9 pr-4 py-2.5 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none" />
+              <div className="flex items-stretch border border-slate-300 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-[#137fec]">
+                <span className="px-3 flex items-center text-sm font-semibold text-slate-600 bg-slate-100 select-none border-r border-slate-300">🇮🇳 +91</span>
+                <input type="tel" inputMode="numeric" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})} maxLength={10} placeholder="10-digit number" className="flex-1 px-4 py-2.5 text-sm focus:outline-none" />
               </div>
             </div>
           </div>

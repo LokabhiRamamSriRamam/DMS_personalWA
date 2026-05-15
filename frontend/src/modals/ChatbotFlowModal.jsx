@@ -28,6 +28,7 @@ export default function ChatbotFlowModal({ isOpen, onClose, onSave, flow }) {
   const [form, setForm]       = useState(DEFAULT);
   const [saving, setSaving]   = useState(false);
   const [kwInput, setKwInput] = useState('');
+  const [error, setError]     = useState('');
 
   useEffect(() => {
     if (flow) {
@@ -58,7 +59,12 @@ export default function ChatbotFlowModal({ isOpen, onClose, onSave, flow }) {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) return alert('Name is required');
+    setError('');
+    if (!form.name.trim()) { setError('Flow name is required'); return; }
+    if (form.triggerType === 'custom_keyword' && !form.triggerKeywords.length) {
+      setError('Add at least one keyword for custom-keyword flows');
+      return;
+    }
     setSaving(true);
     try {
       let res;
@@ -70,7 +76,7 @@ export default function ChatbotFlowModal({ isOpen, onClose, onSave, flow }) {
       onSave(res.data);
       onClose();
     } catch (err) {
-      alert(err.response?.data?.message || 'Save failed');
+      setError(err.response?.data?.message || 'Failed to save flow');
     } finally {
       setSaving(false);
     }
@@ -135,10 +141,28 @@ export default function ChatbotFlowModal({ isOpen, onClose, onSave, flow }) {
                 type="text"
                 value={form.treatmentName}
                 onChange={e => set('treatmentName', e.target.value)}
-                placeholder="e.g. Root Canal (must match exactly)"
+                placeholder="e.g. Root Canal (or leave blank to match all)"
                 className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <p className="text-xs text-slate-400">Case-insensitive match against treatment name in visit records</p>
+              <p className="text-xs text-slate-400">Case-insensitive match against treatment name in visit records. Leave blank to fire for any treatment.</p>
+            </div>
+          )}
+
+          {form.triggerType === 'post_treatment_care' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex gap-2.5">
+              <span className="material-symbols-outlined text-blue-500 text-[18px] mt-0.5 flex-shrink-0">tips_and_updates</span>
+              <div className="flex flex-col gap-1.5 text-xs text-blue-900">
+                <p className="font-semibold">How post-treatment care flows work:</p>
+                <p className="text-blue-800 leading-relaxed">
+                  After you save this flow, open the canvas and build a sequence using <strong>delay nodes</strong> between messages. For example:
+                </p>
+                <p className="font-mono text-[11px] bg-white/70 border border-blue-100 rounded px-2 py-1.5 leading-relaxed">
+                  [Thank-you msg] → [Delay 2 days] → [Check-in msg] → [Delay 5 days] → [Follow-up msg] → [End]
+                </p>
+                <p className="text-blue-800 leading-relaxed">
+                  When a doctor marks the matching treatment as <strong>Completed</strong> in the Visit screen, this flow fires automatically. Delays survive server restarts.
+                </p>
+              </div>
             </div>
           )}
 
@@ -184,6 +208,17 @@ export default function ChatbotFlowModal({ isOpen, onClose, onSave, flow }) {
             </div>
           )}
         </div>
+
+        {/* Inline error */}
+        {error && (
+          <div className="mx-6 mb-3 flex items-start gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700">
+            <span className="material-symbols-outlined text-[16px] mt-0.5 text-red-500">error</span>
+            <p className="flex-1 leading-snug">{error}</p>
+            <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">
+              <span className="material-symbols-outlined text-[14px]">close</span>
+            </button>
+          </div>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">

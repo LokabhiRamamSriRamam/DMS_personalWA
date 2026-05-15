@@ -2,7 +2,10 @@ import mongoose from 'mongoose';
 
 const WaSenderConfigSchema = new mongoose.Schema({
   sessionId:            { type: String },
+  webhookSessionId:     { type: String }, // hash-based ID WaSender sends in webhook payloads
   sessionName:          { type: String },
+  phoneNumber:          { type: String },
+  webhookUrl:           { type: String },
   personalAccessToken:  { type: String },
   sessionApiKey:        { type: String },
   webhookSecret:        { type: String },

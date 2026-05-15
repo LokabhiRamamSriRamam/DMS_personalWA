@@ -1,5 +1,30 @@
 import { sendMessage } from './wasender.service.js';
 
+// ── Phone normalization (last 10 digits — survives +91, 91, @s.whatsapp.net, etc.) ──
+export function normalizePhone(p) {
+  if (!p) return '';
+  return String(p).replace(/\D/g, '').slice(-10);
+}
+
+// ── Flow execution logging ────────────────────────────────────────────────────
+async function logEvent(tenantModels, entry) {
+  try {
+    if (!tenantModels?.FlowLog) return;
+    await tenantModels.FlowLog.create({
+      flowId:       entry.flowId || null,
+      flowName:     entry.flowName || '',
+      triggerType:  entry.triggerType || '',
+      phone:        entry.phone || '',
+      status:       entry.status,
+      nodeId:       entry.nodeId || '',
+      messageType:  entry.messageType || '',
+      scheduledFor: entry.scheduledFor || undefined,
+      error:        entry.error || '',
+      templateData: entry.templateData || {},
+    });
+  } catch {}
+}
+
 // ── Placeholder substitution ──────────────────────────────────────────────────
 
 function substitute(text, data) {
@@ -36,14 +61,29 @@ function buildPayload(node, templateData) {
 
 // ── Core executor ─────────────────────────────────────────────────────────────
 
-export async function executeNode(tenantModels, sessionApiKey, phone, node, templateData, flow) {
+export async function executeNode(tenantModels, sessionApiKey, phoneRaw, node, templateData, flow) {
   const { ChatbotSession, ScheduledMessage, ChatbotFlow } = tenantModels;
+  const phone = normalizePhone(phoneRaw);           // 10-digit — used for session tracking & logging
+  const waPhone = `91${phone}`;                     // E.164 without '+' — required by WaSender 'to' field
   const nodeType = node.data?.nodeType;
 
   if (nodeType === 'message') {
     const payload = buildPayload(node, templateData);
-    payload.to = phone;
-    await sendMessage(sessionApiKey, payload);
+    payload.to = waPhone;
+    try {
+      await sendMessage(sessionApiKey, payload);
+      await logEvent(tenantModels, {
+        flowId: flow._id, flowName: flow.name, triggerType: flow.triggerType, phone,
+        status: 'message_sent', nodeId: node.id, messageType: payload.type, templateData,
+      });
+    } catch (sendErr) {
+      await logEvent(tenantModels, {
+        flowId: flow._id, flowName: flow.name, triggerType: flow.triggerType, phone,
+        status: 'message_failed', nodeId: node.id, messageType: payload.type,
+        error: sendErr.message, templateData,
+      });
+      throw sendErr;
+    }
 
     if (node.data?.waitForResponse) {
       await ChatbotSession.findOneAndUpdate(
@@ -76,6 +116,10 @@ export async function executeNode(tenantModels, sessionApiKey, phone, node, temp
       nextNodeId: nextEdge.target,
       templateData,
       scheduledAt,
+    });
+    await logEvent(tenantModels, {
+      flowId: flow._id, flowName: flow.name, triggerType: flow.triggerType, phone,
+      status: 'message_scheduled', nodeId: node.id, scheduledFor: scheduledAt, templateData,
     });
 
   } else if (nodeType === 'condition') {
@@ -111,7 +155,23 @@ export async function advanceFlowSession(tenantModels, sessionApiKey, session, m
   // prefer exact match → then wildcard
   const match = edges.find(e => e.label && e.label.toLowerCase() === body)
              || edges.find(e => e.label === '*');
-  if (!match) return;
+
+  if (!match) {
+    // No edge matched — send a fallback and keep the session waiting at the same node
+    const waPhone = `91${session.contactPhone}`;
+    try {
+      await sendMessage(sessionApiKey, {
+        to:   waPhone,
+        type: 'text',
+        text: "Sorry, I didn't understand that. Please reply with one of the options provided.",
+      });
+    } catch {}
+    // Update lastActivityAt so the 24h TTL doesn't expire prematurely
+    await session.model('ChatbotSession').findByIdAndUpdate(session._id, {
+      lastActivityAt: new Date(),
+    });
+    return;
+  }
 
   const nextNode = (flow.nodes || []).find(n => n.id === match.target);
   if (!nextNode) return;
@@ -129,6 +189,7 @@ export async function advanceFlowSession(tenantModels, sessionApiKey, session, m
 
 export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phone, templateData, options = {}) {
   const { ChatbotFlow, ChatbotSession } = tenantModels;
+  const normPhone = normalizePhone(phone);
   try {
     const query = { triggerType, isActive: true, isTemplate: false };
     if (options.treatmentName) {
@@ -139,17 +200,33 @@ export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phon
       ];
     }
     const flow = await ChatbotFlow.findOne(query);
-    if (!flow) return;
+    if (!flow) {
+      await logEvent(tenantModels, { flowId: null, triggerType, phone: normPhone, status: 'no_matching_flow', templateData });
+      return;
+    }
+    if (!sessionApiKey) {
+      await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'no_session_api_key', templateData });
+      return;
+    }
+    if (!normPhone) {
+      await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: '', status: 'invalid_phone', templateData });
+      return;
+    }
 
-    // Check if there's already an active session for this flow+phone to avoid duplicates
-    const existingSession = await ChatbotSession.findOne({ contactPhone: phone, status: 'active', flowId: flow._id });
-    if (existingSession) return;
+    const existingSession = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active', flowId: flow._id });
+    if (existingSession) {
+      await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'duplicate_session_skipped', templateData });
+      return;
+    }
 
     const rootNode = (flow.nodes || []).find(n => n.id === flow.rootNodeId) || flow.nodes?.[0];
-    if (!rootNode) return;
+    if (!rootNode) {
+      await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'no_root_node', templateData });
+      return;
+    }
 
     await ChatbotSession.create({
-      contactPhone: phone,
+      contactPhone: normPhone,
       flowId: flow._id,
       currentNodeId: rootNode.id,
       waitingForReply: false,
@@ -159,9 +236,11 @@ export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phon
       status: 'active',
     });
 
-    await executeNode(tenantModels, sessionApiKey, phone, rootNode, templateData, flow);
+    await executeNode(tenantModels, sessionApiKey, normPhone, rootNode, templateData, flow);
+    await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'success', templateData });
   } catch (err) {
-    console.error('[triggerFlow] error:', triggerType, phone, err.message);
+    console.error('[triggerFlow] error:', triggerType, normPhone, err.message);
+    await logEvent(tenantModels, { flowId: null, triggerType, phone: normPhone, status: 'error', error: err.message, templateData });
   }
 }
 
@@ -169,22 +248,33 @@ export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phon
 
 export async function processIncomingMessage(tenantModels, sessionApiKey, phone, messageBody, eventType) {
   const { ChatbotFlow, ChatbotSession } = tenantModels;
+  const normPhone = normalizePhone(phone);
   try {
     // Check for a paused session waiting for reply
-    const session = await ChatbotSession.findOne({ contactPhone: phone, status: 'active', waitingForReply: true });
+    const session = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active', waitingForReply: true });
     if (session) {
       const flow = await ChatbotFlow.findById(session.flowId);
       if (flow) {
+        console.log('[processIncoming] advancing session | phone:', normPhone, '| flow:', flow.name, '| body:', messageBody);
         await advanceFlowSession(tenantModels, sessionApiKey, session, messageBody, flow);
         return;
       }
     }
 
     // No waiting session — check if this is first_message or custom_keyword
-    const firstMsgSession = await ChatbotSession.findOne({ contactPhone: phone, status: 'active' });
+    const firstMsgSession = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active' });
+    console.log('[processIncoming] phone:', normPhone, '| waitingSession:', !!session, '| activeSession:', !!firstMsgSession, '| body:', messageBody);
     if (!firstMsgSession) {
-      // First ever message from this phone
-      await triggerFlow(tenantModels, sessionApiKey, 'first_message', phone, { phone }, {});
+      // Diagnostic: dump all first_message flows to find the mismatch
+      const allFirstMsgFlows = await ChatbotFlow.find({ triggerType: 'first_message' }).lean();
+      console.log('[processIncoming] all first_message flows in DB:', allFirstMsgFlows.map(f => ({
+        id: f._id, name: f.name, isActive: f.isActive, isTemplate: f.isTemplate, triggerType: f.triggerType,
+      })));
+      const firstMsgFlow = await ChatbotFlow.findOne({ triggerType: 'first_message', isActive: true, isTemplate: false });
+      console.log('[processIncoming] first_message flow (active+nonTemplate):', firstMsgFlow ? `"${firstMsgFlow.name}"` : 'NOT FOUND');
+      await triggerFlow(tenantModels, sessionApiKey, 'first_message', normPhone, { phone: normPhone, firstName: '', name: '' }, {});
+    } else {
+      console.log('[processIncoming] skipping first_message — active session exists:', firstMsgSession._id, '| status:', firstMsgSession.status, '| waitingForReply:', firstMsgSession.waitingForReply, '| flow:', firstMsgSession.flowId);
     }
 
     // Also check custom_keyword flows
@@ -193,12 +283,12 @@ export async function processIncomingMessage(tenantModels, sessionApiKey, phone,
       for (const flow of keywordFlows) {
         const keywords = (flow.triggerKeywords || []).map(k => k.toLowerCase());
         if (keywords.includes(messageBody.trim().toLowerCase())) {
-          await triggerFlow(tenantModels, sessionApiKey, 'custom_keyword', phone, { phone }, {});
+          await triggerFlow(tenantModels, sessionApiKey, 'custom_keyword', normPhone, { phone: normPhone, firstName: '', name: '' }, {});
           break;
         }
       }
     }
   } catch (err) {
-    console.error('[processIncomingMessage] error:', phone, err.message);
+    console.error('[processIncomingMessage] error:', normPhone, err.message);
   }
 }

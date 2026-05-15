@@ -23,9 +23,11 @@ import { EmailTemplateSchema }      from '../models/EmailTemplate.model.js';
 import { EmailLogSchema }           from '../models/EmailLog.model.js';
 import { ReportJobSchema }          from '../models/ReportJob.model.js';
 import { WaSenderConfigSchema }     from '../models/WaSenderConfig.model.js';
+import { WaSenderMessageSchema }    from '../models/WaSenderMessage.model.js';
 import { ChatbotFlowSchema }        from '../models/ChatbotFlow.model.js';
 import { ChatbotSessionSchema }     from '../models/ChatbotSession.model.js';
 import { ScheduledMessageSchema }   from '../models/ScheduledMessage.model.js';
+import { FlowLogSchema }            from '../models/FlowLog.model.js';
 import { BookingSettingsSchema }    from '../models/BookingSettings.model.js';
 import { DoctorSchema }             from '../models/Doctor.model.js';
 
@@ -66,9 +68,11 @@ export function getTenantModels(conn) {
     ReportJob:          getOrCreate('ReportJob',          ReportJobSchema),
 
     WaSenderConfig:     getOrCreate('WaSenderConfig',     WaSenderConfigSchema),
+    WaSenderMessage:    getOrCreate('WaSenderMessage',    WaSenderMessageSchema),
     ChatbotFlow:        getOrCreate('ChatbotFlow',        ChatbotFlowSchema),
     ChatbotSession:     getOrCreate('ChatbotSession',     ChatbotSessionSchema),
     ScheduledMessage:   getOrCreate('ScheduledMessage',   ScheduledMessageSchema),
+    FlowLog:            getOrCreate('FlowLog',            FlowLogSchema),
     BookingSettings:    getOrCreate('BookingSettings',    BookingSettingsSchema),
   };
 

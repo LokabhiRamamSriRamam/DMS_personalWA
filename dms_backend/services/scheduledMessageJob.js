@@ -47,7 +47,9 @@ async function tick() {
   }
 }
 
+const POLL_INTERVAL_MS = 5 * 60_000; // 5 minutes
+
 export function startScheduledMessageJob() {
-  console.log('⏰ Scheduled message job started (60s interval)');
-  setInterval(() => tick().catch(err => console.error('[scheduledMessageJob]', err.message)), 60_000);
+  console.log(`⏰ Scheduled message job started (${POLL_INTERVAL_MS / 60_000}-minute interval)`);
+  setInterval(() => tick().catch(err => console.error('[scheduledMessageJob]', err.message)), POLL_INTERVAL_MS);
 }
