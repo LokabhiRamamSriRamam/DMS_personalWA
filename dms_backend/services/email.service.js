@@ -3,7 +3,7 @@ import PDFDocument from 'pdfkit';
 import { encrypt, decrypt } from '../utils/crypto.util.js';
 
 // Reuse WhatsApp's placeholder replacement logic
-function replacePlaceholders(str, data) {
+export function replacePlaceholders(str, data) {
   if (typeof str !== 'string') return str;
   return str.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? `{{${key}}}`);
 }

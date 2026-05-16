@@ -57,7 +57,7 @@ const router = createBrowserRouter([
     element: <RegisterPage />,
   },
   {
-    path: '/book/:tenantId',
+    path: '/connect-dentalclinic/:clinicName/:tenantId',
     element: <BookingPage />,
   },
   {

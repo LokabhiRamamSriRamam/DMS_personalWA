@@ -98,6 +98,13 @@ export async function executeNode(tenantModels, sessionApiKey, phoneRaw, node, t
       const nextNode = (flow.nodes || []).find(n => n.id === nextEdge.target);
       if (nextNode) return executeNode(tenantModels, sessionApiKey, phone, nextNode, templateData, flow);
     }
+    // No further node and not waiting for a reply → the flow path is exhausted.
+    // Mark the session completed (same terminal state as an explicit End node)
+    // so it doesn't linger 'active' and suppress re-engagement until the TTL.
+    await ChatbotSession.findOneAndUpdate(
+      { contactPhone: phone, status: 'active', flowId: flow._id },
+      { status: 'completed', waitingForReply: false, lastActivityAt: new Date() }
+    );
 
   } else if (nodeType === 'delay') {
     const { delayValue = 1, delayUnit = 'hours' } = node.data || {};
@@ -188,7 +195,7 @@ export async function advanceFlowSession(tenantModels, sessionApiKey, session, m
 // ── Entry point 1: DMS events trigger a flow ──────────────────────────────────
 
 export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phone, templateData, options = {}) {
-  const { ChatbotFlow, ChatbotSession } = tenantModels;
+  const { ChatbotFlow, ChatbotSession, ScheduledMessage } = tenantModels;
   const normPhone = normalizePhone(phone);
   try {
     const query = { triggerType, isActive: true, isTemplate: false };
@@ -201,26 +208,46 @@ export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phon
     }
     const flow = await ChatbotFlow.findOne(query);
     if (!flow) {
+      console.log('[triggerFlow] no matching flow | triggerType:', triggerType, '| phone:', normPhone);
       await logEvent(tenantModels, { flowId: null, triggerType, phone: normPhone, status: 'no_matching_flow', templateData });
       return;
     }
     if (!sessionApiKey) {
+      console.log('[triggerFlow] no sessionApiKey | flow:', flow.name, '| phone:', normPhone);
       await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'no_session_api_key', templateData });
       return;
     }
     if (!normPhone) {
+      console.log('[triggerFlow] invalid phone | flow:', flow.name);
       await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: '', status: 'invalid_phone', templateData });
       return;
     }
 
-    const existingSession = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active', flowId: flow._id });
-    if (existingSession) {
+    // Block only if genuinely engaged: waiting for a reply OR has a pending scheduled continuation
+    const waitingSession = await ChatbotSession.findOne({
+      contactPhone: normPhone, status: 'active', flowId: flow._id, waitingForReply: true,
+    }).select('_id').lean();
+    let genuinelyEngaged = !!waitingSession;
+    if (!genuinelyEngaged && ScheduledMessage) {
+      const pendingMsg = await ScheduledMessage.findOne({
+        phone: normPhone, flowId: flow._id, status: 'pending',
+      }).select('_id').lean();
+      genuinelyEngaged = !!pendingMsg;
+    }
+    if (genuinelyEngaged) {
+      console.log('[triggerFlow] duplicate_session_skipped (genuinely engaged) | flow:', flow.name, '| phone:', normPhone);
       await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'duplicate_session_skipped', templateData });
       return;
     }
+    // Stale active session (not waiting, no pending delay) — complete it before starting fresh
+    await ChatbotSession.updateMany(
+      { contactPhone: normPhone, status: 'active', flowId: flow._id },
+      { status: 'completed', waitingForReply: false, lastActivityAt: new Date() },
+    );
 
     const rootNode = (flow.nodes || []).find(n => n.id === flow.rootNodeId) || flow.nodes?.[0];
     if (!rootNode) {
+      console.log('[triggerFlow] no root node | flow:', flow.name, '| rootNodeId:', flow.rootNodeId, '| nodeCount:', flow.nodes?.length);
       await logEvent(tenantModels, { flowId: flow._id, flowName: flow.name, triggerType, phone: normPhone, status: 'no_root_node', templateData });
       return;
     }
@@ -246,9 +273,36 @@ export async function triggerFlow(tenantModels, sessionApiKey, triggerType, phon
 
 // ── Entry point 2: Inbound webhook message ────────────────────────────────────
 
-export async function processIncomingMessage(tenantModels, sessionApiKey, phone, messageBody, eventType) {
-  const { ChatbotFlow, ChatbotSession } = tenantModels;
+export async function processIncomingMessage(tenantModels, sessionApiKey, phone, messageBody, eventType, senderName = '') {
+  const { ChatbotFlow, ChatbotSession, ScheduledMessage } = tenantModels;
   const normPhone = normalizePhone(phone);
+
+  // Inbound-triggered flows (first_message / custom_keyword) only have a phone
+  // number to work with. Resolve a display name so {{name}}/{{firstName}}
+  // aren't blank: existing patient → WhatsApp profile name → blank.
+  // Memoized so a plain session-advance doesn't pay for the lookup.
+  let _contactData;
+  async function contactTemplateData() {
+    if (_contactData) return _contactData;
+    let name = '', firstName = '';
+    try {
+      const p = await tenantModels.Patient
+        ?.findOne({ 'contact.mobile': { $regex: `${normPhone}$` } })
+        .select('first_name last_name')
+        .lean();
+      if (p) {
+        firstName = p.first_name || '';
+        name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+      }
+    } catch { /* unknown number — fall through to profile name / blank */ }
+    if (!name && senderName) {
+      name = senderName;
+      firstName = senderName.split(' ')[0] || '';
+    }
+    _contactData = { phone: normPhone, firstName, name };
+    return _contactData;
+  }
+
   try {
     // Check for a paused session waiting for reply
     const session = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active', waitingForReply: true });
@@ -261,20 +315,27 @@ export async function processIncomingMessage(tenantModels, sessionApiKey, phone,
       }
     }
 
-    // No waiting session — check if this is first_message or custom_keyword
-    const firstMsgSession = await ChatbotSession.findOne({ contactPhone: normPhone, status: 'active' });
-    console.log('[processIncoming] phone:', normPhone, '| waitingSession:', !!session, '| activeSession:', !!firstMsgSession, '| body:', messageBody);
-    if (!firstMsgSession) {
-      // Diagnostic: dump all first_message flows to find the mismatch
-      const allFirstMsgFlows = await ChatbotFlow.find({ triggerType: 'first_message' }).lean();
-      console.log('[processIncoming] all first_message flows in DB:', allFirstMsgFlows.map(f => ({
-        id: f._id, name: f.name, isActive: f.isActive, isTemplate: f.isTemplate, triggerType: f.triggerType,
-      })));
+    // A fresh first_message is suppressed only by a *genuinely engaged*
+    // session: one waiting for a reply, or one parked in a delay with a
+    // pending scheduled continuation. A stale/terminal 'active' session must
+    // NOT block — that was the bug that silenced returning senders for 24h.
+    const engagedSession = await ChatbotSession.findOne({
+      contactPhone: normPhone, status: 'active', waitingForReply: true,
+    }).select('_id').lean();
+    let engaged = !!engagedSession;
+    if (!engaged && ScheduledMessage) {
+      const pendingResume = await ScheduledMessage.findOne({
+        phone: normPhone, status: 'pending',
+      }).select('_id').lean();
+      engaged = !!pendingResume;
+    }
+    console.log('[processIncoming] phone:', normPhone, '| waitingSession:', !!session, '| engaged:', engaged, '| body:', messageBody);
+    if (!engaged) {
       const firstMsgFlow = await ChatbotFlow.findOne({ triggerType: 'first_message', isActive: true, isTemplate: false });
       console.log('[processIncoming] first_message flow (active+nonTemplate):', firstMsgFlow ? `"${firstMsgFlow.name}"` : 'NOT FOUND');
-      await triggerFlow(tenantModels, sessionApiKey, 'first_message', normPhone, { phone: normPhone, firstName: '', name: '' }, {});
+      await triggerFlow(tenantModels, sessionApiKey, 'first_message', normPhone, await contactTemplateData(), {});
     } else {
-      console.log('[processIncoming] skipping first_message — active session exists:', firstMsgSession._id, '| status:', firstMsgSession.status, '| waitingForReply:', firstMsgSession.waitingForReply, '| flow:', firstMsgSession.flowId);
+      console.log('[processIncoming] skipping first_message — genuinely engaged (waiting reply or pending delay)');
     }
 
     // Also check custom_keyword flows
@@ -283,7 +344,7 @@ export async function processIncomingMessage(tenantModels, sessionApiKey, phone,
       for (const flow of keywordFlows) {
         const keywords = (flow.triggerKeywords || []).map(k => k.toLowerCase());
         if (keywords.includes(messageBody.trim().toLowerCase())) {
-          await triggerFlow(tenantModels, sessionApiKey, 'custom_keyword', normPhone, { phone: normPhone, firstName: '', name: '' }, {});
+          await triggerFlow(tenantModels, sessionApiKey, 'custom_keyword', normPhone, await contactTemplateData(), {});
           break;
         }
       }

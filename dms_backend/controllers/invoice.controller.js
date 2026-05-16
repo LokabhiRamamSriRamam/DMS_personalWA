@@ -1,5 +1,6 @@
 import { logEvent } from '../services/analyticsLogger.js';
 import { triggerFlow } from '../services/chatbot.service.js';
+import { triggerInvoiceGenerated } from './email.controller.js';
 
 async function fireInvoiceFlow(tenantModels, invoice) {
   try {
@@ -134,6 +135,9 @@ export async function createInvoice(req, res) {
 
     // WaSender flow (fire-and-forget)
     fireInvoiceFlow(req.tenantModels, newInvoice);
+
+    // Email automation (fire-and-forget)
+    triggerInvoiceGenerated({ tenantModels: req.tenantModels, invoice: newInvoice });
 
     res.status(201).json(newInvoice);
 

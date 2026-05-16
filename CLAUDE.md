@@ -31,7 +31,7 @@ Dental Management System (DMS) for dentists. Covers appointments, treatment char
 - Flow node types: message (text/image/video/document/audio/poll/location), delay, condition, subflow, end
 - Delay nodes write `ScheduledMessage` documents → `scheduledMessageJob` (runs every 60s) fires them — survives server restarts
 - Template placeholder substitution: `{{name}}`, `{{firstName}}`, `{{date}}`, `{{time}}`, `{{doctorName}}`, `{{treatment}}`, `{{invoiceId}}`, `{{amount}}`
-- Webhook at `POST /api/wasender/webhook` (public) handles inbound messages and poll votes to advance flow sessions
+- Webhook at `POST /api/wasender/webhook/:tenantId` (public; legacy bare `/api/wasender/webhook` kept as fallback) handles inbound messages and poll votes to advance flow sessions
 - Frontend flow builder uses `@xyflow/react` visual canvas
 
 ---
@@ -199,7 +199,7 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `POST /api/wasender/send` — send any message type (`{ to, type, text|imageUrl|videoUrl|documentUrl|audioUrl|poll|location, caption?, replyTo? }`)
 - `GET /api/wasender/inbox` — list conversations grouped by contactPhone
 - `GET /api/wasender/inbox/:phone` — message thread for a phone number
-- `POST /api/wasender/webhook` — **PUBLIC** inbound webhook (HMAC-SHA256 verified); handles messages.received, poll.results, session.status
+- `POST /api/wasender/webhook/:tenantId` (and legacy `POST /api/wasender/webhook`) — **PUBLIC** inbound webhook; verified by plain string-equality of the `X-Webhook-Signature` header against the stored `webhookSecret` (NOT HMAC — per WaSender docs); handles messages.received, poll.results, qrcode.updated, session.status
 
 ### Chatbot Flows (`/api/chatbot`)
 - `GET /api/chatbot/templates` — list built-in template flows (isTemplate:true)
@@ -352,4 +352,4 @@ WASENDER_BASE_URL=https://wasenderapi.com   # WaSender API base URL
 - Post-treatment care flows are per-treatmentName; multiple flows for different treatment types; matched case-insensitively via `$regex` in `triggerFlow`
 - Appointment reminder timing: when appointment is created/updated, a `ScheduledMessage` is created at `start_time - reminderOffsetHours`; old reminder cancelled on reschedule
 - `setupWaSenderDefaults.js` in `dms_backend/seeds/` seeds 8 template flows (isTemplate:true) — these appear in the "New Flow" template picker but are never directly activated
-- Webhook resolves tenant by scanning WaSenderConfig documents for matching sessionId; verifies HMAC-SHA256 signature against `webhookSecret`
+- Webhook resolves tenant deterministically from the `:tenantId` URL segment (one analytics lookup, no scan); legacy bare-URL requests fall back to scanning WaSenderConfig by sessionId. The tenant-scoped webhook URL is registered with WaSender per-session (`buildTenantWebhookUrl` appends the tenant id in `createSession`/`saveConfig`). Signature check is a plain string compare of `X-Webhook-Signature` vs `webhookSecret` (WaSender sends the raw secret, not an HMAC digest)

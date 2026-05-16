@@ -1,16 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import API from '../services/api';
+import { useAuth } from './AuthContext';
 
 const UserContext = createContext();
 
 export function UserProvider({ children }) {
+  const { isAuthenticated } = useAuth();
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
+    if (isAuthenticated) loadProfile();
+    else { setUser(null); setTenant(null); setLoading(false); }
+  }, [isAuthenticated]);
 
   const loadProfile = async () => {
     try {

@@ -49,6 +49,16 @@ export const EmailSettingsSchema = new mongoose.Schema(
           prescription: { type: Boolean, default: true },
         },
       },
+      invoiceGenerated: {
+        enabled: { type: Boolean, default: false },
+        delayMinutes: { type: Number, default: 0 },
+        attachInvoice: { type: Boolean, default: true },
+      },
+      aiReportReady: {
+        enabled: { type: Boolean, default: false },
+        delayMinutes: { type: Number, default: 0 },
+        attachReport: { type: Boolean, default: true },
+      },
     },
   },
   {

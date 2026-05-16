@@ -1,5 +1,5 @@
 import { logEvent } from '../services/analyticsLogger.js';
-import { triggerAppointmentCompleted } from './email.controller.js';
+import { triggerAppointmentCompleted, triggerAppointmentBooked } from './email.controller.js';
 import { triggerFlow } from '../services/chatbot.service.js';
 
 // Fetch session API key + trigger a WaSender flow (fire-and-forget)
@@ -135,6 +135,9 @@ export async function createAppointment(req, res) {
 
     // Log to analytics
     logEvent(req.user.tenantId, 'appointment_created', { appointmentId: saved._id, status: saved.status });
+
+    // Email automation (fire-and-forget)
+    triggerAppointmentBooked({ tenantModels: req.tenantModels, appointment: saved });
 
     // WaSender flows (fire-and-forget)
     buildApptTemplateData(req.tenantModels, saved).then(templateData => {

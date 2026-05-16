@@ -424,6 +424,9 @@ async function processWebhookEvent(payload, tenantModels, tenantConfig, tenantId
     const msg   = payload.data?.messages || {};
     const phone = normalizePhone(msg?.key?.cleanedSenderPn || msg?.key?.cleanedParticipantPn);
     const body  = msg?.messageBody || '';
+    // Sender's own WhatsApp profile name — used as a name fallback for
+    // first-time senders who aren't yet patients in the DB.
+    const senderName = msg?.pushName || msg?.verifiedBizName || msg?.notifyName || '';
     console.log('[webhook] inbound message | phone:', phone, '| body:', body);
     if (phone) {
       // Persist to MongoDB so the inbox has full history
@@ -438,7 +441,7 @@ async function processWebhookEvent(payload, tenantModels, tenantConfig, tenantId
           messageId: msg?.key?.id,
         }).catch(() => {}); // ignore duplicate messageId
       }
-      await processIncomingMessage(tenantModels, tenantConfig.sessionApiKey, phone, body, 'text');
+      await processIncomingMessage(tenantModels, tenantConfig.sessionApiKey, phone, body, 'text', senderName);
     } else {
       console.warn('[webhook] could not extract phone from message payload:', JSON.stringify(msg?.key));
     }
@@ -482,7 +485,7 @@ export async function handleWebhook(req, res) {
     const payload = req.body;
     console.log('[webhook] received event:', payload?.event || payload?.type, '| tenant:', req.params.tenantId || '(legacy)', '| session:', payload?.session?.id || payload?.sessionId, '| keys:', Object.keys(payload || {}).join(','));
 
-    const sessionId = payload?.session?.id || payload?.sessionId;
+    const sessionId = payload?.session?.id || payload?.sessionId || payload?.session_id;
     let resolved = null;
 
     if (req.params.tenantId) {

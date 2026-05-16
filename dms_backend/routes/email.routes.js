@@ -7,6 +7,7 @@ import {
   createTemplate,
   updateTemplate,
   deleteTemplate,
+  getTemplateVariables,
   sendReportEmail,
   getPatientEmailStatus,
   sendTreatmentSummary,
@@ -21,6 +22,7 @@ router.put('/settings', updateSettings);
 router.post('/test', testSend);
 
 // Templates
+router.get('/template-variables', getTemplateVariables);
 router.get('/templates', getTemplates);
 router.post('/templates', createTemplate);
 router.put('/templates/:id', updateTemplate);

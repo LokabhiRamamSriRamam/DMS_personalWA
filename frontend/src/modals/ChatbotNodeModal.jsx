@@ -54,6 +54,16 @@ const SAMPLE_DATA = {
   treatment: 'Root Canal', invoiceId: 'INV-2025-042', amount: '4500',
 };
 
+// Triggers fired by an inbound WhatsApp message: only a phone number is known,
+// so {{name}}/{{firstName}} resolve to the patient's name (if the number is
+// already a patient), else the sender's WhatsApp profile name, else blank.
+const NAME_RISK_TRIGGERS = ['first_message', 'custom_keyword'];
+const SAMPLE_DATA_NO_NAME = { ...SAMPLE_DATA, name: '', firstName: '' };
+
+function usesNamePlaceholder(content) {
+  return /\{\{\s*(name|firstName)\s*\}\}/.test(JSON.stringify(content || {}));
+}
+
 function substitute(text, data) {
   if (!text) return '';
   return text.replace(/\{\{(\w+)\}\}/g, (_, key) => data[key] ?? `{{${key}}}`);
@@ -72,6 +82,208 @@ function PlaceholderPicker({ triggerType, onInsert }) {
           {`{{${v}}}`}
         </button>
       ))}
+    </div>
+  );
+}
+
+// Curated emoji set — covers ~95% of clinic messaging. No dependency.
+const EMOJIS = [
+  '😀','😃','😄','😁','😉','😊','🙂','😍','😘','🥰','😎','🤗','🤔','😅','😇','🙃',
+  '👍','👏','🙏','💪','🤝','✌️','👋','☝️','👌','🤙','✅','❌','❗','❓',
+  '❤️','🩵','💙','💚','💛','🧡','💜','✨','⭐','🌟','🎉','🎊','🎁','🥳',
+  '🦷','🪥','🦠','💊','🏥','🩺','🩹','😷','🚑','👨‍⚕️','👩‍⚕️','🧑‍⚕️',
+  '📅','⏰','🕒','📞','📱','📍','📌','💬','📩','ℹ️','💡','🔔','😟','🙁','😢','🥺',
+];
+
+// Emoji palette: collapsible inline grid; inserts at cursor like PlaceholderPicker
+function EmojiPicker({ onInsert }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-2">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="flex items-center gap-1 text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition-colors">
+        <span className="material-symbols-outlined text-[16px]">mood</span>
+        Emoji
+        <span className="material-symbols-outlined text-[14px]">{open ? 'expand_less' : 'expand_more'}</span>
+      </button>
+      {open && (
+        <div className="mt-1.5 flex flex-wrap gap-0.5 p-2 rounded-lg border border-slate-200 bg-slate-50 max-h-32 overflow-y-auto">
+          {EMOJIS.map((e, i) => (
+            <button key={i} type="button" onClick={() => onInsert(e)}
+              className="w-7 h-7 flex items-center justify-center text-lg rounded hover:bg-blue-100 transition-colors">
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// WhatsApp text formatting reminder
+function FormattingHint() {
+  return (
+    <p className="text-[10px] text-slate-400 mt-1">
+      Formatting: *bold*  _italic_  ~strike~  ```mono```  — press Enter for a new line
+    </p>
+  );
+}
+
+// Multiline caption with placeholder + emoji insertion (image/video/document)
+function CaptionField({ value, onChange, triggerType, captionRef, insert }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Caption</label>
+      <PlaceholderPicker triggerType={triggerType} onInsert={insert} />
+      <EmojiPicker onInsert={insert} />
+      <textarea
+        ref={captionRef}
+        rows={3}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            const el = captionRef.current;
+            if (!el) return;
+            const start = el.selectionStart || 0;
+            const end = el.selectionEnd || 0;
+            const next = el.value.slice(0, start) + '\n' + el.value.slice(end);
+            onChange(next);
+            setTimeout(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); }, 0);
+          }
+        }}
+        placeholder="Optional caption"
+        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+      />
+      <FormattingHint />
+    </div>
+  );
+}
+
+// Minimal WhatsApp text formatting for the preview (escape first, then markup)
+function waFormat(raw) {
+  const esc = String(raw == null ? '' : raw)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return esc
+    .replace(/```([^`]+)```/g, '<span class="font-mono text-[12px] bg-black/5 rounded px-1">$1</span>')
+    .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
+    .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+    .replace(/~([^~\n]+)~/g, '<del>$1</del>');
+}
+
+function WaBubble({ label, children }) {
+  return (
+    <div className="flex flex-col">
+      {label && <span className="text-[9px] font-semibold uppercase tracking-wider text-slate-500 mb-1">{label}</span>}
+      <div className="self-end max-w-[90%] bg-[#d9fdd3] rounded-lg rounded-tr-[3px] px-2.5 py-1.5 shadow-sm">
+        {children}
+        <span className="flex items-center justify-end gap-1 mt-1 -mb-0.5">
+          <span className="text-[9px] text-slate-500">10:30</span>
+          <span className="material-symbols-outlined text-[14px] text-sky-500 leading-none">done_all</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function WaMedia({ type, fileName }) {
+  const icon = type === 'image' ? 'image' : type === 'video' ? 'movie' : type === 'audio' ? 'mic' : 'description';
+  const fallback = type.charAt(0).toUpperCase() + type.slice(1);
+  return (
+    <div className="mb-1 rounded-md bg-black/5 flex items-center justify-center gap-2 py-6 text-slate-500 min-w-[160px]">
+      <span className="material-symbols-outlined text-[26px]">{icon}</span>
+      <span className="text-xs">{fileName || fallback}</span>
+    </div>
+  );
+}
+
+function WaMessageBody({ form, data }) {
+  const c = form.content || {};
+  const mt = form.messageType;
+  const fmt = (s) => ({ __html: waFormat(substitute(s || '', data)) });
+
+  if (mt === 'text') {
+    return <p className="text-[13px] text-slate-800 leading-snug" style={{ whiteSpace: 'pre-wrap' }}
+      dangerouslySetInnerHTML={fmt(c.text)} />;
+  }
+  if (mt === 'image' || mt === 'video' || mt === 'document') {
+    return (
+      <>
+        <WaMedia type={mt} fileName={mt === 'document' ? c.fileName : null} />
+        {c.caption && <p className="text-[13px] text-slate-800 leading-snug" style={{ whiteSpace: 'pre-wrap' }}
+          dangerouslySetInnerHTML={fmt(c.caption)} />}
+      </>
+    );
+  }
+  if (mt === 'audio') return <WaMedia type="audio" />;
+  if (mt === 'poll') {
+    const poll = c.poll || {};
+    return (
+      <div className="min-w-[190px]">
+        <p className="text-[13px] font-medium text-slate-800 leading-snug mb-1.5"
+          dangerouslySetInnerHTML={fmt(poll.question || 'Poll question')} />
+        <div className="flex flex-col gap-1.5">
+          {(poll.options || []).filter(Boolean).map((o, i) => (
+            <div key={i} className="flex items-center gap-2 border border-black/10 rounded-md px-2 py-1.5 bg-white/70">
+              <span className={`w-3.5 h-3.5 border border-slate-400 ${poll.multiSelect ? 'rounded-sm' : 'rounded-full'}`} />
+              <span className="text-[12px] text-slate-700">{o}</span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-slate-500 mt-1.5">{poll.multiSelect ? 'Select one or more' : 'Select one'}</p>
+      </div>
+    );
+  }
+  if (mt === 'location') {
+    const loc = c.location || {};
+    return (
+      <div className="min-w-[180px]">
+        <div className="rounded-md bg-black/5 flex items-center justify-center py-5 mb-1">
+          <span className="material-symbols-outlined text-[26px] text-red-500">location_on</span>
+        </div>
+        <p className="text-[12px] font-medium text-slate-800">{loc.name || 'Location'}</p>
+        {loc.address && <p className="text-[11px] text-slate-500">{loc.address}</p>}
+      </div>
+    );
+  }
+  return null;
+}
+
+function WhatsAppPreview({ form, nameRiskActive }) {
+  if (form.nodeType !== 'message') {
+    const map = {
+      delay: `Waits ${form.delayValue || 1} ${form.delayUnit || 'hours'}, then continues`,
+      condition: 'Branches based on the customer reply',
+      subflow: 'Jumps into another flow',
+      end: 'Ends the conversation flow',
+    };
+    return (
+      <div className="flex-1 flex items-center justify-center p-6 text-center">
+        <p className="text-xs text-slate-600 bg-white/80 rounded-lg px-3 py-2">{map[form.nodeType] || 'No preview for this node'}</p>
+      </div>
+    );
+  }
+  return (
+    <div className="flex-1 flex flex-col">
+      <div className="bg-[#008069] text-white px-3 py-2 flex items-center gap-2">
+        <span className="material-symbols-outlined text-[22px]">account_circle</span>
+        <div className="leading-tight">
+          <p className="text-xs font-semibold">Patient</p>
+          <p className="text-[9px] text-white/70">WhatsApp preview</p>
+        </div>
+      </div>
+      <div className="flex-1 px-3 py-4 flex flex-col gap-3">
+        <WaBubble label={nameRiskActive ? 'Existing patient' : null}>
+          <WaMessageBody form={form} data={SAMPLE_DATA} />
+        </WaBubble>
+        {nameRiskActive && (
+          <WaBubble label="New customer — no name">
+            <WaMessageBody form={form} data={SAMPLE_DATA_NO_NAME} />
+          </WaBubble>
+        )}
+      </div>
     </div>
   );
 }
@@ -111,6 +323,8 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
   const setPoll = (k, v) => setForm(f => ({ ...f, content: { ...f.content, poll: { ...f.content.poll, [k]: v } } }));
   const setLocation = (k, v) => setForm(f => ({ ...f, content: { ...f.content, location: { ...f.content.location, [k]: v } } }));
 
+  const nameRiskActive = NAME_RISK_TRIGGERS.includes(triggerType) && usesNamePlaceholder(form.content);
+
   function handleSave() {
     if (!form.label.trim() && form.nodeType !== 'end') return alert('Label is required');
     onSave(form);
@@ -118,17 +332,18 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[92vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100">
           <h2 className="font-bold text-slate-900">{nodeData ? 'Edit Node' : 'Add Node'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 flex flex-col gap-5 min-h-0">
           {/* Node type selector (only for new nodes) */}
           {!nodeData && (
             <div className="flex flex-col gap-2">
@@ -168,6 +383,22 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
           {/* ── Message node fields ── */}
           {form.nodeType === 'message' && (
             <>
+              {nameRiskActive && (
+                <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 flex gap-2">
+                  <span className="material-symbols-outlined text-amber-600 text-[20px]">warning</span>
+                  <div className="text-xs text-amber-800 leading-relaxed">
+                    <p className="font-semibold mb-0.5">Name may be blank for new customers</p>
+                    <p>
+                      {'This flow is triggered by an incoming WhatsApp message, so we only know the sender’s phone number. '}
+                      <span className="font-mono">{'{{name}}'}</span> /{' '}
+                      <span className="font-mono">{'{{firstName}}'}</span>
+                      {' resolve to the patient’s name if the number already exists in your records, otherwise the sender’s WhatsApp profile name, and '}
+                      <span className="font-semibold">blank</span>
+                      {' if neither is available. Write the message so it still reads correctly with no name (e.g. “Hi! Thanks for reaching out”).'}
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message Type</label>
                 <div className="flex flex-wrap gap-2">
@@ -189,39 +420,48 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Message Text</label>
                   <PlaceholderPicker triggerType={triggerType} onInsert={insertAtCursor(textRef, 'text', true)} />
+                  <EmojiPicker onInsert={insertAtCursor(textRef, 'text', true)} />
                   <textarea
                     ref={textRef}
-                    rows={4}
+                    rows={6}
                     value={form.content.text}
                     onChange={e => setContent('text', e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const el = textRef.current;
+                        if (!el) return;
+                        const start = el.selectionStart || 0;
+                        const end = el.selectionEnd || 0;
+                        const next = el.value.slice(0, start) + '\n' + el.value.slice(end);
+                        setContent('text', next);
+                        setTimeout(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); }, 0);
+                      }
+                    }}
                     placeholder="Hello {{firstName}}! Tap a chip above to insert variables."
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
                   />
-                  {form.content.text && (
-                    <div className="mt-2 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                      <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-1">Live Preview</p>
-                      <p className="text-sm text-slate-800 whitespace-pre-wrap leading-relaxed">{substitute(form.content.text, SAMPLE_DATA)}</p>
-                    </div>
-                  )}
+                  <FormattingHint />
                 </div>
               )}
               {form.messageType === 'image' && (
                 <>
                   <InputField label="Image URL" value={form.content.imageUrl} onChange={v => setContent('imageUrl', v)} placeholder="https://…" />
-                  <InputField label="Caption" value={form.content.caption} onChange={v => setContent('caption', v)} placeholder="Optional caption" />
+                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
                 </>
               )}
               {form.messageType === 'video' && (
                 <>
                   <InputField label="Video URL" value={form.content.videoUrl} onChange={v => setContent('videoUrl', v)} placeholder="https://…" />
-                  <InputField label="Caption" value={form.content.caption} onChange={v => setContent('caption', v)} />
+                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
                 </>
               )}
               {form.messageType === 'document' && (
                 <>
                   <InputField label="Document URL" value={form.content.documentUrl} onChange={v => setContent('documentUrl', v)} placeholder="https://…" />
                   <InputField label="File Name" value={form.content.fileName} onChange={v => setContent('fileName', v)} placeholder="report.pdf" />
-                  <InputField label="Caption" value={form.content.caption} onChange={v => setContent('caption', v)} />
+                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
                 </>
               )}
               {form.messageType === 'audio' && (
@@ -232,16 +472,24 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Poll Question</label>
                     <PlaceholderPicker triggerType={triggerType} onInsert={insertAtCursor(pollQuestionRef, 'question', false, true)} />
-                    <input ref={pollQuestionRef} type="text" value={form.content.poll.question}
+                    <EmojiPicker onInsert={insertAtCursor(pollQuestionRef, 'question', false, true)} />
+                    <textarea ref={pollQuestionRef} rows={3} value={form.content.poll.question}
                       onChange={e => setPoll('question', e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const el = pollQuestionRef.current;
+                          if (!el) return;
+                          const start = el.selectionStart || 0;
+                          const end = el.selectionEnd || 0;
+                          const next = el.value.slice(0, start) + '\n' + el.value.slice(end);
+                          setPoll('question', next);
+                          setTimeout(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); }, 0);
+                        }
+                      }}
                       placeholder="How was your experience?"
-                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-                    {form.content.poll.question && (
-                      <div className="mt-1 rounded-xl border border-emerald-200 bg-emerald-50 p-2">
-                        <p className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-0.5">Preview</p>
-                        <p className="text-sm text-slate-800">{substitute(form.content.poll.question, SAMPLE_DATA)}</p>
-                      </div>
-                    )}
+                      className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y" />
                   </div>
                   <div className="flex flex-col gap-1">
                     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Options</label>
@@ -357,10 +605,14 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
               />
             </div>
           )}
+          </div>
+          <div className="flex lg:w-[340px] shrink-0 flex-col border-t lg:border-t-0 lg:border-l border-slate-100 bg-[#efeae2] overflow-y-auto h-72 lg:h-auto">
+            <WhatsAppPreview form={form} nameRiskActive={nameRiskActive} />
+          </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-3 px-4 sm:px-6 py-4 border-t border-slate-100">
           <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">Cancel</button>
           <button
             onClick={handleSave}

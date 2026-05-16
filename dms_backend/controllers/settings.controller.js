@@ -26,6 +26,33 @@ export async function saveBookingSettings(req, res) {
   }
 }
 
+// ── Invoice Settings ──────────────────────────────────────────────────────────
+
+export async function getInvoiceSettings(req, res) {
+  try {
+    const { InvoiceSettings } = req.tenantModels;
+    const settings = await InvoiceSettings.findOne().lean();
+    res.json(settings || {});
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function saveInvoiceSettings(req, res) {
+  try {
+    const { InvoiceSettings } = req.tenantModels;
+    const { _id, __v, createdAt, updatedAt, ...body } = req.body;
+    const settings = await InvoiceSettings.findOneAndUpdate(
+      {},
+      { $set: body },
+      { new: true, upsert: true, runValidators: true }
+    );
+    res.json(settings);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+}
+
 // ── Doctor Schedule ───────────────────────────────────────────────────────────
 
 export async function getDoctorSchedule(req, res) {

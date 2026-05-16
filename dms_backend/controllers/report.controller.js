@@ -5,6 +5,7 @@ import {
   createSubfolder,
 } from '../services/googleDrive.service.js';
 import { TEMPLATES, getTemplateById } from '../config/templates.config.js';
+import { triggerAiReportReady } from './email.controller.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 export const uploadMiddleware = upload.single('file');
@@ -567,6 +568,14 @@ export async function generateReport(req, res) {
         autofillData: autofill_v2, transcript,
       });
 
+      // Email automation (fire-and-forget)
+      triggerAiReportReady({
+        tenantModels: req.tenantModels,
+        patientId: job.patientId,
+        job: { reportText: reports[templateIds[0]], templateId: templates[0]?.name },
+        doctorName,
+      });
+
       // Send final metadata event
       res.write(`data: ${JSON.stringify({
         done: true,
@@ -674,6 +683,14 @@ export async function generateReport(req, res) {
 
     if (afResult.status === 'fulfilled') autofill_v2 = afResult.value;
     if (fileRecords.length > 0) { patient.files.push(...fileRecords); await patient.save(); }
+
+    // Email automation (fire-and-forget)
+    triggerAiReportReady({
+      tenantModels: req.tenantModels,
+      patientId: patient._id,
+      job: { reportText: reports[templateIds[0]], templateId: templates[0]?.name },
+      doctorName,
+    });
 
     res.write(`data: ${JSON.stringify({
       done: true, transcript,

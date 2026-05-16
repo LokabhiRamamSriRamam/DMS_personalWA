@@ -1,11 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { TEMPLATE_VARIABLES, SAMPLE_DATA, replacePlaceholders } from '../utils/templateVariables';
+import { X, Download } from 'lucide-react';
+import {
+  TEMPLATE_VARIABLES,
+  TEMPLATE_VARIABLE_LABELS,
+  SAMPLE_DATA,
+  variablesForEvent,
+  replacePlaceholders,
+  fetchTemplateVariables,
+} from '../utils/templateVariables';
+import { STARTER_TEMPLATES } from '../utils/emailStarterTemplates';
 
 const EVENT_OPTIONS = [
-  { value: 'aiReportReady',      label: 'AI Report Ready' },
-  { value: 'appointmentBooked',  label: 'Appointment Booked' },
-  { value: 'invoiceGenerated',   label: 'Invoice Generated' },
+  { value: 'appointmentBooked',    label: 'Appointment Booked' },
+  { value: 'appointmentCompleted', label: 'Appointment Completed' },
+  { value: 'invoiceGenerated',     label: 'Invoice Generated' },
+  { value: 'aiReportReady',        label: 'AI Report Ready' },
 ];
 
 const LANGUAGE_OPTIONS = [
@@ -16,7 +25,7 @@ const LANGUAGE_OPTIONS = [
 
 export default function EmailTemplateEditorModal({ template, onClose, onSave }) {
   const [form, setForm] = useState({
-    event:    template?.event    || 'aiReportReady',
+    event:    template?.event    || 'appointmentBooked',
     language: template?.language || 'en',
     subject:  template?.subject  || '',
     body:     template?.body     || '',
@@ -25,38 +34,53 @@ export default function EmailTemplateEditorModal({ template, onClose, onSave }) 
   const [saving, setSaving] = useState(false);
   const [focused, setFocused] = useState('body'); // which field the cursor is in
 
+  // Variable catalog — fetched from backend, falls back to local statics
+  const [catalog, setCatalog] = useState({
+    events: TEMPLATE_VARIABLES,
+    labels: TEMPLATE_VARIABLE_LABELS,
+    sample: SAMPLE_DATA,
+  });
+
   const subjectRef = useRef(null);
   const bodyRef    = useRef(null);
 
-  const previewSubject = replacePlaceholders(form.subject, SAMPLE_DATA);
-  const previewBody    = replacePlaceholders(form.body, SAMPLE_DATA);
+  useEffect(() => {
+    let alive = true;
+    fetchTemplateVariables().then(c => { if (alive) setCatalog(c); });
+    return () => { alive = false; };
+  }, []);
+
+  const eventVars = catalog.events?.[form.event] || variablesForEvent(form.event);
+  const sample    = catalog.sample || SAMPLE_DATA;
+  const labels    = catalog.labels || TEMPLATE_VARIABLE_LABELS;
+
+  const previewSubject = replacePlaceholders(form.subject, sample);
+  const previewBody    = replacePlaceholders(form.body, sample);
+
+  const starter = STARTER_TEMPLATES[form.event];
+
+  function importStarter() {
+    if (!starter) return;
+    if (
+      (form.subject.trim() || form.body.trim()) &&
+      !window.confirm('Replace the current subject and body with the starter template?')
+    ) return;
+    setForm(f => ({ ...f, subject: starter.subject, body: starter.body }));
+  }
 
   function insertVariable(varName) {
     const insertion = `{{${varName}}}`;
-
-    if (focused === 'subject') {
-      const el = subjectRef.current;
-      if (!el) return;
-      const start = el.selectionStart;
-      const end   = el.selectionEnd;
-      const next  = form.subject.slice(0, start) + insertion + form.subject.slice(end);
-      setForm(f => ({ ...f, subject: next }));
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start + insertion.length, start + insertion.length);
-      }, 0);
-    } else {
-      const el = bodyRef.current;
-      if (!el) return;
-      const start = el.selectionStart;
-      const end   = el.selectionEnd;
-      const next  = form.body.slice(0, start) + insertion + form.body.slice(end);
-      setForm(f => ({ ...f, body: next }));
-      setTimeout(() => {
-        el.focus();
-        el.setSelectionRange(start + insertion.length, start + insertion.length);
-      }, 0);
-    }
+    const field = focused === 'subject' ? 'subject' : 'body';
+    const el = field === 'subject' ? subjectRef.current : bodyRef.current;
+    if (!el) return;
+    const start = el.selectionStart;
+    const end   = el.selectionEnd;
+    const next  = form[field].slice(0, start) + insertion + form[field].slice(end);
+    setForm(f => ({ ...f, [field]: next }));
+    setTimeout(() => {
+      el.focus();
+      el.setSelectionRange(start + insertion.length, start + insertion.length);
+    }, 0);
   }
 
   async function handleSave() {
@@ -122,6 +146,22 @@ export default function EmailTemplateEditorModal({ template, onClose, onSave }) 
             </div>
           </div>
 
+          {/* Import starter */}
+          {starter && (
+            <div className="flex items-center justify-between gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-xs text-blue-700 dark:text-blue-300">
+                Start from a ready-made template for <strong>{EVENT_OPTIONS.find(o => o.value === form.event)?.label}</strong>, then edit it to taste.
+              </p>
+              <button
+                type="button"
+                onClick={importStarter}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#137fec] hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                <Download size={13} /> Import starter
+              </button>
+            </div>
+          )}
+
           {/* Active toggle */}
           <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
             <input
@@ -136,17 +176,18 @@ export default function EmailTemplateEditorModal({ template, onClose, onSave }) 
             </label>
           </div>
 
-          {/* Variable chips */}
+          {/* Variable chips — event-aware */}
           <div>
             <p className="text-xs font-bold text-slate-500 uppercase mb-2">
-              Insert Variable <span className="font-normal text-slate-400 normal-case">(click to insert at cursor position in {focused === 'subject' ? 'Subject' : 'Body'})</span>
+              Insert Variable <span className="font-normal text-slate-400 normal-case">(for this event — click to insert at cursor in {focused === 'subject' ? 'Subject' : 'Body'})</span>
             </p>
             <div className="flex flex-wrap gap-2">
-              {TEMPLATE_VARIABLES.map(v => (
+              {eventVars.map(v => (
                 <button
                   key={v}
                   type="button"
                   onClick={() => insertVariable(v)}
+                  title={labels[v] || v}
                   className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 rounded-md text-xs font-mono border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                 >
                   {`{{${v}}}`}
@@ -177,8 +218,8 @@ export default function EmailTemplateEditorModal({ template, onClose, onSave }) 
               value={form.body}
               onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
               onFocus={() => setFocused('body')}
-              placeholder="Hi {{name}}, please find your visit summary attached..."
-              rows={6}
+              placeholder="Hi {{first_name}}, please find your visit summary attached..."
+              rows={8}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none resize-none font-mono"
             />
           </div>

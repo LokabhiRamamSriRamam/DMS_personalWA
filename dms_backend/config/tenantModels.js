@@ -18,6 +18,7 @@ import { PollResponseSchema }       from '../models/PollResponse.model.js';
 
 import { PollTemplateSchema }       from '../models/PollTemplate.model.js';
 import { EmailSettingsSchema }      from '../models/EmailSettings.model.js';
+import { InvoiceSettingsSchema }    from '../models/InvoiceSettings.model.js';
 import { InventorySettingsSchema }  from '../models/InventorySettings.model.js';
 import { EmailTemplateSchema }      from '../models/EmailTemplate.model.js';
 import { EmailLogSchema }           from '../models/EmailLog.model.js';
@@ -62,6 +63,7 @@ export function getTenantModels(conn) {
 
     PollTemplate:       getOrCreate('PollTemplate',       PollTemplateSchema),
     EmailSettings:      getOrCreate('EmailSettings',      EmailSettingsSchema),
+    InvoiceSettings:    getOrCreate('InvoiceSettings',    InvoiceSettingsSchema),
     InventorySettings:  getOrCreate('InventorySettings',  InventorySettingsSchema),
     EmailTemplate:      getOrCreate('EmailTemplate',      EmailTemplateSchema),
     EmailLog:           getOrCreate('EmailLog',           EmailLogSchema),

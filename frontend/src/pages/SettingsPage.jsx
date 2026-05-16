@@ -434,11 +434,199 @@ function InventoryTab() {
   );
 }
 
+// ─── Invoice Settings Tab ────────────────────────────────────────────────────
+
+function InvoiceSettingsTab() {
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  const [form, setForm] = React.useState({
+    clinic: { name: '', addressLines: ['', ''], phone: '', email: '', gstNumber: '', logoUrl: '' },
+    currencySymbol: '₹',
+    tax: { label: 'Tax', defaultRatePct: 0, show: true },
+    invoiceNumber: { prefix: 'INV' },
+    showPaidPending: true,
+    footerText: '',
+    termsText: '',
+  });
+  const [loading, setLoading]   = React.useState(true);
+  const [saving, setSaving]     = React.useState(false);
+  const [banner, setBanner]     = React.useState(null);
+
+  React.useEffect(() => {
+    API.get('/settings/invoice')
+      .then(r => {
+        if (r.data && Object.keys(r.data).length > 0) {
+          const { _id, __v, createdAt, updatedAt, ...data } = r.data;
+          setForm(prev => ({
+            ...prev,
+            ...data,
+            clinic:        { ...prev.clinic,        ...(data.clinic        || {}) },
+            tax:           { ...prev.tax,           ...(data.tax           || {}) },
+            invoiceNumber: { ...prev.invoiceNumber, ...(data.invoiceNumber || {}) },
+          }));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setBanner(null);
+    try {
+      const { _id, __v, createdAt, updatedAt, ...payload } = form;
+      await API.put('/settings/invoice', payload);
+      setBanner({ ok: true, msg: 'Invoice settings saved.' });
+    } catch (err) {
+      setBanner({ ok: false, msg: err.response?.data?.message || err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function setClinic(field, val) {
+    setForm(f => ({ ...f, clinic: { ...f.clinic, [field]: val } }));
+  }
+  function setTax(field, val) {
+    setForm(f => ({ ...f, tax: { ...f.tax, [field]: val } }));
+  }
+  function setAddressLine(idx, val) {
+    const lines = [...(form.clinic.addressLines || ['', ''])];
+    lines[idx] = val;
+    setForm(f => ({ ...f, clinic: { ...f.clinic, addressLines: lines } }));
+  }
+
+  if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 max-w-2xl space-y-8">
+      <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+        Invoice Settings
+      </h2>
+
+      {/* Clinic / Branding */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Clinic / Branding
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Clinic Name</label>
+            <input type="text" value={form.clinic.name} onChange={e => setClinic('name', e.target.value)} placeholder="City Dental Clinic" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Address Line 1</label>
+            <input type="text" value={(form.clinic.addressLines || [])[0] || ''} onChange={e => setAddressLine(0, e.target.value)} placeholder="123, Main Street" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Address Line 2</label>
+            <input type="text" value={(form.clinic.addressLines || [])[1] || ''} onChange={e => setAddressLine(1, e.target.value)} placeholder="Mumbai, Maharashtra 400001" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Phone</label>
+            <input type="text" value={form.clinic.phone} onChange={e => setClinic('phone', e.target.value)} placeholder="+91 98765 43210" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Email</label>
+            <input type="email" value={form.clinic.email} onChange={e => setClinic('email', e.target.value)} placeholder="clinic@example.com" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">GST Number</label>
+            <input type="text" value={form.clinic.gstNumber} onChange={e => setClinic('gstNumber', e.target.value)} placeholder="27AAAAA0000A1Z5" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Logo URL (optional)</label>
+            <input type="url" value={form.clinic.logoUrl} onChange={e => setClinic('logoUrl', e.target.value)} placeholder="https://…/logo.png" className={inputCls} />
+          </div>
+        </div>
+      </section>
+
+      {/* Currency & Numbering */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Currency &amp; Numbering
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Currency Symbol</label>
+            <input type="text" value={form.currencySymbol} onChange={e => setForm(f => ({ ...f, currencySymbol: e.target.value }))} placeholder="₹" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Invoice Prefix</label>
+            <input type="text" value={form.invoiceNumber?.prefix || 'INV'} onChange={e => setForm(f => ({ ...f, invoiceNumber: { ...f.invoiceNumber, prefix: e.target.value } }))} placeholder="INV" className={inputCls} />
+          </div>
+        </div>
+      </section>
+
+      {/* Tax */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Tax
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Tax Label</label>
+            <input type="text" value={form.tax.label} onChange={e => setTax('label', e.target.value)} placeholder="GST / Tax" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Default Rate (%)</label>
+            <input type="number" min="0" max="100" value={form.tax.defaultRatePct} onChange={e => setTax('defaultRatePct', Number(e.target.value))} className={inputCls} />
+          </div>
+        </div>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={form.tax.show} onChange={e => setTax('show', e.target.checked)} className="accent-[#137fec] w-4 h-4" />
+          <span className="text-sm text-slate-700 dark:text-slate-300">Show tax line on invoice</span>
+        </label>
+      </section>
+
+      {/* Display options */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Display Options
+        </h3>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input type="checkbox" checked={form.showPaidPending} onChange={e => setForm(f => ({ ...f, showPaidPending: e.target.checked }))} className="accent-[#137fec] w-4 h-4" />
+          <span className="text-sm text-slate-700 dark:text-slate-300">Show Paid / Pending amounts on invoice</span>
+        </label>
+      </section>
+
+      {/* Footer & Terms */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Footer &amp; Terms
+        </h3>
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Footer Text</label>
+          <input type="text" value={form.footerText} onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))} placeholder="Thank you for choosing us!" className={inputCls} />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Terms &amp; Conditions</label>
+          <textarea rows={3} value={form.termsText} onChange={e => setForm(f => ({ ...f, termsText: e.target.value }))} placeholder="Payment is due within 7 days. All treatments are non-refundable." className={`${inputCls} resize-none`} />
+        </div>
+      </section>
+
+      <div className="flex items-center gap-4 pt-2">
+        <button onClick={save} disabled={saving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save Invoice Settings'}
+        </button>
+        {banner && (
+          <p className={`text-sm font-medium flex items-center gap-1.5 ${banner.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {banner.ok ? <CheckCircle size={15} /> : <XCircle size={15} />}
+            {banner.msg}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Email Tab ────────────────────────────────────────────────────────────────
 
 const EVENT_LABELS = {
   appointmentBooked:    'Appointment Booked',
   appointmentCompleted: 'Appointment Completed',
+  invoiceGenerated:     'Invoice Generated',
+  aiReportReady:        'AI Report Ready',
 };
 
 const COMPLETION_DOCS = [
@@ -461,9 +649,10 @@ function EmailTab() {
     fromName: '', fromEmail: '', replyTo: '',
     smtp: { host: 'smtp.gmail.com', port: 465, secure: true, user: '', password: '' },
     events: {
-      aiReportReady:     { enabled: false, delayMinutes: 0 },
-      appointmentBooked: { enabled: false, delayMinutes: 0 },
-      invoiceGenerated:  { enabled: false, delayMinutes: 0 },
+      appointmentBooked:    { enabled: false, delayMinutes: 0 },
+      appointmentCompleted: { enabled: false, delayMinutes: 0, include: {} },
+      invoiceGenerated:     { enabled: false, delayMinutes: 0, attachInvoice: true },
+      aiReportReady:        { enabled: false, delayMinutes: 0, attachReport: true },
     },
   });
   const [testEmail, setTestEmail] = useState('');
@@ -511,9 +700,10 @@ function EmailTab() {
           password: '', // never pre-fill password
         },
         events: res.data.events || {
-          aiReportReady:     { enabled: false, delayMinutes: 0 },
-          appointmentBooked: { enabled: false, delayMinutes: 0 },
-          invoiceGenerated:  { enabled: false, delayMinutes: 0 },
+          appointmentBooked:    { enabled: false, delayMinutes: 0 },
+          appointmentCompleted: { enabled: false, delayMinutes: 0, include: {} },
+          invoiceGenerated:     { enabled: false, delayMinutes: 0, attachInvoice: true },
+          aiReportReady:        { enabled: false, delayMinutes: 0, attachReport: true },
         },
       });
     } catch (err) {
@@ -922,8 +1112,10 @@ function EmailTab() {
                   <div>
                     <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
                     <p className="text-xs text-slate-400 mt-0.5">
-                      {event === 'appointmentBooked'    && 'Sends a confirmation email when a new appointment is created'}
+                      {event === 'appointmentBooked'    && 'Sends a confirmation email to the patient when a new appointment is created'}
                       {event === 'appointmentCompleted' && 'Sends a summary email with selected documents when an appointment is marked Completed'}
+                      {event === 'invoiceGenerated'     && 'Sends the invoice PDF to the patient automatically when a new invoice is created'}
+                      {event === 'aiReportReady'        && 'Emails the AI-generated clinical report to the patient as soon as it is ready'}
                     </p>
                   </div>
                   <div
@@ -952,7 +1144,7 @@ function EmailTab() {
                   <span className="text-xs text-slate-400">0 = immediately</span>
                 </div>
 
-                {/* Document selection — only for appointmentCompleted */}
+                {/* Document selection — appointmentCompleted */}
                 {event === 'appointmentCompleted' && (
                   <div className="space-y-1.5 pt-1 border-t border-slate-100">
                     <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Documents to attach</p>
@@ -983,6 +1175,60 @@ function EmailTab() {
                       </label>
                     ))}
                     <p className="text-xs text-slate-400 pt-1">Only documents that exist for the patient at the time of completion will be attached. If none exist, the email is skipped.</p>
+                  </div>
+                )}
+
+                {/* Attach option — invoiceGenerated */}
+                {event === 'invoiceGenerated' && (
+                  <div className="pt-1 border-t border-slate-100">
+                    <label className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smtpForm.events?.invoiceGenerated?.attachInvoice ?? true}
+                        onChange={() => setSmtpForm(f => ({
+                          ...f,
+                          events: {
+                            ...f.events,
+                            invoiceGenerated: {
+                              ...f.events?.invoiceGenerated,
+                              attachInvoice: !f.events?.invoiceGenerated?.attachInvoice,
+                            },
+                          },
+                        }))}
+                        className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">Attach Invoice PDF</p>
+                        <p className="text-xs text-slate-400">Include the invoice as a PDF attachment in the email</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                {/* Attach option — aiReportReady */}
+                {event === 'aiReportReady' && (
+                  <div className="pt-1 border-t border-slate-100">
+                    <label className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={smtpForm.events?.aiReportReady?.attachReport ?? true}
+                        onChange={() => setSmtpForm(f => ({
+                          ...f,
+                          events: {
+                            ...f.events,
+                            aiReportReady: {
+                              ...f.events?.aiReportReady,
+                              attachReport: !f.events?.aiReportReady?.attachReport,
+                            },
+                          },
+                        }))}
+                        className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
+                      />
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">Attach Report PDF</p>
+                        <p className="text-xs text-slate-400">Include the AI clinical report as a PDF attachment in the email</p>
+                      </div>
+                    </label>
                   </div>
                 )}
               </div>
@@ -1795,6 +2041,16 @@ const SettingsPage = () => {
             Email
           </button>
           <button
+            onClick={() => setActiveTab('invoice')}
+            className={`px-6 py-3 font-semibold transition-all ${
+              activeTab === 'invoice'
+                ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+            }`}
+          >
+            Invoice
+          </button>
+          <button
             onClick={() => setActiveTab('booking')}
             className={`px-6 py-3 font-semibold transition-all ${
               activeTab === 'booking'
@@ -2205,6 +2461,9 @@ const SettingsPage = () => {
 
         {/* Email Tab */}
         {activeTab === 'email' && <EmailTab />}
+
+        {/* Invoice Settings Tab */}
+        {activeTab === 'invoice' && <InvoiceSettingsTab />}
 
         {/* Online Booking Tab */}
         {activeTab === 'booking' && (
