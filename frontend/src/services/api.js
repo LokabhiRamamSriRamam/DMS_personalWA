@@ -8,6 +8,15 @@ import { API_BASE_URL, API_FALLBACK_URL, API_MAX_RETRIES } from '../config/env.j
 let primaryDown = false;
 let probeInterval = null;
 
+// Listeners so React components can react to circuit state changes
+const listeners = new Set();
+export function onCircuitChange(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+export function isUsingFallback() { return primaryDown; }
+function notifyListeners() { listeners.forEach(fn => fn(primaryDown)); }
+
 const PRIMARY_HEALTH_URL = new URL(API_BASE_URL).origin + '/health';
 const PROBE_INTERVAL_MS  = 2 * 60 * 1000; // 2 minutes
 
@@ -19,6 +28,7 @@ function startProbe() {
       primaryDown = false;
       clearInterval(probeInterval);
       probeInterval = null;
+      notifyListeners();
     } catch {
       // still down — keep probing
     }
@@ -75,6 +85,7 @@ api.interceptors.response.use(
         primaryDown          = true;
         config._usedFallback = true;
         config.baseURL       = API_FALLBACK_URL;
+        notifyListeners();
         startProbe();
         return api(config);
       }

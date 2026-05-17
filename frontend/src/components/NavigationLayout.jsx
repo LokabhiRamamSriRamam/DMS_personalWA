@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../Context/AuthContext.jsx';
 import { useUser } from '../Context/UserContext.jsx';
 import { useInventorySettings } from '../Context/SettingsContext.jsx';
+import ServerStatusBanner from './ServerStatusBanner.jsx';
 
 const SidebarItem = ({ icon, label, to = "#", active = false, onClick }) => {
   return (
@@ -266,8 +267,11 @@ const NavigationLayout = ({ children }) => {
         </div>
 
         {/* Scrollable page content — extra bottom padding on mobile for the tab bar */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 scroll-smooth">
-          {children}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <ServerStatusBanner />
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 scroll-smooth">
+            {children}
+          </div>
         </div>
       </main>
 
