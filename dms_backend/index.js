@@ -54,7 +54,14 @@ io.on('connection', socket => {
 });
 
 // Basic Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://ws-molaris-dms.jaytelecom.online',
+  ],
+  credentials: true,
+}));
 app.use(express.json({
   verify: (req, _res, buf) => { req.rawBody = buf; }, // preserve raw bytes for HMAC verification
 }));
