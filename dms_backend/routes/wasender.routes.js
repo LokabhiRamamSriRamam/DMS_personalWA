@@ -14,6 +14,10 @@ import {
   getContactsList,
   getContactInfo,
   getContactPicture,
+  listMedia,
+  uploadMedia,
+  deleteMedia,
+  uploadMediaMiddleware,
 } from '../controllers/wasender.controller.js';
 
 const router = express.Router();
@@ -32,5 +36,9 @@ router.get('/inbox/:phone',         getThread);
 router.get('/contacts',             getContactsList);
 router.get('/contacts/:phone/picture', getContactPicture);
 router.get('/contacts/:phone',      getContactInfo);
+
+router.get('/media',                listMedia);
+router.post('/media',               uploadMediaMiddleware, uploadMedia);
+router.delete('/media/:id',         deleteMedia);
 
 export default router;

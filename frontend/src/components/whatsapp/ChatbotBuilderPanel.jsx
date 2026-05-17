@@ -249,7 +249,7 @@ export default function ChatbotBuilderPanel() {
     setEdges(es => addEdge({ ...params, id, label: '', type: 'smoothstep', style: { stroke: '#94a3b8' }, labelStyle: { fontSize: 11, fill: '#475569' } }, es));
     const suggestions = getEdgeSuggestions(params.source);
     setTimeout(() => {
-      setEdgeEdit({ edgeId: id, label: '', x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100, suggestions });
+      setEdgeEdit({ edgeId: id, sourceNodeId: params.source, label: '', x: window.innerWidth / 2 - 150, y: window.innerHeight / 2 - 100, suggestions });
       edgeEditRef.current = '';
     }, 50);
   }, [setEdges]);
@@ -257,7 +257,7 @@ export default function ChatbotBuilderPanel() {
   const onEdgeClick = useCallback((_evt, edge) => {
     const rect = _evt.target.getBoundingClientRect();
     const suggestions = getEdgeSuggestions(edge.source);
-    setEdgeEdit({ edgeId: edge.id, label: edge.label || '', x: rect.left, y: rect.top, suggestions });
+    setEdgeEdit({ edgeId: edge.id, sourceNodeId: edge.source, label: edge.label || '', x: rect.left, y: rect.top, suggestions });
     edgeEditRef.current = edge.label || '';
   }, []);
 
@@ -590,9 +590,36 @@ export default function ChatbotBuilderPanel() {
           style={{ left: Math.min(edgeEdit.x, window.innerWidth - 340), top: Math.min(edgeEdit.y, window.innerHeight - 220) }}
         >
           <p className="text-xs font-bold text-slate-700 mb-1">Edge Label — Response Match</p>
-          <p className="text-[11px] text-slate-400 mb-3">
-            Type the reply text, <code className="bg-slate-100 px-1 rounded">*</code> for any reply, or leave empty for auto-advance.
+          <p className="text-[11px] text-slate-400 mb-2">
+            Type the reply text, <code className="bg-slate-100 px-1 rounded">*</code> for any reply, or leave empty to auto-advance without waiting for a reply.
           </p>
+          {(() => {
+            const srcNode = nodesRef.current.find(n => n.id === edgeEdit.sourceNodeId);
+            const waitForResponse = srcNode?.data?.waitForResponse;
+            return (
+              <>
+                <button
+                  onClick={() => {
+                    edgeEditRef.current = '';
+                    setEdges(es => es.map(e => e.id === edgeEdit.edgeId ? { ...e, label: '' } : e));
+                    setEdgeEdit(null);
+                  }}
+                  className="w-full mb-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 py-2 rounded-lg hover:bg-emerald-100 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[15px]">arrow_downward</span>
+                  Auto-advance (no label — sends immediately, no reply needed)
+                </button>
+                {waitForResponse && (
+                  <div className="mb-3 flex items-start gap-1.5 rounded-lg bg-red-50 border border-red-200 px-3 py-2">
+                    <span className="material-symbols-outlined text-red-500 text-[15px] mt-0.5">warning</span>
+                    <p className="text-[11px] text-red-700 leading-snug">
+                      The source node has <span className="font-semibold">"Wait for reply"</span> checked — auto-advance won't work until you uncheck it on that node.
+                    </p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           {edgeEdit.suggestions?.length > 0 && (
             <div className="mb-3">

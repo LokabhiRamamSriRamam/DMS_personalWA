@@ -31,6 +31,7 @@ import { ScheduledMessageSchema }   from '../models/ScheduledMessage.model.js';
 import { FlowLogSchema }            from '../models/FlowLog.model.js';
 import { BookingSettingsSchema }    from '../models/BookingSettings.model.js';
 import { DoctorSchema }             from '../models/Doctor.model.js';
+import { WhatsAppMediaSchema }      from '../models/WhatsAppMedia.model.js';
 
 /**
  * Returns all clinic Mongoose models bound to the given tenant connection.
@@ -76,6 +77,7 @@ export function getTenantModels(conn) {
     ScheduledMessage:   getOrCreate('ScheduledMessage',   ScheduledMessageSchema),
     FlowLog:            getOrCreate('FlowLog',            FlowLogSchema),
     BookingSettings:    getOrCreate('BookingSettings',    BookingSettingsSchema),
+    WhatsAppMedia:      getOrCreate('WhatsAppMedia',      WhatsAppMediaSchema),
   };
 
   return conn._dmsModels;

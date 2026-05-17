@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import MediaPicker from '../components/whatsapp/MediaPicker.jsx';
 
 const NODE_TYPES = [
   { value: 'message',   label: 'Message',   icon: 'chat_bubble', desc: 'Send a WhatsApp message' },
@@ -129,35 +130,20 @@ function FormattingHint() {
   );
 }
 
-// Multiline caption with placeholder + emoji insertion (image/video/document)
-function CaptionField({ value, onChange, triggerType, captionRef, insert }) {
+function MediaCaptionNotice() {
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Caption</label>
-      <PlaceholderPicker triggerType={triggerType} onInsert={insert} />
-      <EmojiPicker onInsert={insert} />
-      <textarea
-        ref={captionRef}
-        rows={3}
-        value={value || ''}
-        onChange={e => onChange(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            e.stopPropagation();
-            const el = captionRef.current;
-            if (!el) return;
-            const start = el.selectionStart || 0;
-            const end = el.selectionEnd || 0;
-            const next = el.value.slice(0, start) + '\n' + el.value.slice(end);
-            onChange(next);
-            setTimeout(() => { el.focus(); el.setSelectionRange(start + 1, start + 1); }, 0);
-          }
-        }}
-        placeholder="Optional caption"
-        className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
-      />
-      <FormattingHint />
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 flex gap-2">
+      <span className="material-symbols-outlined text-amber-600 text-[20px] mt-0.5">info</span>
+      <div className="text-xs text-amber-800 leading-relaxed">
+        <p className="font-semibold mb-1">Captions are not supported for this message type</p>
+        <p>
+          WhatsApp no longer allows text captions alongside image, video, or document messages via the API.
+        </p>
+        <p className="mt-1.5 font-medium">Tip — send text separately:</p>
+        <p className="mt-0.5">
+          Add a <span className="font-semibold">Text</span> message node right after this one and connect them with an <span className="font-semibold">unlabelled edge</span> (auto-advance). Both messages will be sent back-to-back without waiting for a reply.
+        </p>
+      </div>
     </div>
   );
 }
@@ -291,7 +277,6 @@ function WhatsAppPreview({ form, nameRiskActive }) {
 export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, flows = [], triggerType = 'first_message' }) {
   const [form, setForm] = useState(DEFAULT);
   const textRef = React.useRef(null);
-  const captionRef = React.useRef(null);
   const pollQuestionRef = React.useRef(null);
 
   // Insert text at cursor in given ref'd input
@@ -447,25 +432,37 @@ export default function ChatbotNodeModal({ isOpen, onClose, onSave, nodeData, fl
               )}
               {form.messageType === 'image' && (
                 <>
-                  <InputField label="Image URL" value={form.content.imageUrl} onChange={v => setContent('imageUrl', v)} placeholder="https://…" />
-                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Image</label>
+                    <MediaPicker mediaType="image" value={form.content.imageUrl} onChange={v => setContent('imageUrl', v)} />
+                  </div>
+                  <MediaCaptionNotice />
                 </>
               )}
               {form.messageType === 'video' && (
                 <>
-                  <InputField label="Video URL" value={form.content.videoUrl} onChange={v => setContent('videoUrl', v)} placeholder="https://…" />
-                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Video</label>
+                    <MediaPicker mediaType="video" value={form.content.videoUrl} onChange={v => setContent('videoUrl', v)} />
+                  </div>
+                  <MediaCaptionNotice />
                 </>
               )}
               {form.messageType === 'document' && (
                 <>
-                  <InputField label="Document URL" value={form.content.documentUrl} onChange={v => setContent('documentUrl', v)} placeholder="https://…" />
-                  <InputField label="File Name" value={form.content.fileName} onChange={v => setContent('fileName', v)} placeholder="report.pdf" />
-                  <CaptionField value={form.content.caption} onChange={v => setContent('caption', v)} triggerType={triggerType} captionRef={captionRef} insert={insertAtCursor(captionRef, 'caption', true)} />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Document</label>
+                    <MediaPicker mediaType="document" value={form.content.documentUrl} onChange={v => { setContent('documentUrl', v); }} />
+                  </div>
+                  <InputField label="Display File Name" value={form.content.fileName} onChange={v => setContent('fileName', v)} placeholder="e.g. care-instructions.pdf" />
+                  <MediaCaptionNotice />
                 </>
               )}
               {form.messageType === 'audio' && (
-                <InputField label="Audio URL" value={form.content.audioUrl} onChange={v => setContent('audioUrl', v)} placeholder="https://…" />
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Audio</label>
+                  <MediaPicker mediaType="audio" value={form.content.audioUrl} onChange={v => setContent('audioUrl', v)} />
+                </div>
               )}
               {form.messageType === 'poll' && (
                 <div className="flex flex-col gap-3">

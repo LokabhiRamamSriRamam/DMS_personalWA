@@ -59,6 +59,8 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:5174',
     'https://ws-molaris-dms.jaytelecom.online',
+    'https://molarisai.connectgenai.in',
+    'https://dms-frontend-nu.vercel.app',
   ],
   credentials: true,
 }));

@@ -1,11 +1,16 @@
 import crypto from 'crypto';
+import multer from 'multer';
 import * as wasender from '../services/wasender.service.js'; // includes updateWebhook, updateSession
 import { processIncomingMessage, normalizePhone } from '../services/chatbot.service.js';
 import { getAnalyticsDb } from '../config/analyticsDb.js';
 import { getTenantConnection } from '../config/tenantDb.js';
 import { getTenantModels } from '../config/tenantModels.js';
+import { uploadFile, deleteFile } from '../services/cloudinary.service.js';
 import mongoose from 'mongoose';
 import { io } from '../index.js';
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+export const uploadMediaMiddleware = upload.single('file');
 
 // Mask a secret, showing only the last 4 chars
 function mask(val) {
@@ -523,5 +528,64 @@ export async function handleWebhook(req, res) {
     await processWebhookEvent(payload, tenantModels, tenantConfig, tenantId);
   } catch (err) {
     console.error('[webhook] error', err.message);
+  }
+}
+
+// ── WhatsApp Media Library ────────────────────────────────────────────────────
+
+function inferMediaType(mimeType, originalName) {
+  if (!mimeType) return 'document';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('video/')) return 'video';
+  if (mimeType.startsWith('audio/')) return 'audio';
+  return 'document';
+}
+
+export async function listMedia(req, res) {
+  try {
+    const { WhatsAppMedia } = req.tenantModels;
+    const items = await WhatsAppMedia.find().sort({ createdAt: -1 }).lean();
+    res.json(items);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function uploadMedia(req, res) {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+    const { WhatsAppMedia } = req.tenantModels;
+    const mediaType = inferMediaType(req.file.mimetype, req.file.originalname);
+    const result = await uploadFile(
+      req.file.buffer,
+      req.file.originalname,
+      'dms/whatsapp-media',
+      ['whatsapp-media'],
+      req.tenantConfig,
+    );
+    const doc = await WhatsAppMedia.create({
+      publicId:  result.publicId,
+      url:       result.url,
+      fileName:  req.file.originalname,
+      mediaType,
+      mimeType:  req.file.mimetype,
+      size:      req.file.size,
+    });
+    res.status(201).json(doc);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+}
+
+export async function deleteMedia(req, res) {
+  try {
+    const { WhatsAppMedia } = req.tenantModels;
+    const doc = await WhatsAppMedia.findById(req.params.id);
+    if (!doc) return res.status(404).json({ message: 'Not found' });
+    await deleteFile(doc.publicId, req.tenantConfig);
+    await doc.deleteOne();
+    res.json({ message: 'Deleted' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 }
