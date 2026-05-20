@@ -811,21 +811,23 @@ function EmailTab() {
         <Mail size={22} /> Email
       </h2>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-1 mb-6 border-b border-slate-200 dark:border-slate-700">
-        {['connection', 'automation', 'templates', 'logs'].map(t => (
-          <button
-            key={t}
-            onClick={() => setEmailSubTab(t)}
-            className={`px-4 py-2.5 text-sm font-semibold capitalize transition-all ${
-              emailSubTab === t
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+      {/* Sub-tabs — scrollable on mobile */}
+      <div className="overflow-x-auto scrollbar-none -mx-6 px-6 mb-6 border-b border-slate-200 dark:border-slate-700">
+        <div className="flex gap-0 min-w-max">
+          {['connection', 'automation', 'templates', 'logs'].map(t => (
+            <button
+              key={t}
+              onClick={() => setEmailSubTab(t)}
+              className={`flex-shrink-0 px-4 py-2.5 text-sm font-semibold capitalize transition-all ${
+                emailSubTab === t
+                  ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Connection ── */}
@@ -1010,7 +1012,7 @@ function EmailTab() {
             <input type="password" value={smtpForm.smtp.password} onChange={e => setSmtpForm(f => ({ ...f, smtp: { ...f.smtp, password: e.target.value } }))} placeholder={settings?.smtp?.user ? '••••••••  (leave blank to keep existing)' : 'Password'} className={inputCls} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase block mb-1">From Name</label>
               <input type="text" value={smtpForm.fromName} onChange={e => setSmtpForm(f => ({ ...f, fromName: e.target.value }))} placeholder="Dr. Name" className={inputCls} />
@@ -1019,7 +1021,7 @@ function EmailTab() {
               <label className="text-xs font-bold text-slate-500 uppercase block mb-1">From Email</label>
               <input type="email" value={smtpForm.fromEmail} onChange={e => setSmtpForm(f => ({ ...f, fromEmail: e.target.value }))} placeholder="clinic@example.com" className={inputCls} />
             </div>
-            <div className="col-span-2">
+            <div className="col-span-1 xs:col-span-2">
               <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Reply-To (optional)</label>
               <input type="email" value={smtpForm.replyTo} onChange={e => setSmtpForm(f => ({ ...f, replyTo: e.target.value }))} placeholder="replies@example.com" className={inputCls} />
             </div>
@@ -1048,7 +1050,7 @@ function EmailTab() {
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Verify with a Test Email</p>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">After saving your settings, send a test email to confirm everything is working. Enter your own email address below and click <strong>Send Test</strong>. If it arrives in your inbox your setup is complete. Check your <strong>Spam folder</strong> if you don't see it within a minute. If it fails, the error message will tell you exactly what to fix.</p>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col xs:flex-row gap-2">
               <input type="email" value={testEmail} onChange={e => setTestEmail(e.target.value)} placeholder="your@email.com" className={`${inputCls} flex-1`} />
               <button onClick={sendTestEmail} disabled={testStatus === 'sending'} className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-60">
                 {testStatus === 'sending' ? 'Sending…' : 'Send Test'}
@@ -1896,86 +1898,39 @@ const SettingsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-3 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
           <p className="text-slate-600 dark:text-slate-400">Manage clinic configuration and clinical data</p>
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setActiveTab('doctors')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'doctors'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Doctors
-          </button>
-          <button
-            onClick={() => setActiveTab('treatment')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'treatment'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Clinical Data
-          </button>
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'inventory'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Inventory
-          </button>
-          <button
-            onClick={() => setActiveTab('email')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'email'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Email
-          </button>
-          <button
-            onClick={() => setActiveTab('invoice')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'invoice'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Invoice
-          </button>
-          <button
-            onClick={() => setActiveTab('booking')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'booking'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Online Booking
-          </button>
-          <button
-            onClick={() => setActiveTab('doctorSchedules')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'doctorSchedules'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Doctor Schedules
-          </button>
+        {/* Tabs — horizontally scrollable on mobile */}
+        <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
+          <div className="flex gap-0 min-w-max">
+            {[
+              { id: 'doctors',         label: 'Doctors' },
+              { id: 'treatment',       label: 'Clinical Data' },
+              { id: 'inventory',       label: 'Inventory' },
+              { id: 'email',           label: 'Email' },
+              { id: 'invoice',         label: 'Invoice' },
+              { id: 'booking',         label: 'Online Booking' },
+              { id: 'doctorSchedules', label: 'Doctor Schedules' },
+            ].map(t => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={`flex-shrink-0 px-4 sm:px-6 py-3 font-semibold transition-all whitespace-nowrap ${
+                  activeTab === t.id
+                    ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Doctors Tab */}
@@ -2007,57 +1962,58 @@ const SettingsPage = () => {
                 <p>No doctors added yet. Click "Add Doctor" to get started.</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Specialization</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Email</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Phone</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Experience</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-300">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {doctors.map(doctor => (
-                      <tr key={doctor._id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-slate-800 dark:text-white">{doctor.name}</p>
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          {doctor.specialization || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          {doctor.email || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          {doctor.phone || '-'}
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          {doctor.experience_years} years
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => handleEditDoctor(doctor)}
-                              className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteDoctor(doctor._id)}
-                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
+              <>
+                {/* Mobile cards */}
+                <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                  {doctors.map(doctor => (
+                    <div key={doctor._id} className="py-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-800 dark:text-white truncate">{doctor.name}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{doctor.specialization || '—'}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">{doctor.email || '—'} · {doctor.phone || '—'}</p>
+                        <p className="text-xs text-slate-400">{doctor.experience_years} yrs exp</p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button onClick={() => handleEditDoctor(doctor)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                        <button onClick={() => handleDeleteDoctor(doctor._id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Desktop table */}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 dark:bg-slate-700">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Name</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Specialization</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Email</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Phone</th>
+                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Experience</th>
+                        <th className="px-6 py-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-300">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                      {doctors.map(doctor => (
+                        <tr key={doctor._id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                          <td className="px-6 py-4"><p className="font-semibold text-slate-800 dark:text-white">{doctor.name}</p></td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{doctor.specialization || '-'}</td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{doctor.email || '-'}</td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{doctor.phone || '-'}</td>
+                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">{doctor.experience_years} years</td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-center gap-2">
+                              <button onClick={() => handleEditDoctor(doctor)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Edit2 size={18} /></button>
+                              <button onClick={() => handleDeleteDoctor(doctor._id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Trash2 size={18} /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -2065,21 +2021,23 @@ const SettingsPage = () => {
         {/* Treatment Tab */}
         {activeTab === 'treatment' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-            {/* Treatment Sub-tabs */}
-            <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700">
-              {['findings', 'diagnoses', 'treatments'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setTreatmentTab(tab)}
-                  className={`px-4 py-2 font-semibold transition-all capitalize ${
-                    treatmentTab === tab
-                      ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                      : 'text-slate-600 dark:text-slate-400'
-                  }`}
-                >
-                  {tab === 'findings' ? 'Clinical Findings' : tab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
-                </button>
-              ))}
+            {/* Treatment Sub-tabs — scrollable on mobile */}
+            <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex gap-0 min-w-max">
+                {['findings', 'diagnoses', 'treatments'].map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setTreatmentTab(tab)}
+                    className={`flex-shrink-0 px-4 py-2 font-semibold transition-all ${
+                      treatmentTab === tab
+                        ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                        : 'text-slate-600 dark:text-slate-400'
+                    }`}
+                  >
+                    {tab === 'findings' ? 'Clinical Findings' : tab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Bulk Mode Toggle */}
@@ -2689,25 +2647,27 @@ const SettingsPage = () => {
                 <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Weekly Availability</h4>
                 <div className="space-y-2">
                   {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                    <div key={day} className="flex items-center gap-3">
-                      <label className="w-24 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">
+                    <div key={day} className="flex flex-col xs:flex-row xs:items-center gap-1.5 xs:gap-3">
+                      <label className="w-24 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize flex-shrink-0">
                         {day}
                       </label>
-                      <input
-                        type="time"
-                        name={`availability_${day}_start`}
-                        value={doctorFormData.availability[day]?.start || ''}
-                        onChange={handleDoctorChange}
-                        className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                      />
-                      <span className="text-slate-500">to</span>
-                      <input
-                        type="time"
-                        name={`availability_${day}_end`}
-                        value={doctorFormData.availability[day]?.end || ''}
-                        onChange={handleDoctorChange}
-                        className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                      />
+                      <div className="flex items-center gap-2 flex-1">
+                        <input
+                          type="time"
+                          name={`availability_${day}_start`}
+                          value={doctorFormData.availability[day]?.start || ''}
+                          onChange={handleDoctorChange}
+                          className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+                        />
+                        <span className="text-slate-500 flex-shrink-0">to</span>
+                        <input
+                          type="time"
+                          name={`availability_${day}_end`}
+                          value={doctorFormData.availability[day]?.end || ''}
+                          onChange={handleDoctorChange}
+                          className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>

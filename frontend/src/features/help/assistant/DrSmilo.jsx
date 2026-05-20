@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useDrSmilo } from './useDrSmilo.js';
 import SmiloAvatar from './components/SmiloAvatar.jsx';
@@ -8,6 +8,8 @@ import WalkthroughCard from './components/WalkthroughCard.jsx';
 import TypingIndicator from './components/TypingIndicator.jsx';
 import ConfettiBurst from './components/ConfettiBurst.jsx';
 
+const DRAG_THRESHOLD = 5; // px before a pointer-down is treated as a drag
+
 export default function DrSmilo() {
   const location  = useLocation();
   const navigate  = useNavigate();
@@ -16,6 +18,10 @@ export default function DrSmilo() {
   const inputRef  = useRef(null);
   const [inputValue, setInputValue] = useState('');
   const [hasOpened, setHasOpened]   = useState(false);
+
+  // FAB position — stored as { right, bottom } from viewport edges
+  const [fabPos, setFabPos] = useState({ right: 24, bottom: 24 });
+  const dragState = useRef(null); // { startX, startY, startRight, startBottom, moved }
 
   // Auto-scroll to bottom whenever messages change
   useEffect(() => {
@@ -43,6 +49,55 @@ export default function DrSmilo() {
     setInputValue('');
   }
 
+  // ── Drag handlers ──────────────────────────────────────────────────────────
+  const onPointerDown = useCallback((e) => {
+    // Only primary button / touch
+    if (e.button !== undefined && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragState.current = {
+      startX:      e.clientX,
+      startY:      e.clientY,
+      startRight:  fabPos.right,
+      startBottom: fabPos.bottom,
+      moved:       false,
+    };
+  }, [fabPos]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!dragState.current) return;
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+
+    if (!dragState.current.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    dragState.current.moved = true;
+
+    // right decreases when dragging right, increases when dragging left
+    const newRight  = Math.max(0, Math.min(window.innerWidth  - 60, dragState.current.startRight  - dx));
+    // bottom decreases when dragging down, increases when dragging up
+    const newBottom = Math.max(0, Math.min(window.innerHeight - 60, dragState.current.startBottom - dy));
+
+    setFabPos({ right: newRight, bottom: newBottom });
+  }, []);
+
+  const onPointerUp = useCallback((e) => {
+    if (!dragState.current) return;
+    const wasDrag = dragState.current.moved;
+    dragState.current = null;
+
+    if (!wasDrag) {
+      // Treat as click
+      if (smilo.isOpen) smilo.close();
+      else handleOpen();
+    }
+  }, [smilo.isOpen, smilo.close, handleOpen]);
+
+  // ── Chat panel position: derived from FAB, clamped to viewport ─────────────
+  const panelWidth  = Math.min(380, window.innerWidth - 32);
+  const panelHeight = Math.min(560, window.innerHeight - 96);
+  // Position panel to the left/above FAB; clamp so it stays in viewport
+  const panelRight  = Math.max(8, Math.min(fabPos.right, window.innerWidth  - panelWidth  - 8));
+  const panelBottom = Math.max(8, Math.min(fabPos.bottom + 68, window.innerHeight - panelHeight - 8));
+
   // Latest message's quickReplies determine what chips to show
   const lastSmiloMsg = [...smilo.messages].reverse().find(m => m.sender === 'smilo');
   const activeChips  = lastSmiloMsg?.quickReplies ?? null;
@@ -51,33 +106,51 @@ export default function DrSmilo() {
   return (
     <>
       {/* ── Floating launcher button ── */}
-      <button
-        onClick={smilo.isOpen ? smilo.close : handleOpen}
-        className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 shadow-lg transition-all duration-300 ${
-          smilo.isOpen
-            ? 'bg-white border border-slate-200 rounded-full px-3 py-2 text-slate-600 hover:bg-slate-50'
-            : 'bg-white border-2 border-[#137fec] rounded-2xl px-3 py-2 hover:shadow-xl hover:scale-105'
-        }`}
-        title={smilo.isOpen ? 'Close Dr. Smilo' : 'Ask Dr. Smilo'}
+      <div
+        style={{
+          position:   'fixed',
+          right:      fabPos.right,
+          bottom:     fabPos.bottom,
+          zIndex:     50,
+          touchAction: 'none',
+          cursor:     'grab',
+          userSelect: 'none',
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       >
-        <SmiloAvatar state={smilo.isOpen ? 'idle' : (hasOpened ? 'happy' : 'idle')} size={28} />
-        {!smilo.isOpen && (
-          <span className="text-sm font-semibold text-[#137fec] pr-1">Ask Dr. Smilo</span>
-        )}
-        {smilo.isOpen && (
-          <span className="material-symbols-outlined text-[18px]">close</span>
-        )}
-      </button>
+        <div
+          className={`flex items-center gap-2.5 shadow-lg transition-all duration-300 ${
+            smilo.isOpen
+              ? 'bg-white border border-slate-200 rounded-full px-3 py-2 text-slate-600 hover:bg-slate-50'
+              : 'bg-white border-2 border-[#137fec] rounded-2xl px-3 py-2 hover:shadow-xl hover:scale-105'
+          }`}
+          title={smilo.isOpen ? 'Close Dr. Smilo' : 'Ask Dr. Smilo'}
+        >
+          <SmiloAvatar state={smilo.isOpen ? 'idle' : (hasOpened ? 'happy' : 'idle')} size={28} />
+          {!smilo.isOpen && (
+            <span className="text-sm font-semibold text-[#137fec] pr-1">Ask Dr. Smilo</span>
+          )}
+          {smilo.isOpen && (
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          )}
+        </div>
+      </div>
 
       {/* ── Chat panel ── */}
       <div
-        className={`fixed z-[60] transition-all duration-300 ease-in-out ${
+        style={{
+          position: 'fixed',
+          right:    panelRight,
+          bottom:   panelBottom,
+          width:    panelWidth,
+          height:   panelHeight,
+          zIndex:   60,
+        }}
+        className={`transition-all duration-300 ease-in-out ${
           smilo.isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
         }
-        bottom-20 right-6
-        w-[380px] max-w-[calc(100vw-2rem)]
-        md:bottom-6 md:right-[5.5rem]
-        h-[560px] max-h-[calc(100vh-6rem)]
         bg-white rounded-2xl shadow-2xl border border-slate-200
         flex flex-col overflow-hidden`}
       >

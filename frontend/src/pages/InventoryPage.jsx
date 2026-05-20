@@ -49,17 +49,13 @@ const InventoryPage = () => {
 
   const [activeTab, setActiveTab] = useState('Stock');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // 1. REFRESH TRIGGER STATE
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [isLowStock, setIsLowStock] = useState(false);
 
-  // Tracks which modal is currently active
+  const [refreshKey, setRefreshKey] = useState(0);
   const [activeModal, setActiveModal] = useState(null);
 
   const closeModal = () => setActiveModal(null);
 
-  // 2. HANDLE SAVE & REFRESH
-  // Passed to Modals. When called, it closes modal AND increments key to reload lists
   const handleSave = () => {
     setRefreshKey(prev => prev + 1);
     closeModal();
@@ -72,14 +68,14 @@ const InventoryPage = () => {
     else if (activeTab === 'Vendors') setActiveModal('vendor');
   };
 
-  const sharedProps = { StockBadge, SectionHeader, medicineEnabled, consumableEnabled };
+  const sharedProps = { StockBadge, SectionHeader, medicineEnabled, consumableEnabled, isLowStock };
 
   const TABS = [
-    { id: 'Stock', label: 'Stock Overview', component: InventoryStock },
-    { id: 'Purchase Orders', label: 'Purchase Orders', component: InventoryOrders },
-    { id: 'ItemList', label: 'Item List', component: InventoryItemList },
-    { id: 'Logs', label: 'Inventory Logs', component: InventoryLogs },
-    { id: 'Vendors', label: 'Vendors', component: InventoryVendors },
+    { id: 'Stock',           label: 'Stock',    component: InventoryStock    },
+    { id: 'Purchase Orders', label: 'Orders',   component: InventoryOrders   },
+    { id: 'ItemList',        label: 'Items',    component: InventoryItemList },
+    { id: 'Logs',            label: 'Logs',     component: InventoryLogs     },
+    { id: 'Vendors',         label: 'Vendors',  component: InventoryVendors  },
   ];
 
   const ActiveComponent = TABS.find(t => t.id === activeTab)?.component || InventoryStock;
@@ -108,81 +104,88 @@ const InventoryPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 p-6 gap-6 relative">
-      
-      {/* HEADER & NAVIGATION */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-        <div>
-           <h1 className="text-2xl font-bold text-slate-800">Inventory Manager</h1>
-           <p className="text-slate-500 text-sm">Pharmacy & Clinic Consumables</p>
+    <div className="flex flex-col overflow-y-auto sm:overflow-hidden sm:h-full bg-slate-50 p-3 sm:p-6 gap-3 sm:gap-6 relative">
+
+      {/* ── HEADER + TABS (combined row on mobile) ── */}
+      <div className="flex items-center justify-between gap-2">
+        {/* Title — hidden on very small screens to save space */}
+        <div className="hidden xs:block flex-shrink-0">
+          <h1 className="text-lg sm:text-2xl font-bold text-slate-800 leading-tight">Inventory</h1>
+          <p className="text-slate-500 text-xs sm:text-sm hidden sm:block">Pharmacy & Clinic Consumables</p>
         </div>
-        
-        <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm overflow-x-auto max-w-full flex">
-          {TABS.map(tab => (
-            <button 
-              key={tab.id} 
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
-                activeTab === tab.id 
-                ? 'bg-[#137fec] text-white shadow-md' 
-                : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+
+        {/* Tab bar — scrollable, bleeds to page edges on mobile */}
+        <div className="flex-1 overflow-x-auto scrollbar-none -mx-3 px-3 xs:mx-0 xs:px-0">
+          <div className="bg-white p-1 rounded-xl border border-slate-200 shadow-sm inline-flex min-w-max">
+            {TABS.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); setSearchQuery(''); }}
+                className={`flex-shrink-0 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-[#137fec] text-white shadow-md'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* --- TOOLBAR --- */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
-        
-        {/* Search Input */}
-        <div className="relative w-full md:w-80">
-          <Search size={18} className="absolute left-3 top-2.5 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder={`Search ${activeTab}...`} 
-            className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-xl text-sm outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec]"
+      {/* ── TOOLBAR ── */}
+      <div className="bg-white px-3 py-2.5 sm:p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-2">
+        {/* Search */}
+        <div className="relative flex-1 sm:flex-none sm:w-72">
+          <Search size={15} className="absolute left-2.5 top-2.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder={`Search…`}
+            className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec]"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        
-        <div className="flex gap-3 w-full md:w-auto">
-          {/* Filter Button (Only for Stock) */}
-          {activeTab === 'Stock' && (
-            <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-50">
-              <Filter size={16} /> Filter Low Stock
-            </button>
-          )}
 
-          {/* Dynamic Add Button */}
-          {activeTab !== 'Stock' && (
-            <button 
-              onClick={handleAddNew}
-              className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-[#137fec] text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
-            >
-              <Plus size={18} />
-              {activeTab === 'Purchase Orders' ? 'Create PO' : 
-               activeTab === 'Vendors' ? 'Add Vendor' : 
-               activeTab === 'ItemList' ? 'Add Item' : 
-               activeTab === 'Logs' ? 'Create Log' : ''}
-            </button>
-          )}
-        </div>
+        {/* Low Stock filter — Stock tab only */}
+        {activeTab === 'Stock' && (
+          <button
+            onClick={() => setIsLowStock(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs sm:text-sm font-medium border transition-all flex-shrink-0 ${
+              isLowStock
+                ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Filter size={14} />
+            <span className="hidden xs:inline">Low Stock</span>
+          </button>
+        )}
+
+        {/* Add button — non-Stock tabs */}
+        {activeTab !== 'Stock' && (
+          <button
+            onClick={handleAddNew}
+            className="flex items-center gap-1.5 bg-[#137fec] text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold hover:bg-blue-700 shadow-sm transition-all flex-shrink-0"
+          >
+            <Plus size={16} />
+            <span className="hidden xs:inline">
+              {activeTab === 'Purchase Orders' ? 'Create PO' :
+               activeTab === 'Vendors'         ? 'Add Vendor' :
+               activeTab === 'ItemList'        ? 'Add Item' :
+               activeTab === 'Logs'            ? 'Create Log' : ''}
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* CONTENT AREA */}
-      <div className="flex-1 min-h-0">
-        {/* 3. PASS REFRESH KEY 
-           Changing the key forces the component to unmount/remount, 
-           triggering its internal useEffect to re-fetch data.
-        */}
-        <ActiveComponent 
-            key={activeTab + refreshKey} 
-            {...sharedProps} 
-            searchQuery={searchQuery} 
+      {/* ── CONTENT — mobile scrolls naturally; desktop is height-constrained ── */}
+      <div className="sm:flex-1 sm:min-h-0">
+        <ActiveComponent
+          key={activeTab + refreshKey}
+          {...sharedProps}
+          searchQuery={searchQuery}
         />
       </div>
 
