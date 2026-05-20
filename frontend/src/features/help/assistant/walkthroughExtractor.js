@@ -1,5 +1,5 @@
 export function extractSteps(body) {
-  const lines = body.split('\n');
+  const lines = body.split(/\r?\n/);
   const steps = [];
   let inSteps = false;
   let found = false;
