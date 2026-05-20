@@ -268,18 +268,83 @@ export async function forgotPassword(req, res) {
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${rawToken}`;
 
+    const year = new Date().getFullYear();
+    const firstName = user.firstName || 'User';
     try {
       await sendPlatformEmail({
         to:      user.email,
-        subject: 'Reset your DMS password',
-        html: `
-          <p>Hi ${user.firstName},</p>
-          <p>We received a request to reset your DMS account password. Click the link below to set a new password. This link expires in <strong>1 hour</strong> and can only be used once.</p>
-          <p><a href="${resetUrl}" style="background:#137fec;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a></p>
-          <p>Or copy this URL into your browser:<br/><code>${resetUrl}</code></p>
-          <p>If you did not request a password reset, you can ignore this email — your password will not change.</p>
-        `,
-        text: `Hi ${user.firstName},\n\nReset your DMS password by visiting:\n${resetUrl}\n\nThis link expires in 1 hour and can only be used once.\n\nIf you did not request this, ignore this email.`,
+        subject: 'Reset your Molaris password',
+        html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/><title>Reset your Molaris password</title></head>
+<body style="margin:0;padding:0;background:#f4f7ff;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f7ff;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(19,127,236,0.08);">
+
+        <!-- Header -->
+        <tr>
+          <td style="background:#137fec;padding:28px 40px;text-align:center;">
+            <img src="https://molaris-ai.connectgenai.in/MolarisLandscapeName.png" alt="Molaris" height="40" style="display:block;margin:0 auto;"/>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style="padding:40px 40px 32px;">
+            <p style="margin:0 0 20px;font-size:20px;font-weight:700;color:#1a1a2e;">Hi ${firstName},</p>
+            <p style="margin:0 0 32px;font-size:15px;line-height:1.7;color:#4a5568;">
+              We received a request to reset the password for your Molaris account.
+              Click the button below to choose a new password.
+            </p>
+
+            <!-- CTA Button -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 0 32px;">
+              <tr>
+                <td style="background:#137fec;border-radius:10px;">
+                  <a href="${resetUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">
+                    Reset Password
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <p style="margin:0 0 8px;font-size:13px;color:#718096;">Or paste this link into your browser:</p>
+            <a href="${resetUrl}" style="font-size:12px;color:#137fec;word-break:break-all;">${resetUrl}</a>
+
+            <p style="margin:32px 0 0;font-size:13px;line-height:1.7;color:#718096;">
+              If you did not request a password reset, you can safely ignore this
+              email&nbsp;&mdash; your account will remain unchanged.
+            </p>
+          </td>
+        </tr>
+
+        <!-- Divider -->
+        <tr>
+          <td style="padding:0 40px;">
+            <hr style="border:none;border-top:1px solid #e8f0fe;margin:0;"/>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:24px 40px;text-align:center;">
+            <p style="margin:0 0 6px;font-size:12px;color:#a0aec0;">
+              Need help? Contact us at
+              <a href="mailto:support@connectgenai.in" style="color:#a0aec0;">support@connectgenai.in</a>
+            </p>
+            <p style="margin:0;font-size:11px;color:#cbd5e0;">
+              &copy; ${year} Molaris by Connect Gen-AI. All rights reserved.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+        text: `Hi ${firstName},\n\nWe received a request to reset your Molaris password.\n\nReset your password here:\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.\n\nNeed help? Email us at support@connectgenai.in`,
       });
     } catch (mailErr) {
       console.error('[forgotPassword] Failed to send reset email:', mailErr.message);
