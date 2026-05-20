@@ -118,6 +118,87 @@ export async function createPatient(req, res) {
   } catch (err) { res.status(400).json({ error: err.message }); }
 }
 
+// POST /api/patients/bulk
+// Flat rows -> nested Patient docs. Sequential PID generation, de-dupe by
+// mobile (skip rows whose mobile already exists or repeats in the batch),
+// Drive folders are skipped (created lazily on first file upload).
+export async function bulkCreatePatients(req, res) {
+  const { Patient } = req.tenantModels;
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) {
+      return res.status(400).json({ error: 'No rows provided' });
+    }
+
+    const existing = await Patient.find({}, { 'contact.mobile': 1 });
+    const seenMobiles = new Set(
+      existing.map(p => String(p.contact?.mobile || '').trim()).filter(Boolean)
+    );
+
+    const year = new Date().getFullYear();
+    const yearPrefix = `PID-${year}-`;
+    const lastForYear = await Patient.findOne(
+      { patientId: { $regex: `^${yearPrefix}` } },
+      { patientId: 1 }
+    ).sort({ patientId: -1 });
+
+    let nextNum = 1;
+    if (lastForYear?.patientId) {
+      const m = lastForYear.patientId.match(/^PID-\d{4}-(\d+)$/);
+      if (m) nextNum = parseInt(m[1], 10) + 1;
+    }
+
+    const docs = [];
+    const errors = [];
+    let skipped = 0;
+
+    items.forEach((row, idx) => {
+      const first_name = String(row.first_name || '').trim();
+      const mobile = String(row.mobile || '').trim();
+
+      if (!first_name) { errors.push(`Row ${idx + 1}: first_name is required`); return; }
+      if (mobile && seenMobiles.has(mobile)) { skipped++; return; }
+      if (mobile) seenMobiles.add(mobile);
+
+      docs.push({
+        patientId: `${yearPrefix}${String(nextNum++).padStart(4, '0')}`,
+        first_name,
+        last_name: String(row.last_name || '').trim(),
+        dob: row.dob ? new Date(row.dob) : undefined,
+        gender: String(row.gender || '').trim(),
+        blood_group: String(row.blood_group || '').trim(),
+        reference_source: String(row.reference_source || '').trim(),
+        dentition_type: String(row.dentition_type || '').trim() || undefined,
+        contact: {
+          mobile,
+          email: String(row.email || '').trim(),
+          address: String(row.address || '').trim(),
+          city: String(row.city || '').trim(),
+        },
+      });
+    });
+
+    if (docs.length === 0) {
+      return res.status(400).json({ error: 'No valid rows to import', errors, skipped });
+    }
+
+    const result = await Patient.insertMany(docs, { ordered: false });
+    result.forEach(p => logEvent(req.user.tenantId, 'patient_registered', { patientId: p.patientId }));
+
+    res.status(201).json({
+      inserted: result.length,
+      skipped: skipped + (docs.length - result.length),
+      errors,
+    });
+  } catch (err) {
+    const inserted = err?.result?.result?.nInserted ?? err?.insertedDocs?.length ?? 0;
+    const writeErrors = (err?.writeErrors || []).map(e => e.errmsg || e.message);
+    res.status(writeErrors.length ? 207 : 400).json({
+      inserted, skipped: writeErrors.length, errors: writeErrors,
+    });
+  }
+}
+
 // GET /api/patients/:id
 export async function getPatientById(req, res) {
   const { Patient } = req.tenantModels;

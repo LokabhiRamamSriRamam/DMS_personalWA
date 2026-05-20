@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import DrSmilo from '../features/help/assistant/DrSmilo.jsx';
 import { useAuth } from '../Context/AuthContext.jsx';
 import { useUser } from '../Context/UserContext.jsx';
 import { useInventorySettings } from '../Context/SettingsContext.jsx';
@@ -180,6 +181,7 @@ const NavigationLayout = ({ children }) => {
               {showOwnerRoutes && <SidebarItem icon="dashboard" label="Insights"  to="/insights"  active={isActive('/insights')} />}
               {showOwnerRoutes && <SidebarItem icon="chat"      label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')} />}
               {showOwnerRoutes && <SidebarItem icon="settings"  label="Settings"  to="/settings"  active={isActive('/settings')} />}
+              <SidebarItem icon="menu_book" label="Help Center" to="/help" active={isActive('/help')} />
             </nav>
           </div>
 
@@ -346,6 +348,7 @@ const NavigationLayout = ({ children }) => {
               {showOwnerRoutes && <DrawerItem icon="dashboard" label="Insights"  to="/insights"  active={isActive('/insights')}  onClick={closeDrawer} />}
               {showOwnerRoutes && <DrawerItem icon="chat"      label="WhatsApp"  to="/whatsapp"  active={isActive('/whatsapp')}  onClick={closeDrawer} />}
               {showOwnerRoutes && <DrawerItem icon="settings"  label="Settings"  to="/settings"  active={isActive('/settings')}  onClick={closeDrawer} />}
+              <DrawerItem icon="menu_book" label="Help Center" to="/help" active={isActive('/help')} onClick={closeDrawer} />
             </div>
 
             {/* Support */}
@@ -383,6 +386,9 @@ const NavigationLayout = ({ children }) => {
       )}
 
       <ClinicInfoModal isOpen={showClinicModal} onClose={() => setShowClinicModal(false)} tenant={tenant} />
+
+      {/* Dr. Smilo — floating help assistant */}
+      <DrSmilo />
     </div>
   );
 };

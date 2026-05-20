@@ -205,8 +205,8 @@ const ViewInvoiceModal = ({ invoiceId, onClose }) => {
               </div>
 
               {/* Items Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto">
+                <table className="w-full text-sm min-w-[360px]">
                   <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-semibold">
                     <tr>
                       <th className="px-4 py-3 text-left">Item</th>
@@ -233,7 +233,7 @@ const ViewInvoiceModal = ({ invoiceId, onClose }) => {
 
               {/* Totals */}
               <div className="flex justify-end">
-                <div className="w-64 space-y-1.5">
+                <div className="w-full sm:w-64 space-y-1.5">
                   {invoice.subtotal != null && (
                     <div className="flex justify-between text-sm text-slate-500">
                       <span>Subtotal</span><span>₹{Number(invoice.subtotal).toLocaleString('en-IN')}</span>

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const ReportJobSchema = new mongoose.Schema({
   patientId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Patient', required: true },
+  appointmentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
   status:        { type: String, enum: ['pending', 'transcribing', 'transcribed', 'generating', 'done', 'failed'], default: 'pending' },
   sarvamJobId:   { type: String },
   transcript:    { type: String },

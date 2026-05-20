@@ -726,36 +726,58 @@ export async function sendTreatmentSummary(req, res) {
 }
 
 // ─── Automation trigger: Appointment Completed ────────────────────────────
-// Called internally from appointment controller — never throws to caller.
-export async function triggerAppointmentCompleted({ tenantModels, patientId, doctorName }) {
+// Called fire-and-forget from appointment.controller on status -> Completed.
+export async function triggerAppointmentCompleted({ tenantModels, patientId, appointmentId, doctorName }) {
   try {
-    const { EmailSettings, Patient, Visit, Invoice, ReportJob } = tenantModels;
-
-    const settings = await EmailSettings.findOne({}).lean();
-    if (!settings?.enabled || !settings?.automationEnabled) return;
-
-    const eventCfg = settings?.events?.appointmentCompleted;
-    if (!eventCfg?.enabled) return;
-
-    const patient = await Patient.findById(patientId).lean();
-    if (!patient?.contact?.email) return;
+    if (!patientId) return;
+    const ctx = await loadAutomationContext(tenantModels, 'appointmentCompleted', patientId.toString());
+    if (!ctx) return;
+    const { settings, eventCfg, patient } = ctx;
+    const { Visit, Invoice, ReportJob } = tenantModels;
 
     const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
     const today   = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const dateStr = new Date().toISOString().slice(0, 10);
     const include = eventCfg.include || {};
-    const attachments = [];
+    const docName = doctorName || 'Attending Doctor';
 
-    if (include.smartReport || include.prescription) {
-      const visit = await Visit.findOne({ patient_id: patientId }).sort({ date: -1 }).lean();
-      if (visit) {
-        const pdf = await generateVisitSummaryPdf(visit, patientName, doctorName || 'Attending Doctor', today);
-        attachments.push({ filename: `VisitSummary_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
+    // Resolve the visit tied to THIS appointment. Fall back to the patient's
+    // newest visit only if the appointment has no linked visit (e.g. status
+    // flipped without a charted visit).
+    let visit = null;
+    if (Visit) {
+      if (appointmentId) {
+        visit = await Visit.findOne({ appointment_id: appointmentId }).sort({ date: -1 }).lean();
+      }
+      if (!visit) {
+        visit = await Visit.findOne({ patient_id: patientId }).sort({ date: -1 }).lean();
       }
     }
 
+    const attachments = [];
+
+    if ((include.smartReport || include.prescription) && visit) {
+      const pdf = await generateVisitSummaryPdf(visit, patientName, docName, today);
+      attachments.push({ filename: `VisitSummary_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
+    }
+
     if (include.invoice) {
-      const invoice = await Invoice.findOne({ patient_id: patientId }).sort({ createdAt: -1 }).lean();
+      // Prefer the invoice referenced by this visit's treatments/prescriptions
+      // so we attach THIS appointment's bill, not the patient's newest one.
+      let invoice = null;
+      const linkedInvoiceIds = [
+        ...((visit?.treatments || []).map(t => t.invoice_id)),
+        ...((visit?.prescriptions || []).map(p => p.invoice_id)),
+      ].filter(Boolean).map(String);
+
+      if (linkedInvoiceIds.length) {
+        invoice = await Invoice.findOne({ _id: { $in: linkedInvoiceIds } })
+          .sort({ createdAt: -1 }).lean();
+      }
+      if (!invoice) {
+        invoice = await Invoice.findOne({ patient_id: patientId })
+          .sort({ createdAt: -1 }).lean();
+      }
       if (invoice) {
         const invCfg = await loadInvoiceSettings(tenantModels);
         const pdf = await generateInvoicePdf(invoice, patientName, invCfg);
@@ -764,60 +786,38 @@ export async function triggerAppointmentCompleted({ tenantModels, patientId, doc
     }
 
     if (include.aiReport && ReportJob) {
-      const job = await ReportJob.findOne({ patientId, status: 'done' }).sort({ createdAt: -1 }).lean();
+      let job = appointmentId
+        ? await ReportJob.findOne({ patientId, appointmentId, status: 'done' }).sort({ createdAt: -1 }).lean()
+        : null;
+      if (!job) job = await ReportJob.findOne({ patientId, status: 'done' }).sort({ createdAt: -1 }).lean();
       if (job?.reportText) {
-        const pdf = await generateReportPdf(job.reportText, { patientName, doctorName: doctorName || 'Attending Doctor', date: today, templateName: job.templateId || 'Clinical Report' });
+        const pdf = await generateReportPdf(job.reportText, { patientName, doctorName: docName, date: today, templateName: job.templateId || 'Clinical Report' });
         attachments.push({ filename: `AIReport_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
       }
     }
 
     if (!attachments.length) return;
 
-    // Build subject + body from template with variables
-    const visit = await (tenantModels.Visit
-      ? tenantModels.Visit.findOne({ patient_id: patientId }).sort({ date: -1 }).lean()
-      : Promise.resolve(null));
     const treatmentNames = (visit?.treatments || []).map(t => t.treatment_name).filter(Boolean);
 
-    const templateData = {
-      name:        patientName,
-      first_name:  patient.first_name,
-      doctor:      doctorName || 'Attending Doctor',
-      date:        today,
-      treatments:  treatmentNames.join(', ') || 'your recent treatment',
-      clinic:      settings.fromName || 'your clinic',
-    };
-
-    const { subject, body } = await buildEmailMessage({
-      tenantModels,
-      eventType: 'appointmentCompleted',
-      data: templateData,
+    await deliverAutomationEmail({
+      tenantModels, settings, eventKey: 'appointmentCompleted',
+      patient, patientId,
+      templateData: {
+        first_name: patient.first_name,
+        name:       patientName,
+        doctor:     docName,
+        date:       today,
+        treatments: treatmentNames.join(', ') || 'your recent treatment',
+      },
+      attachments,
       defaultSubject: `Your appointment summary — ${today}`,
       defaultBody:    `Dear {{first_name}},\n\nThank you for visiting us. Please find your appointment documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`,
+      delayMinutes: eventCfg.delayMinutes,
     });
-
-    const delayMs = (eventCfg.delayMinutes || 0) * 60 * 1000;
-    if (delayMs > 0) {
-      setTimeout(() => _sendCompletionEmail({ tenantModels, settings, patient, patientId, subject, body, attachments }), delayMs);
-    } else {
-      await _sendCompletionEmail({ tenantModels, settings, patient, patientId, subject, body, attachments });
-    }
   } catch (err) {
     console.error('[Email] triggerAppointmentCompleted silenced:', err.message);
   }
-}
-
-async function _sendCompletionEmail({ tenantModels, settings, patient, patientId, subject, body, attachments }) {
-  await sendEmail({
-    tenantModels,
-    settings,
-    to: patient.contact.email,
-    subject,
-    text: body,
-    attachments,
-    patientId,
-    event: 'appointmentCompleted',
-  });
 }
 
 // ─── Shared automation helpers ─────────────────────────────────────────────
@@ -897,93 +897,9 @@ export async function triggerAppointmentBooked({ tenantModels, appointment }) {
   }
 }
 
-// ─── Automation trigger: Invoice Generated ─────────────────────────────────
-// Called fire-and-forget from invoice.controller on create.
-export async function triggerInvoiceGenerated({ tenantModels, invoice }) {
-  try {
-    if (!invoice?.patient_id) return;
-    const ctx = await loadAutomationContext(tenantModels, 'invoiceGenerated', invoice.patient_id.toString());
-    if (!ctx) return;
-    const { settings, eventCfg, patient } = ctx;
-
-    const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
-    const invCfg = await loadInvoiceSettings(tenantModels);
-    const cur = invCfg.currencySymbol || '₹';
-
-    const attachments = [];
-    if (eventCfg.attachInvoice !== false) {
-      const pdf = await generateInvoicePdf(invoice, patientName, invCfg);
-      attachments.push({
-        filename: `Invoice_${invoice.invoice_id}_${patientName}.pdf`,
-        content: pdf, contentType: 'application/pdf',
-      });
-    }
-
-    await deliverAutomationEmail({
-      tenantModels, settings, eventKey: 'invoiceGenerated',
-      patient, patientId: invoice.patient_id,
-      templateData: {
-        first_name: patient.first_name,
-        name:       patientName,
-        invoice_id: invoice.invoice_id,
-        amount:     `${cur}${invoice.total_amount}`,
-        date:       new Date(invoice.date || invoice.createdAt || Date.now())
-                      .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
-      },
-      attachments,
-      defaultSubject: `Invoice {{invoice_id}} from {{clinic}}`,
-      defaultBody:    `Dear {{first_name}},\n\nPlease find attached invoice {{invoice_id}} for {{amount}}, dated {{date}}.\n\nThank you,\n{{clinic}}`,
-      delayMinutes: eventCfg.delayMinutes,
-    });
-  } catch (err) {
-    console.error('[Email] triggerInvoiceGenerated silenced:', err.message);
-  }
-}
-
-// ─── Automation trigger: AI Report Ready ───────────────────────────────────
-// Called fire-and-forget from report.controller when a ReportJob completes.
-export async function triggerAiReportReady({ tenantModels, patientId, job, doctorName }) {
-  try {
-    if (!patientId || !job?.reportText) return;
-    const ctx = await loadAutomationContext(tenantModels, 'aiReportReady', patientId.toString());
-    if (!ctx) return;
-    const { settings, eventCfg, patient } = ctx;
-
-    const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
-    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-    const attachments = [];
-    if (eventCfg.attachReport !== false) {
-      const pdf = await generateReportPdf(job.reportText, {
-        patientName,
-        doctorName: doctorName || 'Attending Doctor',
-        date: today,
-        templateName: job.templateId || 'Clinical Report',
-      });
-      attachments.push({
-        filename: `AIReport_${patientName}_${new Date().toISOString().slice(0, 10)}.pdf`,
-        content: pdf, contentType: 'application/pdf',
-      });
-    }
-
-    await deliverAutomationEmail({
-      tenantModels, settings, eventKey: 'aiReportReady',
-      patient, patientId,
-      templateData: {
-        first_name: patient.first_name,
-        name:       patientName,
-        doctor:     doctorName || 'Attending Doctor',
-        date:       today,
-      },
-      attachments,
-      defaultSubject: `Your clinical report — {{date}}`,
-      defaultBody:    `Dear {{first_name}},\n\nYour clinical report from {{doctor}} is ready and attached to this email.\n\nWarm regards,\n{{clinic}}`,
-      delayMinutes: eventCfg.delayMinutes,
-    });
-  } catch (err) {
-    console.error('[Email] triggerAiReportReady silenced:', err.message);
-  }
-}
+// Note: invoice and AI-report emails are no longer standalone automations.
+// They are delivered only as part of the appointmentCompleted bundle via its
+// include.invoice / include.aiReport flags (see triggerAppointmentCompleted).
 
 // ─── Logs ──────────────────────────────────────────────────────────────────
 

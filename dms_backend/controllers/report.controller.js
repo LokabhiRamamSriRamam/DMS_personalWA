@@ -5,7 +5,6 @@ import {
   createSubfolder,
 } from '../services/googleDrive.service.js';
 import { TEMPLATES, getTemplateById } from '../config/templates.config.js';
-import { triggerAiReportReady } from './email.controller.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 export const uploadMiddleware = upload.single('file');
@@ -300,7 +299,7 @@ export async function transcribeAudio(req, res) {
   const credentials = req.tenantConfig;
 
   try {
-    const { patient_id, template_id, detail_level, save_report, autofill } = req.body;
+    const { patient_id, template_id, detail_level, save_report, autofill, appointment_id } = req.body;
     if (!patient_id)  return res.status(400).json({ error: 'patient_id is required' });
     if (!template_id) return res.status(400).json({ error: 'template_id is required' });
 
@@ -326,6 +325,7 @@ export async function transcribeAudio(req, res) {
 
     const job = await ReportJob.create({
       patientId:     patient._id,
+      appointmentId: appointment_id || null,
       status:        directText || cachedTranscript ? 'transcribed' : 'pending',
       transcript:    directText || cachedTranscript || '',
       templateId:    template_id,
@@ -568,13 +568,8 @@ export async function generateReport(req, res) {
         autofillData: autofill_v2, transcript,
       });
 
-      // Email automation (fire-and-forget)
-      triggerAiReportReady({
-        tenantModels: req.tenantModels,
-        patientId: job.patientId,
-        job: { reportText: reports[templateIds[0]], templateId: templates[0]?.name },
-        doctorName,
-      });
+      // AI report is emailed via the appointmentCompleted automation
+      // (include.aiReport) — there is no standalone AI-report email trigger.
 
       // Send final metadata event
       res.write(`data: ${JSON.stringify({
@@ -684,13 +679,8 @@ export async function generateReport(req, res) {
     if (afResult.status === 'fulfilled') autofill_v2 = afResult.value;
     if (fileRecords.length > 0) { patient.files.push(...fileRecords); await patient.save(); }
 
-    // Email automation (fire-and-forget)
-    triggerAiReportReady({
-      tenantModels: req.tenantModels,
-      patientId: patient._id,
-      job: { reportText: reports[templateIds[0]], templateId: templates[0]?.name },
-      doctorName,
-    });
+    // AI report is emailed via the appointmentCompleted automation
+    // (include.aiReport) — there is no standalone AI-report email trigger.
 
     res.write(`data: ${JSON.stringify({
       done: true, transcript,

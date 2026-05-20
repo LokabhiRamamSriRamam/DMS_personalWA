@@ -171,6 +171,7 @@ export async function updateStatus(req, res) {
       triggerAppointmentCompleted({
         tenantModels: req.tenantModels,
         patientId: appt.patient_id.toString(),
+        appointmentId: appt._id.toString(),
         doctorName: req.user?.name || 'Attending Doctor',
       });
     }

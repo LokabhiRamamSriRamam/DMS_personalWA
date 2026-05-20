@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { X, Trash2, Stethoscope, Pill, TestTube, Search, Loader2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Trash2, Stethoscope, Pill, TestTube, Search, Loader2, Minus, ChevronUp } from 'lucide-react';
 import API from '../services/api';
 import { useInventorySettings } from '../Context/SettingsContext';
 
@@ -67,7 +68,7 @@ const PatientSearchInput = ({ onSelect, onAddNew }) => {
 };
 
 // ── Searchable select for Services / Pharmacy / Lab items ────────────────────
-const ENDPOINTS = { Service: '/services', Pharmacy: '/inventory', Lab: '/labs/items' };
+const ENDPOINTS = { Service: '/suggested-treatments', Pharmacy: '/inventory', Lab: '/labs/items' };
 
 const SearchableSelect = ({ placeholder, type, onSelect, initialValue = '' }) => {
   const [query, setQuery] = useState(initialValue);
@@ -209,6 +210,8 @@ export default function NewInvoiceModal({
   const [attempted, setAttempted] = useState(false);
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [addPatientQuery, setAddPatientQuery] = useState('');
+  const [invoiceSettings, setInvoiceSettings] = useState(null);
+  const [minimized, setMinimized] = useState(false);
 
   // Reset & pre-fill when modal opens
   useEffect(() => {
@@ -218,6 +221,11 @@ export default function NewInvoiceModal({
     setAmountPaid('');
     setSubmitting(false);
     setAttempted(false);
+    setMinimized(false);
+
+    API.get('/settings/invoice')
+      .then(({ data }) => setInvoiceSettings(data || {}))
+      .catch(() => setInvoiceSettings({}));
 
     if (initialPatient) {
       setPatientInfo({
@@ -269,6 +277,13 @@ export default function NewInvoiceModal({
 
   const subtotal = items.reduce((acc, it) => acc + (it.total || 0), 0);
 
+  // Invoice settings (prefix is applied server-side; here we surface currency + tax)
+  const currencySymbol = invoiceSettings?.currencySymbol || '₹';
+  const taxLabel = invoiceSettings?.tax?.label || 'Tax';
+  const taxRatePct = invoiceSettings?.tax?.show ? Number(invoiceSettings?.tax?.defaultRatePct) || 0 : 0;
+  const taxAmount = Math.round(subtotal * taxRatePct) / 100;
+  const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+
   // ── Validation ──────────────────────────────────────────────────────────────
   const itemErrors = items.map(it => ({
     name:     !it.name?.trim(),
@@ -303,7 +318,8 @@ export default function NewInvoiceModal({
           item_id:    it.item_id,
         })),
         subtotal,
-        total_amount:   subtotal,
+        tax:            taxAmount,
+        total_amount:   grandTotal,
         paid_amount:    Number(amountPaid) || 0,
         payment_method: paymentMethod,
       };
@@ -350,17 +366,39 @@ export default function NewInvoiceModal({
     Lab:      'text-purple-600',
   };
 
-  return (
+  // Minimized strip — rendered via portal so it escapes the treatment overlay stacking context
+  if (isOpen && minimized) {
+    return createPortal(
+      <div
+        className="fixed bottom-4 right-4 z-[500] flex items-center gap-3 bg-white border border-slate-200 rounded-xl shadow-2xl px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
+        onClick={() => setMinimized(false)}
+      >
+        <div>
+          <p className="text-sm font-bold text-slate-800">New Invoice</p>
+          {patientInfo.name && <p className="text-xs text-slate-500">{patientInfo.name} · {items.length} item{items.length !== 1 ? 's' : ''}</p>}
+        </div>
+        <ChevronUp size={18} className="text-slate-400" />
+      </div>,
+      document.body
+    );
+  }
+
+  return createPortal(
     <>
-      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex justify-end">
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[300] flex justify-end">
         <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col">
 
           {/* Header */}
           <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
             <h2 className="text-lg font-bold text-slate-900">New Invoice</h2>
-            <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500">
-              <X size={24} />
-            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => setMinimized(true)} className="p-2 hover:bg-slate-200 rounded-full text-slate-500" title="Minimise">
+                <Minus size={18} />
+              </button>
+              <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full text-slate-500" title="Close">
+                <X size={24} />
+              </button>
+            </div>
           </div>
 
           {/* Body */}
@@ -486,9 +524,19 @@ export default function NewInvoiceModal({
 
             {/* Totals & Payment */}
             <div className="border-t pt-4">
-              <div className="flex justify-between mb-4">
-                <span className="text-slate-500">Total Amount</span>
-                <span className="text-xl font-bold text-slate-900">₹{subtotal}</span>
+              <div className="flex justify-between mb-2 text-sm">
+                <span className="text-slate-500">Subtotal</span>
+                <span className="font-medium text-slate-700">{currencySymbol}{subtotal.toLocaleString('en-IN')}</span>
+              </div>
+              {taxRatePct > 0 && (
+                <div className="flex justify-between mb-2 text-sm">
+                  <span className="text-slate-500">{taxLabel} ({taxRatePct}%)</span>
+                  <span className="font-medium text-slate-700">{currencySymbol}{taxAmount.toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="flex justify-between mb-4 pt-2 border-t">
+                <span className="text-slate-500 font-semibold">Total Amount</span>
+                <span className="text-xl font-bold text-slate-900">{currencySymbol}{grandTotal.toLocaleString('en-IN')}</span>
               </div>
               <div className="mb-4">
                 <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
@@ -541,6 +589,7 @@ export default function NewInvoiceModal({
           }}
         />
       )}
-    </>
+    </>,
+    document.body
   );
 }

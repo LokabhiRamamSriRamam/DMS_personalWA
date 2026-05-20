@@ -73,7 +73,8 @@ const ReportsPage = () => {
     const p = PRESETS.find(p => p.label === 'This Month');
     return { from: p.from, to: p.to };
   });
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerOpen, setPickerOpen]   = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const pickerRef = useRef(null);
 
   // Close picker on outside click
@@ -119,57 +120,89 @@ const ReportsPage = () => {
     document.body.removeChild(link);
   };
 
+  const SidebarNav = ({ onSelect }) => (
+    <nav className="p-3 space-y-1">
+      {REPORTS_NAV.map((item, idx) => {
+        if (item.type === 'divider') {
+          return (
+            <div key={idx} className="px-3 pt-5 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {item.label}
+            </div>
+          );
+        }
+        const Icon = item.icon;
+        return (
+          <button
+            key={item.id}
+            onClick={() => { setActiveReport(item.id); onSelect?.(); }}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
+              activeReport === item.id
+                ? 'bg-blue-50 text-[#137fec]'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+          >
+            <Icon size={18} className={activeReport === item.id ? 'text-[#137fec]' : 'text-slate-400'} />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+
   return (
     <div className="flex h-full bg-slate-50 overflow-hidden">
 
-      {/* Sidebar */}
-      <aside className="w-64 flex-shrink-0 bg-white border-r border-slate-200 overflow-y-auto flex flex-col">
+      {/* Mobile sidebar drawer */}
+      {sidebarOpen && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-y-0 left-0 w-72 bg-white z-50 md:hidden flex flex-col shadow-2xl overflow-y-auto">
+            <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">Reports</h2>
+                <p className="text-xs text-slate-500 mt-1">Analytics & Performance</p>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-lg hover:bg-slate-100">
+                <ChevronDown size={20} className="rotate-90" />
+              </button>
+            </div>
+            <SidebarNav onSelect={() => setSidebarOpen(false)} />
+          </div>
+        </>
+      )}
+
+      {/* Desktop sidebar */}
+      <aside className="w-64 flex-shrink-0 bg-white border-r border-slate-200 overflow-y-auto hidden md:flex flex-col">
         <div className="p-5 border-b border-slate-100">
           <h2 className="text-xl font-bold text-slate-800">Reports</h2>
           <p className="text-xs text-slate-500 mt-1">Analytics & Performance</p>
         </div>
-        <nav className="p-3 space-y-1">
-          {REPORTS_NAV.map((item, idx) => {
-            if (item.type === 'divider') {
-              return (
-                <div key={idx} className="px-3 pt-5 pb-2 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  {item.label}
-                </div>
-              );
-            }
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                onClick={() => setActiveReport(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-all ${
-                  activeReport === item.id
-                    ? 'bg-blue-50 text-[#137fec]'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Icon size={18} className={activeReport === item.id ? 'text-[#137fec]' : 'text-slate-400'} />
-                {item.label}
-              </button>
-            );
-          })}
-        </nav>
+        <SidebarNav />
       </aside>
 
       {/* Right content */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
         {/* Header */}
-        <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 z-10">
-          <div>
-            <h1 className="text-xl font-bold text-slate-800">{activeItem?.label}</h1>
-            <p className="text-sm text-slate-500">
-              Overview for <span className="font-medium text-slate-700">{dateLabel}</span>
-              <span className="ml-2 text-slate-400 text-xs">({dateRange.from} → {dateRange.to})</span>
-            </p>
+        <header className="bg-white border-b border-slate-200 px-4 md:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 z-10">
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile: open sidebar */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 flex-shrink-0"
+            >
+              <LayoutDashboard size={18} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-lg md:text-xl font-bold text-slate-800 truncate">{activeItem?.label}</h1>
+              <p className="text-xs md:text-sm text-slate-500 truncate">
+                <span className="font-medium text-slate-700">{dateLabel}</span>
+                <span className="ml-2 text-slate-400 hidden sm:inline">({dateRange.from} → {dateRange.to})</span>
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             {/* Date preset picker */}
             <div className="relative" ref={pickerRef}>
               <button
@@ -208,7 +241,7 @@ const ReportsPage = () => {
         </header>
 
         {/* Report content */}
-        <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth">
           <div className="max-w-7xl mx-auto">
             <ActiveComponent
               from={dateRange.from}

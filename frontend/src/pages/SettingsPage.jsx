@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2 } from 'lucide-react';
 import API from '../services/api';
+import { parseSpreadsheet, downloadSampleSheet } from '../utils/spreadsheet';
 import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
 import { useInventorySettings } from '../Context/SettingsContext';
+import { useAuth } from '../Context/AuthContext';
 
 // ─── Inventory Tab ────────────────────────────────────────────────────────────
 
@@ -1103,9 +1105,11 @@ function EmailTab() {
             <p><strong>Delay (minutes)</strong> — How many minutes after the event to wait before sending. Set to 0 to send immediately. Useful if you want to review before the email goes out.</p>
           </div>
 
-          {/* Per-event toggles */}
+          {/* Per-event toggles — invoice & AI report are delivered via the
+              appointmentCompleted bundle (include flags), not as standalone
+              automations, so only these two are configurable here. */}
           <div className="space-y-4">
-            {Object.keys(EVENT_LABELS).map(event => (
+            {['appointmentBooked', 'appointmentCompleted'].map(event => (
               <div key={event} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3">
                 {/* Header row */}
                 <div className="flex items-center justify-between">
@@ -1114,8 +1118,6 @@ function EmailTab() {
                     <p className="text-xs text-slate-400 mt-0.5">
                       {event === 'appointmentBooked'    && 'Sends a confirmation email to the patient when a new appointment is created'}
                       {event === 'appointmentCompleted' && 'Sends a summary email with selected documents when an appointment is marked Completed'}
-                      {event === 'invoiceGenerated'     && 'Sends the invoice PDF to the patient automatically when a new invoice is created'}
-                      {event === 'aiReportReady'        && 'Emails the AI-generated clinical report to the patient as soon as it is ready'}
                     </p>
                   </div>
                   <div
@@ -1178,59 +1180,6 @@ function EmailTab() {
                   </div>
                 )}
 
-                {/* Attach option — invoiceGenerated */}
-                {event === 'invoiceGenerated' && (
-                  <div className="pt-1 border-t border-slate-100">
-                    <label className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={smtpForm.events?.invoiceGenerated?.attachInvoice ?? true}
-                        onChange={() => setSmtpForm(f => ({
-                          ...f,
-                          events: {
-                            ...f.events,
-                            invoiceGenerated: {
-                              ...f.events?.invoiceGenerated,
-                              attachInvoice: !f.events?.invoiceGenerated?.attachInvoice,
-                            },
-                          },
-                        }))}
-                        className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">Attach Invoice PDF</p>
-                        <p className="text-xs text-slate-400">Include the invoice as a PDF attachment in the email</p>
-                      </div>
-                    </label>
-                  </div>
-                )}
-
-                {/* Attach option — aiReportReady */}
-                {event === 'aiReportReady' && (
-                  <div className="pt-1 border-t border-slate-100">
-                    <label className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={smtpForm.events?.aiReportReady?.attachReport ?? true}
-                        onChange={() => setSmtpForm(f => ({
-                          ...f,
-                          events: {
-                            ...f.events,
-                            aiReportReady: {
-                              ...f.events?.aiReportReady,
-                              attachReport: !f.events?.aiReportReady?.attachReport,
-                            },
-                          },
-                        }))}
-                        className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">Attach Report PDF</p>
-                        <p className="text-xs text-slate-400">Include the AI clinical report as a PDF attachment in the email</p>
-                      </div>
-                    </label>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -1462,7 +1411,9 @@ function DayRow({ day, dayData = {}, onChange }) {
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
 const SettingsPage = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('doctors');
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Doctor states
   const [doctors, setDoctors] = useState([]);
@@ -1498,18 +1449,6 @@ const SettingsPage = () => {
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkItems, setBulkItems] = useState([]);
 
-  // Service states
-  const [services, setServices] = useState([]);
-  const [showServiceModal, setShowServiceModal] = useState(false);
-  const [editingService, setEditingService] = useState(null);
-  const [serviceFormData, setServiceFormData] = useState({
-    name: '',
-    category: 'General',
-    cost: 0,
-    description: '',
-    isActive: true
-  });
-
   // Booking settings state
   const defaultDay = (open, start = '09:00', end = '17:00') => ({ isOpen: open, start, end, breaks: [] });
   const [bookingSettings, setBookingSettings] = useState({
@@ -1531,6 +1470,25 @@ const SettingsPage = () => {
   });
   const [bookingSaving, setBookingSaving] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
+
+  // Public per-tenant booking link: /connect-dentalclinic/:clinicName/:tenantId
+  const bookingSlug = (bookingSettings.clinicDisplayName || 'clinic')
+    .toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'clinic';
+  const bookingTenantId = user?.tenantId || '';
+  const bookingLink = bookingTenantId
+    ? `${window.location.origin}/connect-dentalclinic/${bookingSlug}/${bookingTenantId}`
+    : '';
+
+  const handleCopyBookingLink = async () => {
+    if (!bookingLink) return;
+    try {
+      await navigator.clipboard.writeText(bookingLink);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      window.prompt('Copy this booking link:', bookingLink);
+    }
+  };
   const [newBlockedDate, setNewBlockedDate] = useState('');
   const [newBlockedReason, setNewBlockedReason] = useState('');
 
@@ -1546,8 +1504,6 @@ const SettingsPage = () => {
       fetchDoctors();
     } else if (activeTab === 'treatment') {
       fetchTreatmentData();
-    } else if (activeTab === 'services') {
-      fetchServices();
     } else if (activeTab === 'booking') {
       fetchBookingSettings();
     } else if (activeTab === 'doctorSchedules') {
@@ -1580,18 +1536,6 @@ const SettingsPage = () => {
       setSuggestedTreatments(treatmentsRes.data);
     } catch (err) {
       console.error('Failed to load treatment data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchServices = async () => {
-    setLoading(true);
-    try {
-      const res = await API.get('/services');
-      setServices(Array.isArray(res.data) ? res.data : []);
-    } catch (err) {
-      console.error('Failed to load services:', err);
     } finally {
       setLoading(false);
     }
@@ -1855,48 +1799,79 @@ const SettingsPage = () => {
     setBulkItems(bulkItems.filter((_, i) => i !== index));
   };
 
+  const bulkEndpoint = () =>
+    treatmentTab === 'findings' ? '/clinical-findings/bulk' :
+    treatmentTab === 'diagnoses' ? '/diagnoses/bulk' :
+    '/suggested-treatments/bulk';
+
   const handleBulkAdd = async () => {
-    if (bulkItems.length === 0) return;
+    const items = bulkItems.filter(i => i.name && i.name.trim());
+    if (items.length === 0) {
+      alert('No rows with a name to add.');
+      return;
+    }
     setLoading(true);
-
     try {
-      for (const item of bulkItems) {
-        if (!item.name.trim()) continue;
-
-        if (treatmentTab === 'findings') {
-          await API.post('/clinical-findings', {
-            name: item.name.trim(),
-            category: item.category || '',
-            description: item.description || '',
-            is_active: true
-          });
-        } else if (treatmentTab === 'diagnoses') {
-          await API.post('/diagnoses', {
-            name: item.name.trim(),
-            code: item.code || '',
-            category: item.category || '',
-            description: item.description || '',
-            is_active: true
-          });
-        } else if (treatmentTab === 'treatments') {
-          await API.post('/suggested-treatments', {
-            name: item.name.trim(),
-            cost: parseFloat(item.cost) || 0,
-            category: item.category || '',
-            description: item.description || '',
-            is_active: true
-          });
-        }
-      }
+      const { data } = await API.post(bulkEndpoint(), { items });
       setBulkItems([]);
       setBulkMode(false);
       fetchTreatmentData();
-      alert('Items added successfully!');
+      const msg = `Imported ${data.inserted} item(s).` +
+        (data.skipped ? ` Skipped ${data.skipped} (duplicates/invalid).` : '') +
+        (data.errors?.length ? `\n\nErrors:\n${data.errors.slice(0, 5).join('\n')}` : '');
+      alert(msg);
     } catch (err) {
       console.error('Failed to add items:', err);
-      alert('Failed to add some items: ' + (err.response?.data?.error || err.message));
+      alert('Failed to import: ' + (err.response?.data?.error || err.message));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Column headers per clinical-data type (used for sample sheet + upload mapping)
+  const bulkHeaders = () =>
+    treatmentTab === 'diagnoses'
+      ? ['name', 'code', 'category', 'description']
+      : treatmentTab === 'treatments'
+        ? ['name', 'category', 'cost', 'description']
+        : ['name', 'category', 'description'];
+
+  const handleDownloadSample = () => {
+    const headers = bulkHeaders();
+    const example = treatmentTab === 'diagnoses'
+      ? [{ name: 'Dental Caries', code: 'K02.9', category: 'Restorative', description: 'Tooth decay' }]
+      : treatmentTab === 'treatments'
+        ? [{ name: 'Root Canal Treatment', category: 'Endodontics', cost: 5000, description: 'Single sitting RCT' }]
+        : [{ name: 'Gingival Inflammation', category: 'Periodontal', description: 'Visible gum swelling' }];
+    downloadSampleSheet(`${treatmentTab}_template`, headers, example);
+  };
+
+  const handleBulkFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const rows = await parseSpreadsheet(file);
+      const headers = bulkHeaders();
+      const mapped = rows
+        .map(r => {
+          const obj = {};
+          headers.forEach(h => {
+            const key = Object.keys(r).find(k => k.trim().toLowerCase() === h);
+            obj[h] = key !== undefined ? r[key] : (h === 'cost' ? 0 : '');
+          });
+          return obj;
+        })
+        .filter(r => String(r.name).trim());
+      if (mapped.length === 0) {
+        alert('No valid rows found. Make sure the first row has a "name" column.');
+        return;
+      }
+      setBulkMode(true);
+      setBulkItems(mapped);
+    } catch (err) {
+      console.error('Parse failed:', err);
+      alert('Could not read the file. Use the sample sheet as a reference.');
     }
   };
 
@@ -1920,65 +1895,6 @@ const SettingsPage = () => {
     }
   };
 
-  // Service Management
-  const handleAddService = () => {
-    setEditingService(null);
-    setServiceFormData({
-      name: '',
-      category: 'General',
-      cost: 0,
-      description: '',
-      isActive: true
-    });
-    setShowServiceModal(true);
-  };
-
-  const handleEditService = (service) => {
-    setEditingService(service);
-    setServiceFormData(service);
-    setShowServiceModal(true);
-  };
-
-  const handleDeleteService = async (id) => {
-    if (window.confirm('Are you sure you want to delete this service?')) {
-      try {
-        await API.delete(`/services/${id}`);
-        setServices(services.filter(s => s._id !== id));
-      } catch (err) {
-        console.error('Failed to delete service:', err);
-        alert('Failed to delete service');
-      }
-    }
-  };
-
-  const handleSubmitService = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      if (editingService) {
-        const res = await API.put(`/services/${editingService._id}`, serviceFormData);
-        setServices(services.map(s => s._id === editingService._id ? res.data : s));
-      } else {
-        const res = await API.post('/services', serviceFormData);
-        setServices([...services, res.data]);
-      }
-      setShowServiceModal(false);
-    } catch (err) {
-      console.error('Failed to save service:', err);
-      alert('Failed to save service: ' + (err.response?.data?.error || err.message));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleServiceChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setServiceFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : (name === 'cost' ? parseFloat(value) || 0 : value)
-    }));
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6">
       <div className="max-w-6xl mx-auto">
@@ -1999,16 +1915,6 @@ const SettingsPage = () => {
             }`}
           >
             Doctors
-          </button>
-          <button
-            onClick={() => setActiveTab('services')}
-            className={`px-6 py-3 font-semibold transition-all ${
-              activeTab === 'services'
-                ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            Services
           </button>
           <button
             onClick={() => setActiveTab('treatment')}
@@ -2156,85 +2062,6 @@ const SettingsPage = () => {
           </div>
         )}
 
-        {/* Services Tab */}
-        {activeTab === 'services' && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Service Management</h2>
-              <button
-                onClick={handleAddService}
-                className="flex items-center gap-2 px-4 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl transition-colors"
-              >
-                <Plus size={20} /> Add Service
-              </button>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-8 text-slate-500">Loading...</div>
-            ) : services.length === 0 ? (
-              <div className="text-center py-8 text-slate-500">
-                <p>No services added yet. Click "Add Service" to get started.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Name</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Category</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Cost</th>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Status</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-300">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {services.map(service => (
-                      <tr key={service._id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-slate-800 dark:text-white">{service.name}</p>
-                        </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          <span className="text-xs bg-slate-100 dark:bg-slate-600 px-2 py-1 rounded">
-                            {service.category || 'General'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-slate-800 dark:text-white font-semibold">
-                          ₹{service.cost?.toLocaleString('en-IN') || '0'}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
-                            service.isActive
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'bg-slate-100 text-slate-700 dark:bg-slate-600 dark:text-slate-300'
-                          }`}>
-                            {service.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex justify-center gap-2">
-                            <button
-                              onClick={() => handleEditService(service)}
-                              className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                            >
-                              <Edit2 size={18} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteService(service._id)}
-                              className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Treatment Tab */}
         {activeTab === 'treatment' && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
@@ -2260,16 +2087,33 @@ const SettingsPage = () => {
               <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                 {treatmentTab === 'findings' ? 'Clinical Findings' : treatmentTab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
               </h3>
-              <button
-                onClick={() => setBulkMode(!bulkMode)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors ${
-                  bulkMode
-                    ? 'bg-orange-500 text-white hover:bg-orange-600'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                }`}
-              >
-                <Upload size={18} /> {bulkMode ? 'Cancel Bulk' : 'Bulk Add'}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadSample}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
+                >
+                  <Download size={18} /> Sample Sheet
+                </button>
+                <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 cursor-pointer">
+                  <FileSpreadsheet size={18} /> Upload File
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={handleBulkFileUpload}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  onClick={() => setBulkMode(!bulkMode)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors ${
+                    bulkMode
+                      ? 'bg-orange-500 text-white hover:bg-orange-600'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
+                  }`}
+                >
+                  <Upload size={18} /> {bulkMode ? 'Cancel Bulk' : 'Bulk Add'}
+                </button>
+              </div>
             </div>
 
             {/* Bulk Mode Input */}
@@ -2472,6 +2316,60 @@ const SettingsPage = () => {
               <div className="text-center py-12 text-slate-500">Loading...</div>
             ) : (
               <>
+                {/* Public Booking Link */}
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Link2 size={22} className="text-[#137fec]" />
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Your Booking Link</h2>
+                  </div>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+                    Share this link with patients so they can book appointments online. It is unique to your clinic.
+                  </p>
+                  {bookingLink ? (
+                    <>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                          type="text"
+                          readOnly
+                          value={bookingLink}
+                          onFocus={e => e.target.select()}
+                          className="flex-1 px-3 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-200 font-mono"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleCopyBookingLink}
+                            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors ${
+                              linkCopied
+                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'bg-[#137fec] hover:bg-blue-600 text-white'
+                            }`}
+                          >
+                            {linkCopied ? <CheckCircle size={18} /> : <Copy size={18} />}
+                            {linkCopied ? 'Copied!' : 'Copy'}
+                          </button>
+                          <a
+                            href={bookingLink}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 transition-colors"
+                          >
+                            <ExternalLink size={18} /> Open
+                          </a>
+                        </div>
+                      </div>
+                      {!bookingSettings.isBookingEnabled && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-3">
+                          Online booking is currently disabled — patients opening this link won't be able to book until you enable it below.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-amber-600 dark:text-amber-400">
+                      Your clinic isn't fully provisioned yet, so a booking link can't be generated. Contact administration.
+                    </p>
+                  )}
+                </div>
+
                 {/* General Settings */}
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
                   <div className="flex items-center gap-3 mb-6">
@@ -2609,115 +2507,6 @@ const SettingsPage = () => {
           </div>
         )}
       </div>
-
-      {/* Service Modal */}
-      {showServiceModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-              <h3 className="font-bold text-lg text-slate-800 dark:text-white">
-                {editingService ? 'Edit Service' : 'Add Service'}
-              </h3>
-              <button
-                onClick={() => setShowServiceModal(false)}
-                className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Form */}
-            <form onSubmit={handleSubmitService} className="p-6 space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Service Name <span className="text-red-500">*</span></label>
-                <input
-                  type="text"
-                  name="name"
-                  placeholder="e.g., Root Canal Treatment"
-                  value={serviceFormData.name}
-                  onChange={handleServiceChange}
-                  required
-                  className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Category</label>
-                  <input
-                    type="text"
-                    name="category"
-                    placeholder="e.g., Endodontics"
-                    value={serviceFormData.category}
-                    onChange={handleServiceChange}
-                    className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Cost (₹) <span className="text-red-500">*</span></label>
-                  <input
-                    type="number"
-                    name="cost"
-                    placeholder="0"
-                    value={serviceFormData.cost}
-                    onChange={handleServiceChange}
-                    required
-                    min="0"
-                    step="100"
-                    className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Description</label>
-                <textarea
-                  name="description"
-                  placeholder="Optional description"
-                  value={serviceFormData.description}
-                  onChange={handleServiceChange}
-                  rows="3"
-                  className="w-full mt-1 px-3 py-2.5 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800 resize-none"
-                />
-              </div>
-
-              <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                <input
-                  type="checkbox"
-                  name="isActive"
-                  checked={serviceFormData.isActive}
-                  onChange={handleServiceChange}
-                  className="w-5 h-5 rounded cursor-pointer"
-                />
-                <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
-                  Mark as Active
-                </label>
-              </div>
-
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowServiceModal(false)}
-                  className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={`px-6 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-600 text-white font-semibold text-sm transition-colors ${
-                    loading ? 'opacity-70 cursor-not-allowed' : ''
-                  }`}
-                >
-                  {loading ? 'Saving...' : 'Save Service'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Doctor Schedule Modal */}
       {doctorSchedModal.open && scheduleForm && (

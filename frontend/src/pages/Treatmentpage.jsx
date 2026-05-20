@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Printer, FileText, Monitor, Phone,
@@ -79,8 +79,8 @@ const PatientInfoCard = ({ patient, onViewProfile, appointments = [] }) => {
 
         <div className="border-t border-gray-100 w-full" />
 
-        {/* Stats grid — 3 cols on mobile, 6 on desktop */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 sm:gap-5">
+        {/* Stats grid — 2 cols on mobile, 3 on sm, 6 on md+ */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2 sm:gap-3 md:gap-5">
           {[
             { label: 'Gender',      value: patient.gender },
             { label: 'Age',         value: `${age} Yrs` },
@@ -528,9 +528,9 @@ const Medications = ({ visits = [], patientId, onRefresh }) => {
 
       {/* Multi-row prescription form */}
       {showForm && (
-        <div className="mb-4 rounded-xl border border-blue-100 overflow-hidden">
+        <div className="mb-4 rounded-xl border border-blue-100 overflow-x-auto">
           {/* Column headers */}
-          <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 px-3 py-2 bg-blue-50/60 border-b border-blue-100">
+          <div className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 px-3 py-2 bg-blue-50/60 border-b border-blue-100 min-w-[540px]">
             <span className="text-xs font-semibold text-slate-500">Drug Name *</span>
             <span className="text-xs font-semibold text-slate-500">Dosage</span>
             <span className="text-xs font-semibold text-slate-500">Days</span>
@@ -545,7 +545,7 @@ const Medications = ({ visits = [], patientId, onRefresh }) => {
           {/* Medicine rows */}
           <div className="flex flex-col divide-y divide-slate-100">
             {rows.map((row, idx) => (
-              <div key={idx} className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 items-center px-3 py-2 bg-white">
+              <div key={idx} className="grid grid-cols-[2fr_1.2fr_1.2fr_1.5fr_32px] gap-2 items-center px-3 py-2 bg-white min-w-[540px]">
                 {/* Drug Name */}
                 <div>
                   <input
@@ -1050,184 +1050,75 @@ function Section({ number, title, description, defaultOpen = false, children }) 
 
 // eslint-disable-next-line react/prop-types
 function MobileActionBar({ onConclude, onPrescription, onInvoice, patientId, patient }) {
-  const [open, setOpen]       = useState(false);
-  const [pos, setPos]         = useState(() => ({
-    x: Math.max(0, window.innerWidth / 2 - 28),
-    y: window.innerHeight - 100,
-  }));
-  const [dragging, setDragging] = useState(false);
-  const startRef  = useRef(null);
-  const movedRef  = useRef(false);
-
-  const onMouseDown = useCallback((e) => {
-    e.preventDefault();
-    movedRef.current = false;
-    startRef.current = { mouseX: e.clientX, mouseY: e.clientY, elX: pos.x, elY: pos.y };
-    setDragging(true);
-  }, [pos]);
-
-  const onTouchStart = useCallback((e) => {
-    const t = e.touches[0];
-    movedRef.current = false;
-    startRef.current = { mouseX: t.clientX, mouseY: t.clientY, elX: pos.x, elY: pos.y };
-    setDragging(true);
-  }, [pos]);
-
-  useEffect(() => {
-    if (!dragging) return;
-    const SIZE = 56;
-    const move = (cx, cy) => {
-      const dx = cx - startRef.current.mouseX;
-      const dy = cy - startRef.current.mouseY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
-        movedRef.current = true;
-        setOpen(false);
-      }
-      setPos({
-        x: Math.max(0, Math.min(window.innerWidth  - SIZE, startRef.current.elX + dx)),
-        y: Math.max(0, Math.min(window.innerHeight - SIZE, startRef.current.elY + dy)),
-      });
-    };
-    const onMouseMove = (e) => move(e.clientX, e.clientY);
-    const onTouchMove = (e) => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); };
-    const stop = () => setDragging(false);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup',   stop);
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend',  stop);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup',   stop);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend',  stop);
-    };
-  }, [dragging]);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="sm:hidden">
+      {/* Backdrop */}
       {open && (
-        <div className="fixed inset-0 z-30 bg-black/40" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-[95] bg-black/40" onClick={() => setOpen(false)} />
       )}
-      <div
-        style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 40, touchAction: 'none' }}
-        className="flex flex-col items-center gap-2"
-      >
-        {open && (
-          <div className="flex flex-col items-end gap-2 mb-1 w-52" style={{ position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)', paddingBottom: 8 }}>
-            <button
-              onClick={() => { onConclude(); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-red-300 text-red-600 font-semibold rounded-xl shadow-lg text-sm"
-            >
-              ✓ Conclude Appointment
-            </button>
-            <div className="w-full" onClick={() => setOpen(false)}>
-              <SendMailDropdown patientId={patientId} patient={patient} fullWidth />
-            </div>
-            <button
-              onClick={() => { onPrescription(); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 bg-white border border-[#137fec] text-[#137fec] font-semibold rounded-xl shadow-lg text-sm"
-            >
-              <FileText size={16} /> Prescription
-            </button>
-            <button
-              onClick={() => { onInvoice(); setOpen(false); }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 bg-[#137fec] text-white font-semibold rounded-xl shadow-lg text-sm"
-            >
-              <Receipt size={16} /> Generate Invoice
-            </button>
+
+      {/* Action sheet — slides up from bottom */}
+      {open && (
+        <div className="fixed bottom-20 left-4 right-4 z-[96] flex flex-col gap-2">
+          <button
+            onClick={() => { onConclude(); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-4 py-3 bg-white border-2 border-red-300 text-red-600 font-semibold rounded-xl shadow-lg text-sm"
+          >
+            ✓ Conclude Appointment
+          </button>
+          <div onClick={() => setOpen(false)}>
+            <SendMailDropdown patientId={patientId} patient={patient} fullWidth />
           </div>
-        )}
-        <button
-          onMouseDown={onMouseDown}
-          onTouchStart={onTouchStart}
-          onClick={() => { if (!movedRef.current) setOpen(o => !o); }}
-          className={`w-14 h-14 rounded-full bg-[#137fec] text-white shadow-xl shadow-blue-400/40 flex items-center justify-center transition-transform active:scale-95 ${dragging ? 'cursor-grabbing scale-110' : 'cursor-grab'}`}
-        >
-          {open ? <X size={22} /> : <Plus size={22} />}
-        </button>
-      </div>
+          <button
+            onClick={() => { onPrescription(); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-4 py-3 bg-white border border-[#137fec] text-[#137fec] font-semibold rounded-xl shadow-lg text-sm"
+          >
+            <FileText size={16} /> Prescription
+          </button>
+          <button
+            onClick={() => { onInvoice(); setOpen(false); }}
+            className="w-full flex items-center gap-2 px-4 py-3 bg-[#137fec] text-white font-semibold rounded-xl shadow-lg text-sm"
+          >
+            <Receipt size={16} /> Generate Invoice
+          </button>
+        </div>
+      )}
+
+      {/* Fixed toggle button — pinned to bottom centre */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[97] w-14 h-14 rounded-full bg-[#137fec] text-white shadow-xl shadow-blue-400/40 flex items-center justify-center active:scale-95 transition-transform"
+      >
+        {open ? <X size={22} /> : <Plus size={22} />}
+      </button>
     </div>
   );
 }
 
 // eslint-disable-next-line react/prop-types
 function MolarisFAB({ onOpen }) {
-  const [pos, setPos]         = useState(() => ({
-    x: window.innerWidth - 88,
-    y: Math.max(80, window.innerHeight / 2 - 32),
-  }));
-  const [dragging, setDragging] = useState(false);
-  const [showTip, setShowTip]   = useState(false);
-  const dragRef   = useRef(null);
-  const startRef  = useRef(null); // { mouseX, mouseY, elX, elY }
-  const movedRef  = useRef(false);
-
-  const onMouseDown = useCallback((e) => {
-    e.preventDefault();
-    movedRef.current = false;
-    startRef.current = { mouseX: e.clientX, mouseY: e.clientY, elX: pos.x, elY: pos.y };
-    setDragging(true);
-  }, [pos]);
-
-  const onTouchStart = useCallback((e) => {
-    const t = e.touches[0];
-    movedRef.current = false;
-    startRef.current = { mouseX: t.clientX, mouseY: t.clientY, elX: pos.x, elY: pos.y };
-    setDragging(true);
-  }, [pos]);
-
-  useEffect(() => {
-    if (!dragging) return;
-    const SIZE = 64;
-
-    const move = (cx, cy) => {
-      const dx = cx - startRef.current.mouseX;
-      const dy = cy - startRef.current.mouseY;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) movedRef.current = true;
-      setPos({
-        x: Math.max(0, Math.min(window.innerWidth  - SIZE, startRef.current.elX + dx)),
-        y: Math.max(0, Math.min(window.innerHeight - SIZE, startRef.current.elY + dy)),
-      });
-    };
-
-    const onMouseMove = (e) => move(e.clientX, e.clientY);
-    const onTouchMove = (e) => { e.preventDefault(); move(e.touches[0].clientX, e.touches[0].clientY); };
-    const stop = () => setDragging(false);
-
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup',   stop);
-    window.addEventListener('touchmove', onTouchMove, { passive: false });
-    window.addEventListener('touchend',  stop);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup',   stop);
-      window.removeEventListener('touchmove', onTouchMove);
-      window.removeEventListener('touchend',  stop);
-    };
-  }, [dragging]);
+  const [showTip, setShowTip] = useState(false);
 
   return (
-    <div
-      ref={dragRef}
-      style={{ position: 'fixed', left: pos.x, top: pos.y, zIndex: 50, touchAction: 'none' }}
-      className="group"
-      onMouseDown={onMouseDown}
-      onTouchStart={onTouchStart}
-    >
+    // bottom-28 on mobile so it clears the MobileActionBar (~100px from bottom)
+    // sm:bottom-6 on larger screens where the action bar is hidden
+    <div className="fixed bottom-28 right-4 sm:bottom-6 sm:right-6 z-[102] group">
       {/* Hover tooltip */}
-      <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-slate-900 text-white text-xs font-semibold rounded-lg whitespace-nowrap shadow-lg pointer-events-none transition-all duration-150 ${showTip && !dragging ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
+      <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1 bg-slate-900 text-white text-xs font-semibold rounded-lg whitespace-nowrap shadow-lg pointer-events-none transition-all duration-150 ${showTip ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}>
         Molaris TCO
         <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
       </div>
 
       <button
-        onClick={() => { if (!movedRef.current) onOpen(); }}
+        onClick={onOpen}
         onMouseEnter={() => setShowTip(true)}
         onMouseLeave={() => setShowTip(false)}
-        className={`relative w-16 h-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 text-white shadow-xl shadow-purple-400/50 flex items-center justify-center transition-all duration-200 ${dragging ? 'scale-110 shadow-purple-500/70 cursor-grabbing' : 'hover:scale-110 active:scale-95 cursor-grab'}`}
+        className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-gradient-to-br from-violet-500 to-purple-700 text-white shadow-xl shadow-purple-400/50 flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-200"
       >
         <span className="absolute inset-0 rounded-full bg-purple-500 opacity-25 animate-ping" />
-        <Mic size={26} />
+        <Mic size={24} />
       </button>
     </div>
   );
@@ -1455,6 +1346,7 @@ export default function TreatmentPage({ patientIdProp }) {
         onClose={() => setIsReportModalOpen(false)}
         onSuccess={() => { fetchPageData(); setReportRefreshKey(k => k + 1); }}
         patientId={id}
+        appointmentId={activeTreatment?.appointmentId || null}
         patient={patient}
       />
 

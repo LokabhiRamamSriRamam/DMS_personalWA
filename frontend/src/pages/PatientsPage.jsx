@@ -5,7 +5,13 @@ import {
 } from 'lucide-react';
 import PatientProfileModal from '../modals/PatientProfileModal.jsx';
 import AddPatientModal from '../modals/AddPatientModal.jsx';
-import API from '../services/api.js'; 
+import API from '../services/api.js';
+import { parseSpreadsheet, downloadSampleSheet } from '../utils/spreadsheet.js';
+
+const PATIENT_BULK_HEADERS = [
+  'first_name', 'last_name', 'dob', 'gender', 'blood_group',
+  'mobile', 'email', 'address', 'city', 'reference_source', 'dentition_type',
+];
 
 const PatientsPage = () => {
   // --- STATE MANAGEMENT ---
@@ -15,6 +21,8 @@ const PatientsPage = () => {
   const [isAddPatientOpen, setIsAddPatientOpen] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [bulkRows, setBulkRows] = useState(null); // null = modal closed
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   // --- FETCH DATA FROM BACKEND ---
   const fetchPatients = async (query = '') => {
@@ -75,6 +83,62 @@ const PatientsPage = () => {
     setIsAddPatientOpen(false);
   };
 
+  // --- BULK IMPORT ---
+  const handleDownloadPatientSample = () => {
+    downloadSampleSheet('patients_template', PATIENT_BULK_HEADERS, [{
+      first_name: 'Ravi', last_name: 'Kumar', dob: '1990-05-21', gender: 'Male',
+      blood_group: 'O+', mobile: '9876543210', email: 'ravi@example.com',
+      address: '12 MG Road', city: 'Pune', reference_source: 'Walk-in',
+      dentition_type: 'Adult',
+    }]);
+  };
+
+  const handlePatientFileUpload = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      const rows = await parseSpreadsheet(file);
+      const mapped = rows
+        .map(r => {
+          const obj = {};
+          PATIENT_BULK_HEADERS.forEach(h => {
+            const key = Object.keys(r).find(k => k.trim().toLowerCase() === h);
+            obj[h] = key !== undefined ? String(r[key]).trim() : '';
+          });
+          return obj;
+        })
+        .filter(r => r.first_name);
+      if (mapped.length === 0) {
+        alert('No valid rows found. The sheet needs a "first_name" column.');
+        return;
+      }
+      setBulkRows(mapped);
+    } catch (err) {
+      console.error('Parse failed:', err);
+      alert('Could not read the file. Use the sample sheet as a reference.');
+    }
+  };
+
+  const handleConfirmBulkImport = async () => {
+    if (!bulkRows?.length) return;
+    setBulkBusy(true);
+    try {
+      const { data } = await API.post('/patients/bulk', { items: bulkRows });
+      setBulkRows(null);
+      fetchPatients();
+      const msg = `Imported ${data.inserted} patient(s).` +
+        (data.skipped ? ` Skipped ${data.skipped} (duplicate mobile/invalid).` : '') +
+        (data.errors?.length ? `\n\n${data.errors.slice(0, 5).join('\n')}` : '');
+      alert(msg);
+    } catch (err) {
+      console.error('Bulk import failed:', err);
+      alert('Import failed: ' + (err.response?.data?.error || err.message));
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   // New: Handle Delete
   const handleDelete = async (id) => {
     if(window.confirm("Are you sure you want to delete this patient? This cannot be undone.")) {
@@ -117,10 +181,23 @@ const PatientsPage = () => {
 
             {/* Action Buttons */}
             <div className="flex items-center gap-3">
-              <button className="bg-[#137fec] hover:bg-blue-600 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm shadow-blue-500/20">
+              <button
+                onClick={handleDownloadPatientSample}
+                className="bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors"
+              >
+                <Download size={18} />
+                Sample Sheet
+              </button>
+              <label className="bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm cursor-pointer">
                 <Download size={18} />
                 Import Patient
-              </button>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={handlePatientFileUpload}
+                  className="hidden"
+                />
+              </label>
               <button onClick={() => setIsAddPatientOpen(true)} className="bg-[#137fec] hover:bg-blue-600 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 text-sm font-medium transition-colors shadow-sm shadow-blue-500/20">
                 <Plus size={18} />
                 New Patient
@@ -244,11 +321,77 @@ const PatientsPage = () => {
           patient={selectedPatient}
         />
 
-        <AddPatientModal 
+        <AddPatientModal
           isOpen={isAddPatientOpen}
           onClose={() => setIsAddPatientOpen(false)}
-          onSave={handlePatientAdded} 
+          onSave={handlePatientAdded}
         />
+
+        {bulkRows && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl shadow-2xl max-h-[90vh] flex flex-col">
+              <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center shrink-0">
+                <div>
+                  <h3 className="font-bold text-lg text-slate-800 dark:text-white">Review Import</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {bulkRows.length} row(s) parsed. Rows with a duplicate mobile number are skipped on import.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setBulkRows(null)}
+                  className="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-500"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="overflow-auto p-4 flex-1">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                    <tr>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">#</th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">Name</th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">Mobile</th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">Gender</th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">DOB</th>
+                      <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-300">City</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {bulkRows.map((r, i) => (
+                      <tr key={i} className="text-slate-700 dark:text-slate-300">
+                        <td className="px-3 py-2 text-slate-400">{i + 1}</td>
+                        <td className="px-3 py-2">{`${r.first_name} ${r.last_name}`.trim()}</td>
+                        <td className="px-3 py-2">{r.mobile || '-'}</td>
+                        <td className="px-3 py-2">{r.gender || '-'}</td>
+                        <td className="px-3 py-2">{r.dob || '-'}</td>
+                        <td className="px-3 py-2">{r.city || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 shrink-0">
+                <button
+                  onClick={() => setBulkRows(null)}
+                  disabled={bulkBusy}
+                  className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-600 font-semibold text-sm hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmBulkImport}
+                  disabled={bulkBusy}
+                  className="px-6 py-2.5 rounded-xl bg-[#137fec] hover:bg-blue-600 text-white font-semibold text-sm transition-colors disabled:opacity-70 flex items-center gap-2"
+                >
+                  {bulkBusy && <Loader2 size={16} className="animate-spin" />}
+                  {bulkBusy ? 'Importing…' : `Import ${bulkRows.length} Patient(s)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
   );

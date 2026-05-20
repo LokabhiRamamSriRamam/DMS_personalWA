@@ -1,6 +1,6 @@
+import PDFDocument from 'pdfkit';
 import { logEvent } from '../services/analyticsLogger.js';
 import { triggerFlow } from '../services/chatbot.service.js';
-import { triggerInvoiceGenerated } from './email.controller.js';
 
 async function fireInvoiceFlow(tenantModels, invoice) {
   try {
@@ -19,11 +19,12 @@ async function fireInvoiceFlow(tenantModels, invoice) {
   }
 }
 
-// Helper: Generate ID
-const generateInvoiceId = async (Invoice) => {
+// Helper: Generate ID using the tenant's configured invoice prefix
+const generateInvoiceId = async (Invoice, prefix = 'INV') => {
   const count = await Invoice.countDocuments();
   const year = new Date().getFullYear();
-  return `INV-${year}-${String(count + 1).padStart(3, '0')}`;
+  const safePrefix = String(prefix || 'INV').trim() || 'INV';
+  return `${safePrefix}-${year}-${String(count + 1).padStart(3, '0')}`;
 };
 
 // ==========================================
@@ -53,15 +54,27 @@ export async function getInvoiceById(req, res) {
 
 // POST /api/invoices
 export async function createInvoice(req, res) {
-  const { Invoice, InventoryItem, InventoryLog, Transaction, LabOrder } = req.tenantModels;
+  const { Invoice, InventoryItem, InventoryLog, Transaction, LabOrder, InvoiceSettings } = req.tenantModels;
   try {
     const {
         patient_id, patient_name, patient_phone, date, items,
-        subtotal, total_amount, paid_amount, payment_method
+        paid_amount, payment_method
     } = req.body;
 
+    // Invoice presentation/finance config (prefix + tax). Falls back to
+    // sensible defaults if no settings row exists yet.
+    const invSettings = InvoiceSettings ? await InvoiceSettings.findOne().lean() : null;
+    const prefix      = invSettings?.invoiceNumber?.prefix || 'INV';
+    const taxRatePct  = invSettings?.tax?.show ? Number(invSettings?.tax?.defaultRatePct) || 0 : 0;
+
+    // Server is authoritative for money: recompute from line items rather
+    // than trusting client-sent subtotal/total.
+    const subtotal     = (items || []).reduce((acc, it) => acc + (Number(it.total) || 0), 0);
+    const tax          = Math.round(subtotal * taxRatePct) / 100;
+    const total_amount = Math.round((subtotal + tax) * 100) / 100;
+
     // 1. Generate ID
-    const invoice_id = await generateInvoiceId(Invoice);
+    const invoice_id = await generateInvoiceId(Invoice, prefix);
 
     // 2. INVENTORY LOGIC: Deduct Stock
     for (const item of items) {
@@ -99,6 +112,7 @@ export async function createInvoice(req, res) {
         date,
         items,
         subtotal,
+        tax,
         total_amount,
         paid_amount: Number(paid_amount),
         payment_method
@@ -136,8 +150,8 @@ export async function createInvoice(req, res) {
     // WaSender flow (fire-and-forget)
     fireInvoiceFlow(req.tenantModels, newInvoice);
 
-    // Email automation (fire-and-forget)
-    triggerInvoiceGenerated({ tenantModels: req.tenantModels, invoice: newInvoice });
+    // Note: invoice is emailed via the appointmentCompleted automation
+    // (include.invoice) — there is no standalone invoice email trigger.
 
     res.status(201).json(newInvoice);
 
@@ -199,6 +213,77 @@ export async function getTransactions(req, res) {
       const transactions = await Transaction.find(filter).sort({ date: -1 });
       res.json(transactions);
   } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
+// POST /api/transactions/export/pdf  { rows: [{date,party,type,category,method,amount}], title }
+// Renders exactly the rows the client is showing (client filters transactions
+// client-side, so we render what the user sees rather than re-querying).
+export async function exportTransactionsPdf(req, res) {
+  try {
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+    const title = String(req.body?.title || 'Transactions Report');
+
+    const doc = new PDFDocument({ margin: 40, size: 'A4' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="transactions.pdf"');
+    doc.pipe(res);
+
+    doc.fontSize(18).text(title, { align: 'center' });
+    doc.moveDown(0.3);
+    doc.fontSize(9).fillColor('#666')
+      .text(`Generated ${new Date().toLocaleString('en-GB')}  •  ${rows.length} record(s)`, { align: 'center' });
+    doc.moveDown(1).fillColor('#000');
+
+    const cols = [
+      { label: 'Date', width: 70 },
+      { label: 'Party', width: 130 },
+      { label: 'Type', width: 60 },
+      { label: 'Category', width: 90 },
+      { label: 'Mode', width: 70 },
+      { label: 'Amount', width: 75 },
+    ];
+    const startX = doc.page.margins.left;
+
+    const drawRow = (cells, opts = {}) => {
+      const y = doc.y;
+      let x = startX;
+      doc.fontSize(9).font(opts.bold ? 'Helvetica-Bold' : 'Helvetica');
+      cells.forEach((c, i) => {
+        doc.text(String(c), x + 2, y, { width: cols[i].width - 4, align: i === 5 ? 'right' : 'left' });
+        x += cols[i].width;
+      });
+      doc.moveTo(startX, doc.y + 2).lineTo(x, doc.y + 2).strokeColor('#ddd').stroke();
+      doc.moveDown(0.4);
+    };
+
+    drawRow(cols.map(c => c.label), { bold: true });
+
+    let total = 0;
+    for (const t of rows) {
+      if (doc.y > doc.page.height - 60) {
+        doc.addPage();
+        drawRow(cols.map(c => c.label), { bold: true });
+      }
+      const amt = Number(t.amount) || 0;
+      total += t.type === 'Expense' ? -amt : amt;
+      drawRow([
+        t.date || '',
+        t.party || 'Unknown',
+        t.type || '',
+        t.category || '',
+        t.method || '',
+        `INR ${amt.toLocaleString('en-IN')}`,
+      ]);
+    }
+
+    doc.moveDown(0.5);
+    doc.font('Helvetica-Bold').fontSize(11)
+      .text(`Net Total: INR ${total.toLocaleString('en-IN')}`, { align: 'right' });
+
+    doc.end();
+  } catch (err) {
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
 }
 
 // POST /api/transactions (Record new payment / expense)

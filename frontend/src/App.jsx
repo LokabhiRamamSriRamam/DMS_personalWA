@@ -20,6 +20,7 @@ import WhatsAppPage from './pages/WhatsAppPage.jsx';
 import BookingPage from './pages/BookingPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import HelpPage from './features/help/components/HelpPage.jsx';
 
 // Context
 import { TreatmentProvider } from './Context/TreatmentContext.jsx';
@@ -59,6 +60,10 @@ const router = createBrowserRouter([
   {
     path: '/connect-dentalclinic/:clinicName/:tenantId',
     element: <BookingPage />,
+  },
+  {
+    path: '/help',
+    element: <HelpPage />,
   },
   {
     path: '/',

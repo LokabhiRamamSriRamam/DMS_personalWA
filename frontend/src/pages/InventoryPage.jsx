@@ -9,7 +9,7 @@ import InventoryItemList, { AddItemModal } from '../components/InventoryItems.js
 import InventoryLogs, { AddLogModal } from '../components/InventoryLogs.jsx';
 import InventoryVendors, { AddVendorModal } from '../components/InventoryVendors.jsx';
 import { useInventorySettings } from '../Context/SettingsContext.jsx';
-
+  
 // --- SHARED COMPONENTS DEFINED HERE ---
 
 // 1. Status Badge
@@ -111,7 +111,7 @@ const InventoryPage = () => {
     <div className="flex flex-col h-full bg-slate-50 p-6 gap-6 relative">
       
       {/* HEADER & NAVIGATION */}
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
            <h1 className="text-2xl font-bold text-slate-800">Inventory Manager</h1>
            <p className="text-slate-500 text-sm">Pharmacy & Clinic Consumables</p>

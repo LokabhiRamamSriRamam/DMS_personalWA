@@ -31,6 +31,34 @@ export async function createDiagnosis(req, res) {
   }
 }
 
+// POST /api/diagnoses/bulk
+export async function bulkCreateDiagnoses(req, res) {
+  const { Diagnosis } = req.tenantModels;
+  try {
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    const docs = items
+      .map(i => ({
+        name: String(i.name || '').trim(),
+        code: String(i.code || '').trim(),
+        category: String(i.category || '').trim(),
+        description: String(i.description || '').trim(),
+        is_active: true,
+      }))
+      .filter(i => i.name);
+
+    if (docs.length === 0) {
+      return res.status(400).json({ error: 'No valid rows (name is required)' });
+    }
+
+    const result = await Diagnosis.insertMany(docs, { ordered: false });
+    res.status(201).json({ inserted: result.length, skipped: items.length - result.length, errors: [] });
+  } catch (err) {
+    const inserted = err?.result?.result?.nInserted ?? err?.insertedDocs?.length ?? 0;
+    const errors = (err?.writeErrors || []).map(e => e.errmsg || e.message);
+    res.status(errors.length ? 207 : 400).json({ inserted, skipped: errors.length, errors });
+  }
+}
+
 // PUT /api/diagnoses/:id
 export async function updateDiagnosis(req, res) {
   const { Diagnosis } = req.tenantModels;

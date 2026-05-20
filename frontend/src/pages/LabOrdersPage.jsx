@@ -854,7 +854,7 @@ export default function LabOrdersPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 p-6">
+    <div className="flex flex-col h-full bg-slate-50 p-4 md:p-6">
       <LabOrderModal
         isOpen={modalState.type === 'order'}
         onClose={closeModals}
@@ -888,62 +888,63 @@ export default function LabOrdersPage() {
         onSuccess={fetchAll}
       />
 
-      {/* Tabs */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="bg-slate-200/60 p-1.5 rounded-xl inline-flex">
-          {['Lab Order', 'Lab Item', 'Vendor Labs'].map(tab => (
-            <button
-              key={tab}
-              onClick={() => { setActiveModule(tab); setSearchQuery(''); }}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
-                activeModule === tab ? 'bg-[#137fec] text-white shadow' : 'text-slate-600 hover:bg-white/50'
-              }`}
-            >{tab}</button>
-          ))}
+      {/* Tabs + Export */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-6">
+        <div className="overflow-x-auto pb-0.5 -mx-1 px-1">
+          <div className="bg-slate-200/60 p-1.5 rounded-xl inline-flex w-max">
+            {['Lab Order', 'Lab Item', 'Vendor Labs'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => { setActiveModule(tab); setSearchQuery(''); }}
+                className={`px-3 sm:px-4 py-2 text-sm font-semibold rounded-lg transition-all whitespace-nowrap ${
+                  activeModule === tab ? 'bg-[#137fec] text-white shadow' : 'text-slate-600 hover:bg-white/50'
+                }`}
+              >{tab}</button>
+            ))}
+          </div>
         </div>
         <button onClick={exportCSV}
-          className="flex items-center gap-2 bg-white border px-4 py-2.5 rounded-xl text-sm font-medium hover:border-[#137fec] text-slate-600">
+          className="flex items-center gap-2 bg-white border px-4 py-2.5 rounded-xl text-sm font-medium hover:border-[#137fec] text-slate-600 self-start sm:self-auto flex-shrink-0">
           <Download size={18}/> Export CSV
         </button>
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border shadow-sm mb-6 flex justify-between items-center">
+      <div className="bg-white p-4 rounded-2xl border shadow-sm mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <h2 className="text-xl font-bold text-slate-800">
           {activeModule === 'Lab Order' ? 'Orders' : activeModule === 'Lab Item' ? 'Items Catalog' : 'Lab Directory'}
         </h2>
-        <div className="flex gap-4">
-          <div className="relative">
+        <div className="flex flex-wrap gap-2">
+          <div className="relative flex-1 sm:flex-none">
             <Search size={18} className="absolute left-3 top-2.5 text-slate-400"/>
             <input
               type="text"
               placeholder="Search..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border rounded-xl text-sm w-64 focus:ring-1 focus:ring-[#137fec] outline-none"
+              className="pl-10 pr-4 py-2 border rounded-xl text-sm w-full sm:w-52 focus:ring-1 focus:ring-[#137fec] outline-none"
             />
           </div>
 
-          {/* Bulk Upload — shown only for Lab Item and Vendor Labs tabs */}
           {activeModule === 'Lab Item' && (
             <button
               onClick={() => setBulkItemsOpen(true)}
-              className="flex items-center gap-2 bg-[#137fec] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
+              className="flex items-center gap-2 bg-[#137fec] text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
             >
-              <Upload size={16}/> Bulk Upload
+              <Upload size={16}/> Bulk
             </button>
           )}
           {activeModule === 'Vendor Labs' && (
             <button
               onClick={() => setBulkVendorsOpen(true)}
-              className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 shadow-md transition-all"
+              className="flex items-center gap-2 bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 shadow-md transition-all"
             >
-              <Upload size={16}/> Bulk Upload
+              <Upload size={16}/> Bulk
             </button>
           )}
 
           <button onClick={handleAddNew}
-            className="flex items-center gap-2 bg-[#137fec] text-white px-5 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md">
+            className="flex items-center gap-2 bg-[#137fec] text-white px-3 sm:px-5 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md">
             <Plus size={18}/>
             Add {activeModule === 'Lab Order' ? 'Order' : activeModule === 'Lab Item' ? 'Item' : 'Vendor'}
           </button>

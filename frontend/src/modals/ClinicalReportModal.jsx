@@ -90,7 +90,7 @@ const DETAIL_LEVELS = [
   { key: 'detailed', label: 'Detailed' },
 ];
 
-export default function ClinicalReportModal({ isOpen, onClose, patientId, patient, onSuccess }) {
+export default function ClinicalReportModal({ isOpen, onClose, patientId, appointmentId, patient, onSuccess }) {
   const { user } = useAuth();
   const mediaRecorderRef = useRef(null);
   const audioChunksRef   = useRef([]);
@@ -312,6 +312,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, patien
     fd.append('detail_level', detailLevel);
     fd.append('save_report',  String(saveReport));
     fd.append('autofill',     String(autofillEnabled));
+    if (appointmentId) fd.append('appointment_id', appointmentId);
     Object.entries(overrides).forEach(([k, v]) => fd.append(k, v));
     return fd;
   }

@@ -5,7 +5,8 @@ import {
   getInvoiceById,
   updateInvoice,
   recordTransaction,
-  getTransactions
+  getTransactions,
+  exportTransactionsPdf
 } from "../controllers/invoice.controller.js";
 
 const router = express.Router();
@@ -18,6 +19,7 @@ router.put("/invoices/:id", updateInvoice);     // Update manual
 
 // --- TRANSACTION ROUTES ---
 router.get("/transactions", getTransactions);   // Get history
+router.post("/transactions/export/pdf", exportTransactionsPdf); // PDF export (renders posted rows)
 router.post("/transactions", recordTransaction); // Record payment
 
 export default router;
