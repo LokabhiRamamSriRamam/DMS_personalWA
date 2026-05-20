@@ -93,7 +93,6 @@ DentalClinic_Demo/
 | Vendor | `Vendor.model.js` | name, type (Pharmacy/Consumable/Lab/General), contact_person, phone, email, address, gst_number |
 | LabCatalogItem | `LabCatalogItem.model.js` | name, category, price, turnaround_time, preferred_vendor_id |
 | LabOrder | `LabOrder.model.js` | patient_id, doctor_id, vendor_id (Lab), order_date, expected_delivery, items[]{item_name,shade,instructions,cost}, status (Sent/In Process/Received/Delivered to Patient), cost_to_clinic |
-| Services | `Services.model.js` | name, cost, category, description, isActive |
 | WhatsAppSettings | `WhatsAppSettings.model.js` | enabled, defaultLanguage, fallbackLanguage (en/hi/mr), events{appointmentBooked, appointmentReminder{enabled,hoursBeforeAppointment}, appointmentRescheduled, treatmentCompleted, feedbackMessage, feedbackPoll{enabled,pollTemplateId}, postCare} |
 | WhatsAppTemplate | `WhatsAppTemplate.model.js` | eventType, language, contentType (text/image/video/document/audio/sticker/location/contact/poll), content{} with `{{placeholder}}` variables, isActive |
 | WhatsAppLog | `WhatsAppLog.model.js` | patientId, event, to (phone), status (scheduled/sent/failed), scheduledAt, sentAt, messageType, error; indexed by (patientId,sentAt) and (event,sentAt) |
@@ -184,11 +183,6 @@ All routes prefixed with `/api`. All routes except `/api/users/register` and `/a
 - `POST /api/vendors`
 - `PUT /api/vendors/:id`
 - `DELETE /api/vendors/:id`
-
-### Services
-- `GET /api/services` — active only
-- `POST /api/services`
-- `PUT /api/services/:id`
 
 ### WaSender Session + Inbox (`/api/wasender`)
 - `GET /api/wasender/config` — fetch credentials (PAT/apiKey masked as `****last4`)

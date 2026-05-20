@@ -1,6 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
-import { X, Bold, Italic, Underline, List, ListOrdered, Loader2, Mic, MicOff, Trash2 } from 'lucide-react';
+import { X, Bold, Italic, Underline, List, ListOrdered, Loader2, Mic, MicOff, Trash2, AlertTriangle, WifiOff } from 'lucide-react';
 import API from '../services/api';
+import { useMicRecorder } from '../hooks/useMicRecorder';
+import MicPermissionHelp from '../components/MicPermissionHelp';
 
 const TOOLBAR_BUTTONS = [
   { cmd: 'bold',                icon: Bold,         label: 'Bold'          },
@@ -29,16 +31,17 @@ const TEXT_SIZES = [
  *  onSave(content) — async fn             caller handles the API call
  */
 export default function RichTextEditorModal({ isOpen, onClose, type, initialContent, onSave, onDelete }) {
-  const editorRef         = useRef(null);
-  const savedRangeRef     = useRef(null);
-  const mediaRecorderRef  = useRef(null);
-  const audioChunksRef    = useRef([]);
+  const editorRef     = useRef(null);
+  const savedRangeRef = useRef(null);
   const [saving, setSaving]         = useState(false);
   const [deleting, setDeleting]     = useState(false);
   const [isEmpty, setIsEmpty]       = useState(true);
   const [activeFormats, setActiveFormats] = useState({});
-  const [recording, setRecording]   = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
+  const [transcribing, setTranscribing]   = useState(false);
+  const [transcribeError, setTranscribeError] = useState('');
+  const [showPermHelp, setShowPermHelp] = useState(false);
+
+  const mic = useMicRecorder();
 
   // Populate / clear editor when modal opens
   useEffect(() => {
@@ -105,39 +108,53 @@ export default function RichTextEditorModal({ isOpen, onClose, type, initialCont
     e.target.value = ''; // reset dropdown to placeholder
   }
 
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-      recorder.ondataavailable = e => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); sendAudioForTranscription(); };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setRecording(true);
-    } catch (err) {
-      alert('Microphone access denied. Please allow microphone permissions.');
+  async function handleMicClick() {
+    setTranscribeError('');
+
+    if (mic.state === 'recording') {
+      // Stop and transcribe
+      let result;
+      try {
+        result = await mic.stop();
+      } catch {
+        return; // hook already set error state
+      }
+      if (!result?.blob || result.blob.size === 0) {
+        setTranscribeError('No audio was captured. Please try again.');
+        return;
+      }
+      await sendAudioForTranscription(result.blob, result.mimeType, result.extension);
+      return;
+    }
+
+    if (mic.state === 'error') {
+      if (mic.errorCode === 'permission-denied' || mic.errorCode === 'browser-unsupported') {
+        setShowPermHelp(true);
+        return;
+      }
+      mic.reset();
+    }
+
+    await mic.start();
+
+    // If start() set an error, surface the help modal for permission issues
+    if (mic.errorCode === 'permission-denied' || mic.errorCode === 'browser-unsupported') {
+      setShowPermHelp(true);
     }
   }
 
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    setRecording(false);
-  }
-
-  async function sendAudioForTranscription() {
+  async function sendAudioForTranscription(blob, mimeType, ext) {
     setTranscribing(true);
+    setTranscribeError('');
     try {
-      const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       const formData = new FormData();
-      formData.append('file', blob, 'recording.webm');
+      formData.append('file', blob, `recording.${ext}`);
 
       const { data } = await API.post('/transcribe', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       if (data.transcript) {
-        // Insert transcript at cursor position (or at end if no cursor)
         editorRef.current?.focus();
         const sel = window.getSelection();
         if (savedRangeRef.current && sel) {
@@ -148,8 +165,8 @@ export default function RichTextEditorModal({ isOpen, onClose, type, initialCont
         handleInput();
       }
     } catch (err) {
-      alert('Transcription failed. Please try again.');
       console.error('Transcription error:', err);
+      setTranscribeError('Transcription failed. Please try again.');
     } finally {
       setTranscribing(false);
     }
@@ -194,6 +211,12 @@ export default function RichTextEditorModal({ isOpen, onClose, type, initialCont
     : (type === 'note' ? 'New Consultation Note'  : 'New Advice');
 
   return (
+    <>
+    <MicPermissionHelp
+      isOpen={showPermHelp}
+      onClose={() => { setShowPermHelp(false); mic.reset(); }}
+      errorCode={mic.errorCode}
+    />
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
 
@@ -260,25 +283,70 @@ export default function RichTextEditorModal({ isOpen, onClose, type, initialCont
           <button
             type="button"
             onMouseDown={e => e.preventDefault()}
-            onClick={recording ? stopRecording : startRecording}
-            disabled={transcribing}
-            title={recording ? 'Stop recording' : transcribing ? 'Transcribing…' : 'Dictate (speech to text)'}
+            onClick={handleMicClick}
+            disabled={transcribing || mic.state === 'requesting' || mic.state === 'stopping'}
+            title={
+              !mic.isSupported        ? 'Audio recording not supported in this browser'
+              : mic.state === 'recording' ? 'Tap to stop and transcribe'
+              : transcribing          ? 'Transcribing…'
+              : mic.state === 'error' ? mic.errorMessage
+              : 'Dictate — tap to start recording'
+            }
             className={`flex items-center gap-1.5 px-3 h-8 rounded-md text-xs font-semibold transition-colors disabled:opacity-50 ${
-              recording
+              mic.state === 'recording'
                 ? 'bg-red-500 text-white animate-pulse'
-                : transcribing
+                : transcribing || mic.state === 'requesting' || mic.state === 'stopping'
                 ? 'bg-slate-200 text-slate-500'
+                : mic.state === 'error'
+                ? 'bg-orange-100 text-orange-600 hover:bg-orange-200'
+                : !mic.isSupported
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
             {transcribing
               ? <><Loader2 size={14} className="animate-spin" /> Transcribing…</>
-              : recording
+              : mic.state === 'requesting'
+              ? <><Loader2 size={14} className="animate-spin" /> Connecting…</>
+              : mic.state === 'stopping'
+              ? <><Loader2 size={14} className="animate-spin" /> Stopping…</>
+              : mic.state === 'recording'
               ? <><MicOff size={14} /> Stop</>
+              : mic.state === 'error'
+              ? <><AlertTriangle size={14} /> {mic.errorCode === 'permission-denied' ? 'Denied' : 'Error'}</>
               : <><Mic size={14} /> Dictate</>
             }
           </button>
         </div>
+
+        {/* Inline mic status strip */}
+        {(mic.state === 'recording' || mic.isInterrupted || mic.state === 'error' || transcribeError) && (
+          <div className={`px-4 py-2 text-xs font-medium flex items-center gap-2 ${
+            mic.isInterrupted || mic.state === 'error' || transcribeError
+              ? 'bg-orange-50 text-orange-700 border-b border-orange-100'
+              : 'bg-red-50 text-red-600 border-b border-red-100'
+          }`}>
+            {mic.isInterrupted ? (
+              <><WifiOff size={12} /> Recording paused — was there an incoming call? Tap Stop, then try again.</>
+            ) : mic.state === 'error' ? (
+              <><AlertTriangle size={12} />
+                {mic.errorMessage}
+                {(mic.errorCode === 'permission-denied' || mic.errorCode === 'browser-unsupported') && (
+                  <button
+                    className="ml-1 underline font-semibold"
+                    onClick={() => setShowPermHelp(true)}
+                  >
+                    How to fix
+                  </button>
+                )}
+              </>
+            ) : transcribeError ? (
+              <><AlertTriangle size={12} /> {transcribeError}</>
+            ) : (
+              <><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse inline-block" /> Recording — tap Stop when done</>
+            )}
+          </div>
+        )}
 
         {/* Editor */}
         <div className="flex-1 overflow-y-auto px-6 py-4 min-h-[220px]">
@@ -339,5 +407,6 @@ export default function RichTextEditorModal({ isOpen, onClose, type, initialCont
 
       </div>
     </div>
+    </>
   );
 }
