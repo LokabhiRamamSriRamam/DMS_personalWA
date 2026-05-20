@@ -113,8 +113,8 @@ function LabOrderModal({ isOpen, onClose, order, patients, labVendors, catalogIt
           <button onClick={onClose} className="p-2 hover:bg-red-50 hover:text-red-500 rounded-full"><X size={20}/></button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
-          <form id="lab-order-form" onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="p-4 sm:p-6 overflow-y-auto">
+          <form id="lab-order-form" onSubmit={handleSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div className="space-y-1">
               <label className="text-sm font-medium text-slate-700">Patient *</label>
               <select required value={form.patient_id} onChange={e => set('patient_id', e.target.value)}
@@ -184,7 +184,7 @@ function LabOrderModal({ isOpen, onClose, order, patients, labVendors, catalogIt
                 className="w-full p-2.5 border rounded-xl outline-none focus:border-[#137fec]"/>
             </div>
 
-            <div className="md:col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1">
               <label className="text-sm font-medium text-slate-700">Notes / Instructions</label>
               <textarea rows="2" value={form.notes} onChange={e => set('notes', e.target.value)}
                 className="w-full p-2.5 border rounded-xl resize-none outline-none focus:border-[#137fec]"/>
@@ -335,7 +335,7 @@ function LabVendorModal({ isOpen, onClose, vendor, onSave }) {
               className="w-full mt-1 p-2 border rounded-lg focus:border-[#137fec] outline-none"
               placeholder="e.g. City Dental Lab"/>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase">Contact Person</label>
               <input value={form.contact_person} onChange={e => set('contact_person', e.target.value)}
@@ -854,7 +854,7 @@ export default function LabOrdersPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 p-4 md:p-6">
+    <div className="flex flex-col h-full bg-slate-50 p-3 sm:p-6">
       <LabOrderModal
         isOpen={modalState.type === 'order'}
         onClose={closeModals}
@@ -910,19 +910,19 @@ export default function LabOrdersPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-2xl border shadow-sm mb-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+      <div className="bg-white p-4 rounded-2xl border shadow-sm mb-6 flex flex-col xs:flex-row xs:justify-between xs:items-center gap-3">
         <h2 className="text-xl font-bold text-slate-800">
           {activeModule === 'Lab Order' ? 'Orders' : activeModule === 'Lab Item' ? 'Items Catalog' : 'Lab Directory'}
         </h2>
         <div className="flex flex-wrap gap-2">
-          <div className="relative flex-1 sm:flex-none">
+          <div className="relative flex-1 xs:flex-none">
             <Search size={18} className="absolute left-3 top-2.5 text-slate-400"/>
             <input
               type="text"
               placeholder="Search..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2 border rounded-xl text-sm w-full sm:w-52 focus:ring-1 focus:ring-[#137fec] outline-none"
+              className="pl-10 pr-4 py-2 border rounded-xl text-sm w-full xs:w-48 sm:w-64 focus:ring-1 focus:ring-[#137fec] outline-none"
             />
           </div>
 
@@ -931,7 +931,8 @@ export default function LabOrdersPage() {
               onClick={() => setBulkItemsOpen(true)}
               className="flex items-center gap-2 bg-[#137fec] text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700 shadow-md transition-all"
             >
-              <Upload size={16}/> Bulk
+              <Upload size={16}/>
+              <span className="hidden sm:inline">Bulk</span>
             </button>
           )}
           {activeModule === 'Vendor Labs' && (
@@ -939,7 +940,8 @@ export default function LabOrdersPage() {
               onClick={() => setBulkVendorsOpen(true)}
               className="flex items-center gap-2 bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 shadow-md transition-all"
             >
-              <Upload size={16}/> Bulk
+              <Upload size={16}/>
+              <span className="hidden sm:inline">Bulk</span>
             </button>
           )}
 
@@ -951,8 +953,67 @@ export default function LabOrdersPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="flex-1 bg-white border rounded-xl shadow-sm overflow-auto">
+      {/* Mobile cards */}
+      {!loading && (
+        <div className="sm:hidden bg-white border rounded-xl shadow-sm mb-4 divide-y divide-slate-100">
+          {activeModule === 'Lab Order' && (() => {
+            const filtered = orders.filter(o => {
+              const q = searchQuery.toLowerCase();
+              const name = `${o.patient_id?.first_name || ''} ${o.patient_id?.last_name || ''}`.toLowerCase();
+              return name.includes(q) || (o.items?.[0]?.item_name || '').toLowerCase().includes(q);
+            });
+            return filtered.length === 0
+              ? <p className="p-6 text-center text-slate-400 text-sm">No orders found</p>
+              : filtered.map(o => (
+                <div key={o._id} className="p-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-[#137fec] truncate">{o.patient_id?.first_name} {o.patient_id?.last_name}</p>
+                    <p className="text-sm text-slate-700 truncate">{o.items?.[0]?.item_name || '—'}</p>
+                    <p className="text-xs text-slate-400">{o.vendor_id?.name || '—'} · {o.order_date ? new Date(o.order_date).toLocaleDateString('en-GB') : '—'}</p>
+                    {o.cost_to_clinic != null && <p className="text-xs font-semibold text-slate-600 mt-0.5">₹{o.cost_to_clinic.toLocaleString()}</p>}
+                  </div>
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${STATUS_STYLES[o.status] || STATUS_STYLES['Sent']}`}>{o.status}</span>
+                    <button onClick={() => handleEdit(o)} className="text-slate-400 hover:text-blue-600"><Edit size={15}/></button>
+                  </div>
+                </div>
+              ));
+          })()}
+          {activeModule === 'Lab Item' && (() => {
+            const filtered = items.filter(i => i.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            return filtered.length === 0
+              ? <p className="p-6 text-center text-slate-400 text-sm">No items in catalog</p>
+              : filtered.map(i => (
+                <div key={i._id} className="p-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800 truncate">{i.name}</p>
+                    <p className="text-xs text-slate-500">{i.category} · ₹{i.price?.toLocaleString()}</p>
+                    <p className="text-xs text-slate-400">{i.preferred_vendor_id?.name || '—'} · {i.turnaround_time || '—'}</p>
+                  </div>
+                  <button onClick={() => handleEdit(i)} className="text-slate-400 hover:text-blue-600 flex-shrink-0"><Edit size={15}/></button>
+                </div>
+              ));
+          })()}
+          {activeModule === 'Vendor Labs' && (() => {
+            const filtered = vendors.filter(v => v.name.toLowerCase().includes(searchQuery.toLowerCase()));
+            return filtered.length === 0
+              ? <p className="p-6 text-center text-slate-400 text-sm">No lab vendors found</p>
+              : filtered.map(v => (
+                <div key={v._id} className="p-3 flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-slate-800 truncate">{v.name}</p>
+                    <p className="text-xs text-slate-500">{v.contact_person || '—'} · {v.phone || '—'}</p>
+                    <p className="text-xs text-[#137fec] truncate">{v.email || '—'}</p>
+                  </div>
+                  <button onClick={() => handleEdit(v)} className="text-slate-400 hover:text-blue-600 flex-shrink-0"><Edit size={15}/></button>
+                </div>
+              ));
+          })()}
+        </div>
+      )}
+
+      {/* Desktop table */}
+      <div className="hidden sm:flex flex-1 bg-white border rounded-xl shadow-sm overflow-auto">
         {renderTable()}
       </div>
     </div>

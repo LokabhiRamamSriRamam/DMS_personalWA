@@ -68,9 +68,9 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
         </div>
 
         <form className="p-6 space-y-4 max-h-[80vh] overflow-y-auto" onSubmit={handleSubmit}>
-          
-          <div className="grid grid-cols-2 gap-4">
-             <div className="col-span-2">
+
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
+             <div className="col-span-1 xs:col-span-2">
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Vendor Name</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-slate-400"><Briefcase size={16}/></span>
@@ -97,7 +97,7 @@ export const AddVendorModal = ({ isOpen, onClose, editVendor, onSave }) => {
              </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Contact Person</label>
               <div className="relative">
@@ -332,29 +332,65 @@ const InventoryVendors = () => {
 
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
+  const TypeBadge = ({ type }) => (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${
+      type === 'Pharmacy'   ? 'bg-blue-50 text-blue-700 border-blue-200' :
+      type === 'Consumable' ? 'bg-teal-50 text-teal-700 border-teal-200' :
+      'bg-slate-100 border-slate-200'
+    }`}>{type}</span>
+  );
+
+  const HeaderActions = () => (
+    <div className="flex gap-2">
+      <button onClick={() => { setEditingVendor(null); setIsModalOpen(true); }} className="flex items-center gap-1.5 text-sm text-white bg-[#137fec] hover:bg-blue-600 px-3 py-2 rounded-lg font-semibold transition-colors">
+        <Plus size={16} /><span className="hidden xs:inline">Add Vendor</span>
+      </button>
+      <button onClick={() => setIsBulkUploadOpen(true)} className="flex items-center gap-1.5 text-sm text-white bg-slate-600 hover:bg-slate-700 px-3 py-2 rounded-lg font-semibold transition-colors">
+        <Upload size={16} /><span className="hidden xs:inline">Bulk Upload</span>
+      </button>
+    </div>
+  );
+
   return (
     <>
-      <div className="h-full flex flex-col" onClick={() => setContextMenu(null)}>
+      {/* ── Mobile: cards ── */}
+      <div className="sm:hidden flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+        <div className="p-3 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
+          <h3 className="font-bold text-slate-700 text-sm">Vendors</h3>
+          <HeaderActions />
+        </div>
+        <div className="divide-y divide-slate-100">
+          {vendors.length === 0
+            ? <p className="p-4 text-center text-xs text-slate-400">No vendors found. Add one to get started.</p>
+            : vendors.map(v => (
+              <div key={v._id} className="p-3 flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-semibold text-slate-700 truncate">{v.name}</p>
+                    <TypeBadge type={v.type} />
+                  </div>
+                  {v.contact_person && <p className="text-xs text-slate-500 flex items-center gap-1"><User size={11}/> {v.contact_person}</p>}
+                  <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1"><Phone size={11}/> {v.phone || '-'}</p>
+                  {v.email && <p className="text-xs text-slate-400 truncate">{v.email}</p>}
+                </div>
+                <button
+                  onClick={() => { setEditingVendor(v); setIsModalOpen(true); }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-[#137fec] hover:bg-blue-50 transition-colors flex-shrink-0"
+                >
+                  <Edit size={15} />
+                </button>
+              </div>
+            ))
+          }
+        </div>
+      </div>
 
+      {/* ── Desktop: context-menu table ── */}
+      <div className="hidden sm:flex h-full flex-col" onClick={() => setContextMenu(null)}>
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex-1 min-h-0 flex flex-col">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
             <h3 className="font-bold text-slate-700">Vendors</h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { setEditingVendor(null); setIsModalOpen(true); }}
-                className="flex items-center gap-2 text-sm text-white bg-[#137fec] hover:bg-blue-600 px-3 py-2 rounded-lg font-semibold transition-colors"
-              >
-                <Plus size={16} />
-                Add Vendor
-              </button>
-              <button
-                onClick={() => setIsBulkUploadOpen(true)}
-                className="flex items-center gap-2 text-sm text-white bg-slate-600 hover:bg-slate-700 px-3 py-2 rounded-lg font-semibold transition-colors"
-              >
-                <Upload size={16} />
-                Bulk Upload
-              </button>
-            </div>
+            <HeaderActions />
           </div>
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
@@ -368,34 +404,22 @@ const InventoryVendors = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {vendors.map((v) => (
-                  <tr 
-                    key={v._id} 
-                    className="hover:bg-slate-50 text-sm cursor-context-menu select-none transition-colors"
-                    onContextMenu={(e) => handleContextMenu(e, v)}
-                  >
+                {vendors.map(v => (
+                  <tr key={v._id} className="hover:bg-slate-50 text-sm cursor-context-menu select-none transition-colors" onContextMenu={(e) => handleContextMenu(e, v)}>
                     <td className="p-4 font-bold text-slate-800">{v.name}</td>
-                    <td className="p-4">
-                        <span className={`px-2 py-1 rounded text-xs font-medium border ${
-                            v.type === 'Pharmacy' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
-                            v.type === 'Consumable' ? 'bg-teal-50 text-teal-700 border-teal-200' :
-                            'bg-slate-100 border-slate-200'
-                        }`}>
-                            {v.type}
-                        </span>
-                    </td>
-                    <td className="p-4 text-slate-600 flex items-center gap-2">
-                        {v.contact_person ? <><User size={14} className="text-slate-400"/> {v.contact_person}</> : '-'}
+                    <td className="p-4"><TypeBadge type={v.type} /></td>
+                    <td className="p-4 text-slate-600">
+                      {v.contact_person ? <span className="flex items-center gap-2"><User size={14} className="text-slate-400"/> {v.contact_person}</span> : '-'}
                     </td>
                     <td className="p-4">
-                        <div className="flex flex-col gap-1">
-                            <div className="text-slate-800 font-mono text-xs flex items-center gap-2"><Phone size={12}/> {v.phone || '-'}</div>
-                            {v.email && <div className="text-slate-500 text-xs flex items-center gap-2"><Mail size={12}/> {v.email}</div>}
-                        </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="text-slate-800 font-mono text-xs flex items-center gap-2"><Phone size={12}/> {v.phone || '-'}</div>
+                        {v.email && <div className="text-slate-500 text-xs flex items-center gap-2"><Mail size={12}/> {v.email}</div>}
+                      </div>
                     </td>
                     <td className="p-4 text-slate-500 text-xs max-w-[200px] truncate">
-                        {v.gst_number && <div className="font-bold mb-1">GST: {v.gst_number}</div>}
-                        {v.address}
+                      {v.gst_number && <div className="font-bold mb-1">GST: {v.gst_number}</div>}
+                      {v.address}
                     </td>
                   </tr>
                 ))}
@@ -405,38 +429,17 @@ const InventoryVendors = () => {
           </div>
         </div>
 
-        {/* Context Menu */}
         {contextMenu && (
-          <div 
-            ref={contextMenuRef}
-            className="fixed bg-white border border-slate-200 shadow-xl rounded-lg py-1 w-40 z-50 animate-in fade-in zoom-in-95 duration-100"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button onClick={handleEdit} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-              <Edit size={14} /> Edit Vendor
-            </button>
+          <div ref={contextMenuRef} className="fixed bg-white border border-slate-200 shadow-xl rounded-lg py-1 w-40 z-50 animate-in fade-in zoom-in-95 duration-100" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
+            <button onClick={handleEdit} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Edit size={14} /> Edit Vendor</button>
             <div className="h-px bg-slate-100 my-1"></div>
-            <button onClick={handleDelete} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-              <Trash2 size={14} /> Delete
-            </button>
+            <button onClick={handleDelete} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 size={14} /> Delete</button>
           </div>
         )}
-
       </div>
 
-      <AddVendorModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        editVendor={editingVendor}
-        onSave={fetchVendors}
-      />
-
-      <BulkUploadVendorsModal
-        isOpen={isBulkUploadOpen}
-        onClose={() => setIsBulkUploadOpen(false)}
-        onUpload={fetchVendors}
-      />
+      <AddVendorModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} editVendor={editingVendor} onSave={fetchVendors} />
+      <BulkUploadVendorsModal isOpen={isBulkUploadOpen} onClose={() => setIsBulkUploadOpen(false)} onUpload={fetchVendors} />
     </>
   );
 };

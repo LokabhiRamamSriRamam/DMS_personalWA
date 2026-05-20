@@ -214,8 +214,8 @@ export const CreateOrderModal = ({ isOpen, onClose, onSave, editOrder }) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl w-full max-w-4xl p-6 shadow-2xl flex flex-col max-h-[90vh]">
-        
+      <div className="bg-white rounded-2xl w-full max-w-4xl p-4 sm:p-6 shadow-2xl flex flex-col max-h-[90vh]">
+
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center gap-3">
              <h3 className="font-bold text-xl text-slate-800">{editOrder ? 'View / Edit Order' : 'Create Purchase Order'}</h3>
@@ -227,7 +227,7 @@ export const CreateOrderModal = ({ isOpen, onClose, onSave, editOrder }) => {
         <form className="flex flex-col flex-1 overflow-hidden" onSubmit={handleSubmit}>
           
           {/* Header Controls */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
              <div>
                 <label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Vendor</label>
                 <select disabled={isReadOnly} required value={orderMeta.vendor} onChange={e => setOrderMeta({...orderMeta, vendor: e.target.value})} className="w-full border border-slate-300 p-2 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white disabled:bg-slate-100">
@@ -377,109 +377,103 @@ const InventoryOrders = ({ SectionHeader, medicineEnabled = true, consumableEnab
 
   if(loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
+  const StatusBadge = ({ status }) => (
+    <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
+      status === 'Received'  ? 'bg-green-100 text-green-700 border-green-200' :
+      status === 'Confirmed' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+      status === 'Cancelled' ? 'bg-red-100 text-red-700 border-red-200' :
+      'bg-orange-100 text-orange-700 border-orange-200'
+    }`}>{status}</span>
+  );
+
   return (
     <>
-      <div className="h-full flex flex-col" onClick={() => setContextMenu(null)}>
+      {/* ── Mobile: tappable cards ── */}
+      <div className="sm:hidden flex flex-col gap-3">
+        <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+          <SectionHeader title="Purchase Orders" icon={Pill} colorClass="bg-blue-50/50" count={visibleOrders.length} onAdd={handleCreateNew} />
+          <div className="divide-y divide-slate-100">
+            {visibleOrders.length === 0
+              ? <p className="p-4 text-center text-xs text-slate-400">No orders found.</p>
+              : visibleOrders.map(o => (
+                <div
+                  key={o._id}
+                  className="p-3 flex items-start justify-between gap-2 active:bg-slate-50"
+                  onClick={() => { setEditingOrder(o); setIsModalOpen(true); }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <p className="font-semibold text-slate-700 truncate">{o.vendor}</p>
+                      <StatusBadge status={o.status} />
+                    </div>
+                    <p className="text-xs text-slate-400 truncate">{o.items?.map(i => i.item_name).join(', ')}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {new Date(o.order_date).toLocaleDateString()}
+                      {o.due_date && <span className="text-orange-500"> · Due {new Date(o.due_date).toLocaleDateString()}</span>}
+                      <span className="ml-1">· {o.items?.reduce((s, i) => s + i.qty, 0)} units</span>
+                    </p>
+                  </div>
+                  <p className="font-bold text-slate-700 flex-shrink-0">₹{o.total_cost.toLocaleString()}</p>
+                </div>
+              ))
+            }
+          </div>
+        </div>
+      </div>
+
+      {/* ── Desktop: context-menu table ── */}
+      <div className="hidden sm:flex h-full flex-col" onClick={() => setContextMenu(null)}>
         <div className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-          {/* Header (We pass onAdd to the SectionHeader to allow opening the modal) */}
-          <SectionHeader 
-             title="Purchase Orders" 
-             icon={Pill} 
-             colorClass="bg-blue-50/50" 
-             count={visibleOrders.length}
-             onAdd={handleCreateNew}
-          />
-          
+          <SectionHeader title="Purchase Orders" icon={Pill} colorClass="bg-blue-50/50" count={visibleOrders.length} onAdd={handleCreateNew} />
           <div className="overflow-auto flex-1">
             <table className="w-full text-left border-collapse">
-                <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
-                  <tr>
-                    <th className="p-3">Date</th>
-                    <th className="p-3">Vendor</th>
-                    <th className="p-3">Items</th>
-                    <th className="p-3 text-right">Cost</th>
-                    <th className="p-3 text-center">Status</th>
+              <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
+                <tr>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Vendor</th>
+                  <th className="p-3">Items</th>
+                  <th className="p-3 text-right">Cost</th>
+                  <th className="p-3 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {visibleOrders.map(o => (
+                  <tr key={o._id} className="hover:bg-slate-50 cursor-context-menu select-none" onContextMenu={(e) => handleContextMenu(e, o)}>
+                    <td className="p-3 text-slate-600">
+                      <div className="font-medium">{new Date(o.order_date).toLocaleDateString()}</div>
+                      {o.due_date && <div className="text-[10px] text-orange-600 flex items-center gap-1"><Calendar size={10}/> {new Date(o.due_date).toLocaleDateString()}</div>}
+                    </td>
+                    <td className="p-3 font-medium text-slate-700">{o.vendor}</td>
+                    <td className="p-3 text-slate-600 text-xs">
+                      <div className="max-w-[300px] truncate" title={o.items?.map(i => i.item_name).join(', ')}>{o.items?.map(i => i.item_name).join(', ')}</div>
+                      <div className="text-[10px] text-slate-400 font-medium mt-0.5">Total Units: {o.items?.reduce((sum, i) => sum + i.qty, 0)}</div>
+                    </td>
+                    <td className="p-3 text-right font-bold text-slate-700">₹{o.total_cost.toLocaleString()}</td>
+                    <td className="p-3 text-center"><StatusBadge status={o.status} /></td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                    {visibleOrders.map(o => (
-                        <tr 
-                            key={o._id} 
-                            className="hover:bg-slate-50 cursor-context-menu select-none"
-                            onContextMenu={(e) => handleContextMenu(e, o)}
-                        >
-                            <td className="p-3 text-slate-600">
-                                <div className="font-medium">{new Date(o.order_date).toLocaleDateString()}</div>
-                                {o.due_date && <div className="text-[10px] text-orange-600 flex items-center gap-1"><Calendar size={10}/> {new Date(o.due_date).toLocaleDateString()}</div>}
-                            </td>
-                            <td className="p-3 font-medium text-slate-700">{o.vendor}</td>
-                            <td className="p-3 text-slate-600 text-xs">
-                                <div className="max-w-[300px] truncate" title={o.items?.map(i => i.item_name).join(', ')}>
-                                    {o.items?.map(i => i.item_name).join(', ')}
-                                </div>
-                                {/* TOTAL UNITS DISPLAY */}
-                                <div className="text-[10px] text-slate-400 font-medium mt-0.5">
-                                    Total Units: {o.items?.reduce((sum, i) => sum + i.qty, 0)}
-                                </div>
-                            </td>
-                            <td className="p-3 text-right font-bold text-slate-700">₹{o.total_cost.toLocaleString()}</td>
-                            <td className="p-3 text-center">
-                              <span className={`px-2 py-0.5 rounded text-xs font-bold border ${
-                                  o.status === 'Received' ? 'bg-green-100 text-green-700 border-green-200' : 
-                                  o.status === 'Confirmed' ? 'bg-blue-100 text-blue-700 border-blue-200' :
-                                  o.status === 'Cancelled' ? 'bg-red-100 text-red-700 border-red-200' :
-                                  'bg-orange-100 text-orange-700 border-orange-200'
-                              }`}>
-                                {o.status}
-                              </span>
-                            </td>
-                        </tr>
-                    ))}
-                    {orders.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-400">No orders found. Right click to manage.</td></tr>}
-                </tbody>
+                ))}
+                {orders.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-400">No orders found. Right click to manage.</td></tr>}
+              </tbody>
             </table>
           </div>
         </div>
 
-        {/* --- CONTEXT MENU --- */}
         {contextMenu && (
-          <div 
-            ref={contextMenuRef}
-            className="fixed bg-white border border-slate-200 shadow-xl rounded-lg py-1 w-44 z-50 animate-in fade-in zoom-in-95 duration-100"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase border-b border-slate-100">
-                Actions
-            </div>
-            
+          <div ref={contextMenuRef} className="fixed bg-white border border-slate-200 shadow-xl rounded-lg py-1 w-44 z-50 animate-in fade-in zoom-in-95 duration-100" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
+            <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase border-b border-slate-100">Actions</div>
             <button onClick={handleViewOrder} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                {contextMenu.order.status === 'Pending' ? <Edit size={14}/> : <Eye size={14}/>} 
-                {contextMenu.order.status === 'Pending' ? 'Edit Order' : 'View Order'}
+              {contextMenu.order.status === 'Pending' ? <Edit size={14}/> : <Eye size={14}/>}
+              {contextMenu.order.status === 'Pending' ? 'Edit Order' : 'View Order'}
             </button>
-
             <div className="h-px bg-slate-100 my-1"></div>
-            
-            <button onClick={() => handleStatusChange('Confirmed')} className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2">
-                <CheckCircle size={14} /> Confirmed
-            </button>
-            <button onClick={() => handleStatusChange('Received')} className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2">
-                <Truck size={14} /> Recieved
-            </button>
-            <button onClick={() => handleStatusChange('Cancelled')} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2">
-                <Ban size={14} /> Cancelled
-            </button>
+            <button onClick={() => handleStatusChange('Confirmed')} className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2"><CheckCircle size={14} /> Confirmed</button>
+            <button onClick={() => handleStatusChange('Received')}  className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 flex items-center gap-2"><Truck size={14} /> Received</button>
+            <button onClick={() => handleStatusChange('Cancelled')} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"><Ban size={14} /> Cancelled</button>
           </div>
         )}
       </div>
 
-      {/* Reused Modal for Create AND View/Edit */}
-      <CreateOrderModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        onSave={fetchOrders}
-        editOrder={editingOrder} // Pass order data if viewing/editing
-      />
+      <CreateOrderModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={fetchOrders} editOrder={editingOrder} />
     </>
   );
 };

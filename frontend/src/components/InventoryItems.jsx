@@ -388,12 +388,12 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
 const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true }) => {
   const [items, setItems] = useState({ pharmacy: [], consumables: [] });
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen]             = useState(false);
-  const [editingItem, setEditingItem]             = useState(null);
-  const [isBulkMedOpen, setIsBulkMedOpen]         = useState(false);
-  const [isBulkConOpen, setIsBulkConOpen]         = useState(false);
-  const [contextMenu, setContextMenu] = useState(null);
-  const [expandedSections, setExpandedSections]   = useState({ pharmacy: true, consumable: true });
+  const [isModalOpen, setIsModalOpen]           = useState(false);
+  const [editingItem, setEditingItem]           = useState(null);
+  const [isBulkMedOpen, setIsBulkMedOpen]       = useState(false);
+  const [isBulkConOpen, setIsBulkConOpen]       = useState(false);
+  const [contextMenu, setContextMenu]           = useState(null);
+  const [expandedSections, setExpandedSections] = useState({ pharmacy: false, consumable: false });
   const contextMenuRef = useRef(null);
 
   const toggleSection = (type) => setExpandedSections(prev => ({ ...prev, [type]: !prev[type] }));
@@ -401,88 +401,124 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
   const fetchInventory = async () => {
     setLoading(true);
     try {
-        const { data } = await API.get('/inventory');
-        const pharmacy = data.filter(i => i.type === 'Pharmacy');
-        const consumables = data.filter(i => i.type === 'Consumable' || i.type === 'Asset');
-        setItems({ pharmacy, consumables });
+      const { data } = await API.get('/inventory');
+      const pharmacy   = data.filter(i => i.type === 'Pharmacy');
+      const consumables = data.filter(i => i.type === 'Consumable' || i.type === 'Asset');
+      setItems({ pharmacy, consumables });
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchInventory(); }, []);
 
   useEffect(() => {
-    const handleClick = (e) => { if (contextMenu) setContextMenu(null); };
+    const handleClick = () => { if (contextMenu) setContextMenu(null); };
     document.addEventListener('click', handleClick);
     return () => document.removeEventListener('click', handleClick);
   }, [contextMenu]);
 
   const handleContextMenu = (e, item) => {
-    e.preventDefault(); 
-    setContextMenu({ x: e.pageX, y: e.pageY, item: item });
+    e.preventDefault();
+    setContextMenu({ x: e.pageX, y: e.pageY, item });
   };
 
-  const handleEdit = () => {
-    if (contextMenu) {
-      setEditingItem(contextMenu.item);
-      setIsModalOpen(true);
-      setContextMenu(null);
-    }
+  const openEdit = (item) => {
+    setEditingItem(item);
+    setIsModalOpen(true);
+    setContextMenu(null);
   };
 
-  const handleDelete = async () => {
-    if (contextMenu && window.confirm(`Delete "${contextMenu.item.name}"?`)) {
-        try { await API.delete(`/inventory/${contextMenu.item._id}`); fetchInventory(); } 
-        catch(err) { console.error(err); }
+  const handleDelete = async (item) => {
+    const target = item || contextMenu?.item;
+    if (!target) return;
+    if (window.confirm(`Delete "${target.name}"?`)) {
+      try { await API.delete(`/inventory/${target._id}`); fetchInventory(); }
+      catch (err) { console.error(err); }
     }
     setContextMenu(null);
   };
 
   const SECTIONS = [
-    medicineEnabled && { type: 'pharmacy', t: 'Pharmacy Items', i: Pill, d: items.pharmacy, c: 'bg-blue-50/50' },
-    consumableEnabled && { type: 'consumable', t: 'Consumable Items', i: Syringe, d: items.consumables, c: 'bg-teal-50/50' }
+    medicineEnabled  && { type: 'pharmacy',   t: 'Pharmacy Items',    i: Pill,    d: items.pharmacy,   c: 'bg-blue-50/50' },
+    consumableEnabled && { type: 'consumable', t: 'Consumable Items',  i: Syringe, d: items.consumables, c: 'bg-teal-50/50' },
   ].filter(Boolean);
 
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
+  // ── Shared section header ────────────────────────────────────────────────
+  const SectionHead = ({ sec }) => (
+    <div className={`flex items-center justify-between p-3 border-b border-slate-200 ${sec.c}`}>
+      <button onClick={() => toggleSection(sec.type)} className="flex items-center gap-2 flex-1 text-left">
+        <div className="p-1.5 bg-white/60 rounded-lg shadow-sm"><sec.i size={16} className="text-slate-700" /></div>
+        <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
+        <ChevronDown size={14} className={`text-slate-400 transition-transform ${expandedSections[sec.type] ? '' : '-rotate-90'}`} />
+      </button>
+      <div className="flex items-center gap-2">
+        {sec.type === 'pharmacy' && (
+          <button onClick={() => setIsBulkMedOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-[#137fec] hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors">
+            <Upload size={12} /><span className="hidden xs:inline">Bulk Upload</span>
+          </button>
+        )}
+        {sec.type === 'consumable' && (
+          <button onClick={() => setIsBulkConOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors">
+            <Upload size={12} /><span className="hidden xs:inline">Bulk Upload</span>
+          </button>
+        )}
+        <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-semibold text-slate-600">{sec.d.length} Items</span>
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <div className="h-full flex flex-col relative" onClick={() => setContextMenu(null)}>
-        <div className={`grid grid-cols-1 ${SECTIONS.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 flex-1 min-h-0`}>
-          {SECTIONS.map((sec, idx) => (
-            <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-              {/* Section header with Bulk Upload button */}
-              <div className={`flex items-center justify-between p-3 border-b border-slate-200 ${sec.c}`}>
-                <button
-                  onClick={() => toggleSection(sec.type)}
-                  className="flex items-center gap-2 flex-1 text-left"
-                >
-                  <div className="p-1.5 bg-white/60 rounded-lg shadow-sm">
-                    <sec.i size={16} className="text-slate-700" />
-                  </div>
-                  <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
-                  <ChevronDown size={14} className={`text-slate-400 transition-transform ${expandedSections[sec.type] ? '' : '-rotate-90'}`} />
-                </button>
-                <div className="flex items-center gap-2">
-                  {sec.type === 'pharmacy' && (
-                    <button
-                      onClick={() => setIsBulkMedOpen(true)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-[#137fec] hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors"
-                    >
-                      <Upload size={12} /> Bulk Upload
-                    </button>
-                  )}
-                  {sec.type === 'consumable' && (
-                    <button
-                      onClick={() => setIsBulkConOpen(true)}
-                      className="flex items-center gap-1.5 px-2.5 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors"
-                    >
-                      <Upload size={12} /> Bulk Upload
-                    </button>
-                  )}
-                  <span className="bg-white/50 px-2 py-0.5 rounded text-xs font-semibold text-slate-600">{sec.d.length} Items</span>
-                </div>
+      {/* ── Mobile: natural vertical stack ── */}
+      <div className="sm:hidden flex flex-col gap-4">
+        {SECTIONS.map((sec, idx) => (
+          <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <SectionHead sec={sec} />
+            {expandedSections[sec.type] && (
+              <div className="divide-y divide-slate-100">
+                {sec.d.length === 0
+                  ? <p className="p-4 text-center text-xs text-slate-400">No items found.</p>
+                  : sec.d.map(item => (
+                    <div key={item._id} className="p-3 flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-slate-700 truncate">{item.name}</p>
+                        <p className="text-xs text-slate-400">{item.manufacturer}</p>
+                        <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                          <span className="bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">{item.category}</span>
+                          <span className="text-[11px] text-blue-600 font-medium">₹{item.cost_price || 0} cost</span>
+                          {sec.type === 'pharmacy' && <span className="text-[11px] text-green-600 font-medium">₹{item.selling_price || 0} sell</span>}
+                          {sec.type === 'consumable' && item.consumption_unit && (
+                            <span className="bg-teal-100 text-teal-700 px-2 py-0.5 rounded text-[11px] border border-teal-200">{item.consumption_unit} unit</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          Stock: <span className={`font-bold ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>{item.stock_on_hand}</span>
+                          <span className="text-slate-400"> / min {item.min_stock_level}</span>
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => openEdit(item)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-[#137fec] hover:bg-blue-50 transition-colors flex-shrink-0"
+                      >
+                        <Edit size={15} />
+                      </button>
+                    </div>
+                  ))
+                }
               </div>
-              {expandedSections[sec.type] && <div className="overflow-auto flex-1">
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* ── Desktop: constrained side-by-side grid ── */}
+      <div className={`hidden sm:grid grid-cols-1 ${SECTIONS.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 flex-1 min-h-0`} onClick={() => setContextMenu(null)}>
+        {SECTIONS.map((sec, idx) => (
+          <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
+            <SectionHead sec={sec} />
+            {expandedSections[sec.type] && (
+              <div className="overflow-auto flex-1">
                 <table className="w-full text-left border-collapse">
                   <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
                     <tr>
@@ -495,7 +531,7 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 text-sm">
-                    {sec.d.map((item, i) => (
+                    {sec.d.map(item => (
                       <tr key={item._id} onContextMenu={(e) => handleContextMenu(e, item)} className="hover:bg-slate-50 cursor-context-menu transition-colors select-none">
                         <td className="p-3">
                           <div className="font-bold text-slate-700">{item.name}</div>
@@ -505,42 +541,34 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
                         {sec.type === 'consumable' && <td className="p-3 text-center"><span className="bg-teal-100 px-2 py-1 rounded text-xs border border-teal-200 text-teal-700 font-medium">{item.consumption_unit ? `${item.consumption_unit}` : '-'}</span></td>}
                         <td className="p-3 text-right font-medium text-slate-600">₹{item.cost_price || 0}</td>
                         {sec.type === 'pharmacy' && <td className="p-3 text-right font-medium text-green-700">₹{item.selling_price || 0}</td>}
-
                         <td className="p-3 text-right">
                           <div className="flex flex-col items-end">
-                              <span className={`font-bold text-md ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>
-                                  {item.stock_on_hand}
-                              </span>
-                              <span className="text-[10px] text-slate-400">Min: {item.min_stock_level}</span>
+                            <span className={`font-bold text-md ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>{item.stock_on_hand}</span>
+                            <span className="text-[10px] text-slate-400">Min: {item.min_stock_level}</span>
                           </div>
                         </td>
                       </tr>
                     ))}
+                    {sec.d.length === 0 && <tr><td colSpan="6" className="p-4 text-center text-slate-400 text-xs">No items found.</td></tr>}
                   </tbody>
                 </table>
-              </div>}
-            </div>
-          ))}
-        </div>
+              </div>
+            )}
+          </div>
+        ))}
+
         {contextMenu && (
           <div ref={contextMenuRef} className="fixed bg-white border border-slate-200 shadow-xl rounded-lg py-1 w-40 z-50 animate-in fade-in zoom-in-95 duration-100" style={{ top: contextMenu.y, left: contextMenu.x }} onClick={(e) => e.stopPropagation()}>
-            <button onClick={handleEdit} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Edit size={14} /> Edit Item</button>
+            <button onClick={() => openEdit(contextMenu.item)} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Edit size={14} /> Edit Item</button>
             <div className="h-px bg-slate-100 my-1"></div>
-            <button onClick={handleDelete} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 size={14} /> Delete</button>
+            <button onClick={() => handleDelete()} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"><Trash2 size={14} /> Delete</button>
           </div>
         )}
       </div>
+
       <AddItemModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} editItem={editingItem} onSave={fetchInventory} />
-      <BulkUploadMedicinesModal
-        isOpen={isBulkMedOpen}
-        onClose={() => setIsBulkMedOpen(false)}
-        onSuccess={fetchInventory}
-      />
-      <BulkUploadConsumablesModal
-        isOpen={isBulkConOpen}
-        onClose={() => setIsBulkConOpen(false)}
-        onSuccess={fetchInventory}
-      />
+      <BulkUploadMedicinesModal isOpen={isBulkMedOpen} onClose={() => setIsBulkMedOpen(false)} onSuccess={fetchInventory} />
+      <BulkUploadConsumablesModal isOpen={isBulkConOpen} onClose={() => setIsBulkConOpen(false)} onSuccess={fetchInventory} />
     </>
   );
 };
