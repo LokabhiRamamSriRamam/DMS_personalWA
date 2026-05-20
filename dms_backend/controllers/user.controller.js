@@ -1,8 +1,34 @@
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { getAnalyticsDb } from '../config/analyticsDb.js';
 import { logEvent } from '../services/analyticsLogger.js';
+import { sendPlatformEmail } from '../services/platformMailer.js';
+
+const PASSWORD_DENYLIST = [
+  'password', 'password1', 'password123', '12345678', '123456789',
+  '1234567890', 'qwerty123', 'qwerty', 'iloveyou', 'letmein',
+  'welcome1', 'monkey123', 'dragon123', 'sunshine1', 'princess1',
+  'football', 'baseball1', 'abc123456', 'master123', 'shadow123',
+];
+
+function maskEmail(email) {
+  const [local, domain] = email.split('@');
+  return `${local[0]}***@${domain}`;
+}
+
+function validatePasswordStrength(pwd, email) {
+  if (!pwd || pwd.length < 8)        return { ok: false, reason: 'Password must be at least 8 characters.' };
+  if (pwd.length > 128)              return { ok: false, reason: 'Password must not exceed 128 characters.' };
+  if (!/[a-z]/.test(pwd))            return { ok: false, reason: 'Password must contain at least one lowercase letter.' };
+  if (!/[A-Z]/.test(pwd))            return { ok: false, reason: 'Password must contain at least one uppercase letter.' };
+  if (!/[0-9]/.test(pwd))            return { ok: false, reason: 'Password must contain at least one digit.' };
+  if (!/[^a-zA-Z0-9]/.test(pwd))    return { ok: false, reason: 'Password must contain at least one symbol.' };
+  if (pwd.toLowerCase() === (email || '').toLowerCase()) return { ok: false, reason: 'Password must not match your email address.' };
+  if (PASSWORD_DENYLIST.includes(pwd.toLowerCase())) return { ok: false, reason: 'Password is too common. Please choose a stronger password.' };
+  return { ok: true };
+}
 
 // ─── POST /api/users/register ────────────────────────────────────────────────
 // Public endpoint. Creates a pending dms_user in the analytics MongoDB.
@@ -212,6 +238,208 @@ export async function getAllUsers(req, res) {
     const sanitized = users.map(({ password, ...rest }) => rest);
     res.json(sanitized);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── POST /api/users/forgot-password ─────────────────────────────────────────
+// Public. Generates a reset token and emails a link. Always 200 (no enumeration).
+export async function forgotPassword(req, res) {
+  // Always respond generically first, then do the work — prevents timing enumeration
+  res.status(200).json({ message: 'If an account with that email exists, a reset link has been sent.' });
+
+  try {
+    const { email } = req.body;
+    if (!email) return;
+
+    const analyticsDb = getAnalyticsDb();
+    const user = await analyticsDb.collection('dms_users').findOne({ email, product: 'dms' });
+
+    if (!user || user.status !== 'active') return;
+
+    const rawToken  = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await analyticsDb.collection('dms_users').updateOne(
+      { _id: user._id },
+      { $set: { passwordResetTokenHash: tokenHash, passwordResetExpiresAt: expiresAt } },
+    );
+
+    const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${rawToken}`;
+
+    try {
+      await sendPlatformEmail({
+        to:      user.email,
+        subject: 'Reset your DMS password',
+        html: `
+          <p>Hi ${user.firstName},</p>
+          <p>We received a request to reset your DMS account password. Click the link below to set a new password. This link expires in <strong>1 hour</strong> and can only be used once.</p>
+          <p><a href="${resetUrl}" style="background:#137fec;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a></p>
+          <p>Or copy this URL into your browser:<br/><code>${resetUrl}</code></p>
+          <p>If you did not request a password reset, you can ignore this email — your password will not change.</p>
+        `,
+        text: `Hi ${user.firstName},\n\nReset your DMS password by visiting:\n${resetUrl}\n\nThis link expires in 1 hour and can only be used once.\n\nIf you did not request this, ignore this email.`,
+      });
+    } catch (mailErr) {
+      console.error('[forgotPassword] Failed to send reset email:', mailErr.message);
+    }
+
+    // Audit log — fire-and-forget
+    logEvent(user.tenantId?.toString() || null, 'password_reset_requested', {
+      userId:    user._id.toString(),
+      email:     maskEmail(user.email),
+      requestIp: req.ip,
+      userAgent: req.headers['user-agent'] || '',
+    });
+  } catch (err) {
+    console.error('[forgotPassword]', err.message);
+  }
+}
+
+// ─── POST /api/users/reset-password ──────────────────────────────────────────
+// Public. Verifies the token and sets a new password.
+export async function resetPassword(req, res) {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ message: 'token and newPassword are required.' });
+    }
+
+    const analyticsDb = getAnalyticsDb();
+    const tokenHash   = crypto.createHash('sha256').update(token).digest('hex');
+
+    const user = await analyticsDb.collection('dms_users').findOne({
+      passwordResetTokenHash: tokenHash,
+      passwordResetExpiresAt: { $gt: new Date() },
+      product: 'dms',
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Reset link is invalid or has expired.' });
+    }
+
+    const strength = validatePasswordStrength(newPassword, user.email);
+    if (!strength.ok) {
+      return res.status(400).json({ message: strength.reason, code: 'WEAK_PASSWORD' });
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const now = new Date();
+
+    await analyticsDb.collection('dms_users').updateOne(
+      { _id: user._id },
+      {
+        $set:   { password: hashedPassword, updatedAt: now },
+        $unset: { passwordResetTokenHash: '', passwordResetExpiresAt: '' },
+      },
+    );
+
+    // Confirmation email — fire-and-forget
+    try {
+      await sendPlatformEmail({
+        to:      user.email,
+        subject: 'Your DMS password was just changed',
+        html: `<p>Hi ${user.firstName},</p><p>Your DMS account password was changed at <strong>${now.toISOString()}</strong> from IP <code>${req.ip}</code>.</p><p>If this wasn't you, contact your clinic administrator immediately.</p>`,
+        text:    `Hi ${user.firstName},\n\nYour DMS account password was changed at ${now.toISOString()} from IP ${req.ip}.\n\nIf this wasn't you, contact your clinic administrator immediately.`,
+      });
+    } catch (mailErr) {
+      console.error('[resetPassword] Failed to send confirmation email:', mailErr.message);
+    }
+
+    // Audit log
+    const tokenAgeSeconds = Math.round((now - user.passwordResetExpiresAt + 60 * 60 * 1000) / 1000);
+    logEvent(user.tenantId?.toString() || null, 'password_reset_completed', {
+      userId:           user._id.toString(),
+      email:            maskEmail(user.email),
+      requestIp:        req.ip,
+      userAgent:        req.headers['user-agent'] || '',
+      tokenAgeSeconds:  Math.max(0, tokenAgeSeconds),
+    });
+
+    res.status(200).json({ message: 'Password updated. You can now log in.' });
+  } catch (err) {
+    console.error('[resetPassword]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── PATCH /api/users/admin/:userId/contact ───────────────────────────────────
+// Admin-only (X-Admin-Secret header). Updates email and/or phone on dms_users.
+export async function adminUpdateUserContact(req, res) {
+  try {
+    const { userId }        = req.params;
+    const { email, phone }  = req.body;
+
+    if (!email && !phone) {
+      return res.status(400).json({ message: 'At least one of email or phone must be provided.' });
+    }
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: 'Invalid userId.' });
+    }
+
+    const analyticsDb = getAnalyticsDb();
+    const user = await analyticsDb.collection('dms_users').findOne({
+      _id: new mongoose.Types.ObjectId(userId),
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    // Dedupe email
+    if (email && email !== user.email) {
+      const conflict = await analyticsDb.collection('dms_users').findOne({
+        email,
+        product: 'dms',
+        _id: { $ne: user._id },
+      });
+      if (conflict) {
+        return res.status(409).json({ message: 'That email is already used by another account.' });
+      }
+    }
+
+    // Build changes object for audit log
+    const changes = {};
+    const updates = { updatedAt: new Date() };
+
+    if (email && email !== user.email) {
+      changes.email = { before: user.email, after: email };
+      updates.email = email;
+    }
+    if (phone && phone !== user.phone) {
+      changes.phone = { before: user.phone || '', after: phone };
+      updates.phone = phone;
+    }
+
+    if (Object.keys(changes).length === 0) {
+      return res.status(200).json({ message: 'No changes — values are identical to current.', user: (({ password, ...r }) => r)(user) });
+    }
+
+    // Clear any stale reset tokens so they can't be used against the new email
+    await analyticsDb.collection('dms_users').updateOne(
+      { _id: user._id },
+      {
+        $set:   updates,
+        $unset: { passwordResetTokenHash: '', passwordResetExpiresAt: '' },
+      },
+    );
+
+    logEvent(user.tenantId?.toString() || null, 'admin_user_contact_updated', {
+      userId:    user._id.toString(),
+      changes,
+      requestIp: req.ip,
+      userAgent: req.headers['user-agent'] || '',
+    });
+
+    const updated = await analyticsDb.collection('dms_users').findOne({ _id: user._id });
+    const { password: _pwd, ...sanitized } = updated;
+
+    res.status(200).json({ message: 'Contact details updated.', user: sanitized });
+  } catch (err) {
+    console.error('[adminUpdateUserContact]', err.message);
     res.status(500).json({ error: err.message });
   }
 }

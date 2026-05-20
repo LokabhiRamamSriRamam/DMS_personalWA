@@ -20,6 +20,8 @@ import WhatsAppPage from './pages/WhatsAppPage.jsx';
 import BookingPage from './pages/BookingPage.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
+import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import HelpPage from './features/help/components/HelpPage.jsx';
 
 // Context
@@ -56,6 +58,14 @@ const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />,
+  },
+  {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPasswordPage />,
   },
   {
     path: '/connect-dentalclinic/:clinicName/:tenantId',

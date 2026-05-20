@@ -81,7 +81,16 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-2 px-1">Password</label>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <label className="block text-sm font-bold text-gray-700">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
+                    className="text-xs text-[#137fec] font-semibold hover:underline"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
                 <input
                   type="password"
                   required
@@ -140,6 +149,10 @@ export default function LoginPage() {
                   support@connectgenai.in
                 </a>
                 {' '}— we respond within 6 hours
+              </p>
+              <p className="text-gray-300 text-xs pt-2">
+                Powered by{' '}
+                <span className="font-semibold text-gray-400">Connect Gen-AI</span>
               </p>
             </div>
           </>
