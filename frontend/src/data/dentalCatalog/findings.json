@@ -1,0 +1,205 @@
+[
+  {
+    "key": "plaque_generalised",
+    "name": "Plaque – Generalised",
+    "category": "periodontal",
+    "description": "Soft microbial deposit present on most tooth surfaces; indicator of poor oral hygiene.",
+    "tags": ["common"]
+  },
+  {
+    "key": "calculus_supragingival",
+    "name": "Calculus – Supragingival",
+    "category": "periodontal",
+    "description": "Mineralised deposits above the gumline, visible on clinical examination.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "calculus_subgingival",
+    "name": "Calculus – Subgingival",
+    "category": "periodontal",
+    "description": "Mineralised deposits below the gumline; detected by probing or radiograph.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "gingival_bleeding",
+    "name": "Gingival Bleeding on Probing",
+    "category": "periodontal",
+    "description": "Bleeding upon gentle probing; indicates active gingival or periodontal inflammation.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "gingival_recession",
+    "name": "Gingival Recession",
+    "category": "periodontal",
+    "description": "Apical migration of the gingival margin exposing root surface.",
+    "tags": ["common"]
+  },
+  {
+    "key": "gingival_enlargement",
+    "name": "Gingival Enlargement / Hyperplasia",
+    "category": "periodontal",
+    "description": "Excessive gingival tissue; may be drug-induced, inflammatory, or fibrous.",
+    "tags": []
+  },
+  {
+    "key": "periodontal_pocket_mild",
+    "name": "Periodontal Pocket 3–4 mm",
+    "category": "periodontal",
+    "description": "Mild pocket depth indicating early attachment loss.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "periodontal_pocket_moderate",
+    "name": "Periodontal Pocket 5–6 mm",
+    "category": "periodontal",
+    "description": "Moderate pocket depth requiring deep scaling or periodontal surgery.",
+    "tags": []
+  },
+  {
+    "key": "periodontal_pocket_severe",
+    "name": "Periodontal Pocket ≥ 7 mm",
+    "category": "periodontal",
+    "description": "Severe pocket depth associated with significant bone loss.",
+    "tags": []
+  },
+  {
+    "key": "caries_cavitation",
+    "name": "Caries – Cavitation Present",
+    "category": "restorative",
+    "description": "Visible cavity or breakdown of tooth structure due to decay.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "caries_early_white_spot",
+    "name": "Caries – Early (White Spot Lesion)",
+    "category": "restorative",
+    "description": "Initial demineralisation appearing as an opaque white spot; reversible with fluoride.",
+    "tags": ["common"]
+  },
+  {
+    "key": "fractured_tooth",
+    "name": "Fractured Tooth / Cracked Tooth Syndrome",
+    "category": "restorative",
+    "description": "Incomplete or complete fracture of tooth structure, with or without pulp exposure.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "worn_occlusal",
+    "name": "Worn / Flat Occlusal Surface",
+    "category": "restorative",
+    "description": "Attrition of the chewing surface, often associated with bruxism.",
+    "tags": []
+  },
+  {
+    "key": "defective_restoration",
+    "name": "Defective / Fractured Existing Restoration",
+    "category": "restorative",
+    "description": "Failed filling or crown with marginal gaps, fracture, or secondary caries.",
+    "tags": ["common"]
+  },
+  {
+    "key": "mobility_grade1",
+    "name": "Tooth Mobility – Grade I (0.5–1 mm)",
+    "category": "periodontal",
+    "description": "Slight horizontal mobility; early sign of periodontal or occlusal involvement.",
+    "tags": []
+  },
+  {
+    "key": "mobility_grade2",
+    "name": "Tooth Mobility – Grade II (1–2 mm)",
+    "category": "periodontal",
+    "description": "Moderate horizontal mobility with no vertical movement.",
+    "tags": []
+  },
+  {
+    "key": "mobility_grade3",
+    "name": "Tooth Mobility – Grade III (>2 mm or vertical)",
+    "category": "periodontal",
+    "description": "Severe mobility in all directions; tooth often non-restorable.",
+    "tags": []
+  },
+  {
+    "key": "swelling_localised",
+    "name": "Localised Swelling / Fluctuant Swelling",
+    "category": "oral_surgery",
+    "description": "Soft-tissue swelling indicating abscess or infection requiring drainage.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "sinus_tract",
+    "name": "Sinus Tract (Parulis)",
+    "category": "endodontic",
+    "description": "Pus-draining fistula from a chronic periapical or periodontal infection.",
+    "tags": []
+  },
+  {
+    "key": "impacted_third_molar_soft_tissue",
+    "name": "Soft-Tissue Impaction – Third Molar",
+    "category": "oral_surgery",
+    "description": "Wisdom tooth partially covered by operculum, predisposing to pericoronitis.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "exposed_root_surface",
+    "name": "Exposed Root Surface",
+    "category": "periodontal",
+    "description": "Visible root due to gingival recession; may be sensitive and caries-prone.",
+    "tags": ["common"]
+  },
+  {
+    "key": "class_I_occlusion",
+    "name": "Class I Molar Relationship",
+    "category": "diagnostic",
+    "description": "Mesio-buccal cusp of upper first molar occludes in the buccal groove of lower first molar.",
+    "tags": []
+  },
+  {
+    "key": "class_II_occlusion",
+    "name": "Class II Molar Relationship",
+    "category": "diagnostic",
+    "description": "Lower arch is distal relative to upper; associated with overjet.",
+    "tags": []
+  },
+  {
+    "key": "class_III_occlusion",
+    "name": "Class III Molar Relationship",
+    "category": "diagnostic",
+    "description": "Lower arch is mesial relative to upper; associated with underbite.",
+    "tags": []
+  },
+  {
+    "key": "crowding_mild",
+    "name": "Mild Crowding",
+    "category": "orthodontic",
+    "description": "Slight arch-length discrepancy with minor tooth rotation or displacement.",
+    "tags": []
+  },
+  {
+    "key": "crowding_moderate",
+    "name": "Moderate to Severe Crowding",
+    "category": "orthodontic",
+    "description": "Significant arch-length deficiency requiring orthodontic or surgical intervention.",
+    "tags": []
+  },
+  {
+    "key": "spacing_diastema",
+    "name": "Spacing / Diastema",
+    "category": "orthodontic",
+    "description": "Gaps between teeth, including midline diastema; orthodontic or restorative treatment.",
+    "tags": []
+  },
+  {
+    "key": "staining_extrinsic",
+    "name": "Extrinsic Staining",
+    "category": "cosmetic",
+    "description": "Surface stains from tea, coffee, tobacco, or chromogenic bacteria; removed by polishing.",
+    "tags": ["common"]
+  },
+  {
+    "key": "staining_intrinsic",
+    "name": "Intrinsic Discolouration",
+    "category": "cosmetic",
+    "description": "Internal tooth discolouration from fluorosis, tetracycline, trauma, or pulp necrosis.",
+    "tags": []
+  }
+]

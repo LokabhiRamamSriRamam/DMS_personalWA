@@ -1,0 +1,202 @@
+[
+  {
+    "key": "dental_caries_enamel",
+    "name": "Dental Caries – Enamel",
+    "code": "K02.0",
+    "category": "restorative",
+    "description": "Caries confined to enamel; usually managed with fluoride or minimal composite.",
+    "tags": ["common"]
+  },
+  {
+    "key": "dental_caries_dentin",
+    "name": "Dental Caries – Dentin",
+    "code": "K02.1",
+    "category": "restorative",
+    "description": "Caries extending into dentin; restoration with composite or GIC indicated.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "dental_caries_pulp",
+    "name": "Dental Caries – Pulp Involvement",
+    "code": "K02.3",
+    "category": "endodontic",
+    "description": "Deep caries reaching the pulp; RCT or pulpotomy is indicated.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "irreversible_pulpitis",
+    "name": "Irreversible Pulpitis",
+    "code": "K04.0",
+    "category": "endodontic",
+    "description": "Inflamed pulp that cannot recover; root canal treatment required.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "reversible_pulpitis",
+    "name": "Reversible Pulpitis",
+    "code": "K04.0",
+    "category": "endodontic",
+    "description": "Mild pulpal inflammation that may resolve with removal of irritant and protective restoration.",
+    "tags": []
+  },
+  {
+    "key": "pulp_necrosis",
+    "name": "Pulp Necrosis",
+    "code": "K04.1",
+    "category": "endodontic",
+    "description": "Death of the pulp tissue; root canal therapy required.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "chronic_apical_abscess",
+    "name": "Chronic Apical Abscess",
+    "code": "K04.6",
+    "category": "endodontic",
+    "description": "Longstanding periapical infection with sinus tract; RCT or extraction indicated.",
+    "tags": []
+  },
+  {
+    "key": "acute_apical_abscess",
+    "name": "Acute Apical Abscess",
+    "code": "K04.7",
+    "category": "endodontic",
+    "description": "Painful periapical abscess with swelling and possible sinus tract; emergency drainage and RCT.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "chronic_gingivitis",
+    "name": "Chronic Gingivitis",
+    "code": "K05.1",
+    "category": "periodontal",
+    "description": "Plaque-induced gingival inflammation without bone loss; treatable with oral prophylaxis.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "chronic_periodontitis_mild",
+    "name": "Chronic Periodontitis – Mild",
+    "code": "K05.3",
+    "category": "periodontal",
+    "description": "1–2 mm clinical attachment loss; scaling and root planing appropriate.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "chronic_periodontitis_moderate",
+    "name": "Chronic Periodontitis – Moderate",
+    "code": "K05.3",
+    "category": "periodontal",
+    "description": "3–4 mm clinical attachment loss; deeper SRP and reassessment required.",
+    "tags": []
+  },
+  {
+    "key": "chronic_periodontitis_severe",
+    "name": "Chronic Periodontitis – Severe",
+    "code": "K05.3",
+    "category": "periodontal",
+    "description": "≥5 mm clinical attachment loss; surgical management may be needed.",
+    "tags": []
+  },
+  {
+    "key": "tooth_fracture_crown",
+    "name": "Crown Fracture – Uncomplicated",
+    "code": "S02.5",
+    "category": "restorative",
+    "description": "Fracture of enamel or dentin only, pulp not exposed; restoration with composite.",
+    "tags": []
+  },
+  {
+    "key": "tooth_fracture_crown_complicated",
+    "name": "Crown Fracture – Complicated (Pulp Exposed)",
+    "code": "S02.5",
+    "category": "endodontic",
+    "description": "Fracture exposing pulp; requires direct pulp cap or RCT before restoration.",
+    "tags": []
+  },
+  {
+    "key": "tooth_sensitivity",
+    "name": "Dentinal Hypersensitivity",
+    "code": "K03.8",
+    "category": "restorative",
+    "description": "Short, sharp pain from exposed dentinal tubules; managed with desensitising agents or GIC.",
+    "tags": ["common"]
+  },
+  {
+    "key": "tooth_wear_attrition",
+    "name": "Tooth Wear – Attrition",
+    "code": "K03.0",
+    "category": "restorative",
+    "description": "Wear from tooth-to-tooth contact; common in bruxism cases.",
+    "tags": []
+  },
+  {
+    "key": "tooth_wear_erosion",
+    "name": "Tooth Wear – Erosion",
+    "code": "K03.2",
+    "category": "restorative",
+    "description": "Chemical dissolution of enamel from acids (dietary or GERD); dietary counselling and protection needed.",
+    "tags": []
+  },
+  {
+    "key": "impacted_wisdom_tooth",
+    "name": "Impacted Third Molar (Wisdom Tooth)",
+    "code": "K01.1",
+    "category": "oral_surgery",
+    "description": "Failure of eruption of the third molar; surgical extraction indicated if symptomatic.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "pericoronitis",
+    "name": "Pericoronitis",
+    "code": "K05.2",
+    "category": "oral_surgery",
+    "description": "Inflammation around the operculum of a partially erupted tooth; irrigation and possible extraction.",
+    "tags": []
+  },
+  {
+    "key": "missing_tooth_edentulous",
+    "name": "Missing Tooth / Partial Edentulism",
+    "code": "K08.1",
+    "category": "prosthodontic",
+    "description": "One or more missing teeth; bridge, implant, or removable prosthesis considered.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "full_edentulism",
+    "name": "Complete Edentulism",
+    "code": "K08.1",
+    "category": "prosthodontic",
+    "description": "Total tooth loss in one or both arches; full denture or implant-supported prosthesis.",
+    "tags": []
+  },
+  {
+    "key": "malocclusion",
+    "name": "Malocclusion",
+    "code": "K07.4",
+    "category": "orthodontic",
+    "description": "Abnormal alignment of teeth or bite; orthodontic assessment for treatment planning.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "bruxism",
+    "name": "Bruxism / Parafunctional Habit",
+    "code": "F45.8",
+    "category": "diagnostic",
+    "description": "Grinding or clenching; splint therapy and monitoring recommended.",
+    "tags": []
+  },
+  {
+    "key": "aphthous_ulcer",
+    "name": "Recurrent Aphthous Ulcer",
+    "code": "K12.0",
+    "category": "diagnostic",
+    "description": "Painful oral ulcers of unclear aetiology; supportive management with topical agents.",
+    "tags": ["common"]
+  },
+  {
+    "key": "oral_candidiasis",
+    "name": "Oral Candidiasis",
+    "code": "B37.0",
+    "category": "diagnostic",
+    "description": "Fungal infection presenting as white patches; antifungal medication and underlying cause assessment.",
+    "tags": []
+  }
+]

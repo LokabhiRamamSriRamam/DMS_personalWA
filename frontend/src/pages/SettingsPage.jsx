@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2, BookOpen } from 'lucide-react';
 import API from '../services/api';
 import { parseSpreadsheet, downloadSampleSheet } from '../utils/spreadsheet';
 import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
@@ -1414,6 +1415,7 @@ function DayRow({ day, dayData = {}, onChange }) {
 
 const SettingsPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('doctors');
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -2041,11 +2043,17 @@ const SettingsPage = () => {
             </div>
 
             {/* Bulk Mode Toggle */}
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
               <h3 className="text-xl font-bold text-slate-800 dark:text-white">
                 {treatmentTab === 'findings' ? 'Clinical Findings' : treatmentTab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
               </h3>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => navigate('/settings/import-catalog')}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-[#137fec]/10 text-[#137fec] hover:bg-[#137fec]/20"
+                >
+                  <BookOpen size={18} /> Import from Library
+                </button>
                 <button
                   onClick={handleDownloadSample}
                   className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
@@ -2204,6 +2212,29 @@ const SettingsPage = () => {
             {loading ? (
               <div className="text-center py-8 text-slate-500">Loading...</div>
             ) : (
+              <>
+                {/* Empty-state library banner */}
+                {(treatmentTab === 'findings' ? clinicalFindings :
+                  treatmentTab === 'diagnoses' ? diagnoses :
+                  suggestedTreatments).length === 0 && (
+                  <div className="mb-5 flex items-center gap-4 p-4 rounded-xl bg-[#137fec]/5 border border-[#137fec]/20">
+                    <div className="p-2.5 bg-[#137fec]/10 rounded-xl flex-shrink-0">
+                      <BookOpen size={22} className="text-[#137fec]" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-800 dark:text-white text-sm">Start with our dental library</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Import pre-built {treatmentTab === 'findings' ? 'clinical findings' : treatmentTab} from our curated starter catalog — edit before importing.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => navigate('/settings/import-catalog')}
+                      className="flex-shrink-0 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                      Open Library
+                    </button>
+                  </div>
+                )}
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-slate-50 dark:bg-slate-700">
@@ -2255,6 +2286,7 @@ const SettingsPage = () => {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         )}

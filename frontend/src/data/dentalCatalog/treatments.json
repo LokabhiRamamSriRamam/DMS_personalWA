@@ -1,0 +1,416 @@
+[
+  {
+    "key": "oral_prophylaxis",
+    "name": "Oral Prophylaxis (Scaling & Polishing)",
+    "category": "preventive",
+    "default_cost": 1200,
+    "cost_range": { "min": 800, "max": 2000 },
+    "description": "Professional cleaning to remove plaque, tartar, and stains. Recommended every 6 months.",
+    "tags": ["popular", "common"]
+  },
+  {
+    "key": "fluoride_treatment",
+    "name": "Fluoride Treatment",
+    "category": "preventive",
+    "default_cost": 600,
+    "cost_range": { "min": 400, "max": 1000 },
+    "description": "Topical fluoride application to strengthen enamel and prevent caries.",
+    "tags": ["pediatric", "common"]
+  },
+  {
+    "key": "pit_fissure_sealant",
+    "name": "Pit & Fissure Sealant (per tooth)",
+    "category": "preventive",
+    "default_cost": 500,
+    "cost_range": { "min": 300, "max": 800 },
+    "description": "Protective resin coating applied to the chewing surfaces of molars and premolars.",
+    "tags": ["pediatric"]
+  },
+  {
+    "key": "composite_1_surface",
+    "name": "Composite Filling – 1 Surface",
+    "category": "restorative",
+    "default_cost": 1500,
+    "cost_range": { "min": 1000, "max": 2500 },
+    "description": "Tooth-coloured resin restoration for small to moderate caries.",
+    "tags": ["popular", "common"]
+  },
+  {
+    "key": "composite_2_surface",
+    "name": "Composite Filling – 2 Surface",
+    "category": "restorative",
+    "default_cost": 2000,
+    "cost_range": { "min": 1500, "max": 3000 },
+    "description": "Two-surface tooth-coloured restoration.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "composite_3_surface",
+    "name": "Composite Filling – 3 Surface",
+    "category": "restorative",
+    "default_cost": 2500,
+    "cost_range": { "min": 2000, "max": 4000 },
+    "description": "Three-surface composite restoration for larger cavities.",
+    "tags": []
+  },
+  {
+    "key": "gic_filling",
+    "name": "GIC (Glass Ionomer) Filling",
+    "category": "restorative",
+    "default_cost": 800,
+    "cost_range": { "min": 500, "max": 1500 },
+    "description": "Fluoride-releasing glass ionomer cement restoration; ideal for cervical lesions and pediatric cases.",
+    "tags": ["pediatric"]
+  },
+  {
+    "key": "amalgam_filling",
+    "name": "Amalgam Filling (per surface)",
+    "category": "restorative",
+    "default_cost": 700,
+    "cost_range": { "min": 400, "max": 1200 },
+    "description": "Silver amalgam restoration, durable for posterior teeth.",
+    "tags": []
+  },
+  {
+    "key": "rct_anterior",
+    "name": "Root Canal Treatment – Anterior",
+    "category": "endodontic",
+    "default_cost": 3500,
+    "cost_range": { "min": 2500, "max": 5000 },
+    "description": "Single-canal endodontic therapy for incisors and canines.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "rct_premolar",
+    "name": "Root Canal Treatment – Premolar",
+    "category": "endodontic",
+    "default_cost": 4500,
+    "cost_range": { "min": 3000, "max": 6500 },
+    "description": "Endodontic therapy for premolars (1–2 canals).",
+    "tags": ["popular"]
+  },
+  {
+    "key": "rct_molar",
+    "name": "Root Canal Treatment – Molar",
+    "category": "endodontic",
+    "default_cost": 6000,
+    "cost_range": { "min": 4500, "max": 9000 },
+    "description": "Multi-visit or single-visit endodontic therapy for molars (3–4 canals).",
+    "tags": ["popular"]
+  },
+  {
+    "key": "rct_retreatment",
+    "name": "RCT Retreatment",
+    "category": "endodontic",
+    "default_cost": 7000,
+    "cost_range": { "min": 5000, "max": 12000 },
+    "description": "Re-treatment of a previously root-canal treated tooth that has failed.",
+    "tags": []
+  },
+  {
+    "key": "post_core",
+    "name": "Post & Core Build-up",
+    "category": "endodontic",
+    "default_cost": 2500,
+    "cost_range": { "min": 1500, "max": 4000 },
+    "description": "Intracanal post with core build-up to support a crown after RCT.",
+    "tags": []
+  },
+  {
+    "key": "scaling_root_planing",
+    "name": "Scaling & Root Planing (per quadrant)",
+    "category": "periodontal",
+    "default_cost": 1500,
+    "cost_range": { "min": 1000, "max": 2500 },
+    "description": "Deep cleaning below the gum line to treat periodontal disease.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "gingivectomy",
+    "name": "Gingivectomy (per quadrant)",
+    "category": "periodontal",
+    "default_cost": 3000,
+    "cost_range": { "min": 2000, "max": 5000 },
+    "description": "Surgical removal of excess gum tissue to reduce pocket depth.",
+    "tags": []
+  },
+  {
+    "key": "curettage",
+    "name": "Gingival Curettage (per quadrant)",
+    "category": "periodontal",
+    "default_cost": 1200,
+    "cost_range": { "min": 800, "max": 2000 },
+    "description": "Removal of diseased soft tissue lining of periodontal pockets.",
+    "tags": []
+  },
+  {
+    "key": "prf_membrane",
+    "name": "PRF Membrane (platelet-rich fibrin)",
+    "category": "periodontal",
+    "default_cost": 4000,
+    "cost_range": { "min": 3000, "max": 6000 },
+    "description": "Biologic membrane prepared from patient's own blood for guided tissue regeneration.",
+    "tags": []
+  },
+  {
+    "key": "pfm_crown",
+    "name": "PFM Crown (Porcelain Fused to Metal)",
+    "category": "prosthodontic",
+    "default_cost": 5000,
+    "cost_range": { "min": 3500, "max": 7000 },
+    "description": "Metal-based crown with porcelain veneer; strong and aesthetic.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "zirconia_crown",
+    "name": "Zirconia Crown",
+    "category": "prosthodontic",
+    "default_cost": 9000,
+    "cost_range": { "min": 7000, "max": 15000 },
+    "description": "All-ceramic zirconia crown; superior aesthetics and biocompatibility.",
+    "tags": ["popular", "cosmetic"]
+  },
+  {
+    "key": "emax_crown",
+    "name": "e.max (All-Ceramic) Crown",
+    "category": "prosthodontic",
+    "default_cost": 11000,
+    "cost_range": { "min": 8000, "max": 18000 },
+    "description": "Lithium disilicate press ceramic crown for optimal translucency and strength.",
+    "tags": ["cosmetic"]
+  },
+  {
+    "key": "removable_partial_denture",
+    "name": "Removable Partial Denture (per arch)",
+    "category": "prosthodontic",
+    "default_cost": 8000,
+    "cost_range": { "min": 5000, "max": 15000 },
+    "description": "Acrylic or cast-metal partial denture to replace missing teeth.",
+    "tags": []
+  },
+  {
+    "key": "complete_denture",
+    "name": "Complete Denture (per arch)",
+    "category": "prosthodontic",
+    "default_cost": 15000,
+    "cost_range": { "min": 10000, "max": 25000 },
+    "description": "Full acrylic or flexible denture for edentulous arch.",
+    "tags": []
+  },
+  {
+    "key": "pfm_bridge_3_unit",
+    "name": "PFM Bridge – 3 Unit",
+    "category": "prosthodontic",
+    "default_cost": 15000,
+    "cost_range": { "min": 10000, "max": 22000 },
+    "description": "Three-unit porcelain-fused-to-metal fixed bridge.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "zirconia_bridge_3_unit",
+    "name": "Zirconia Bridge – 3 Unit",
+    "category": "prosthodontic",
+    "default_cost": 25000,
+    "cost_range": { "min": 18000, "max": 40000 },
+    "description": "Three-unit all-zirconia fixed bridge.",
+    "tags": []
+  },
+  {
+    "key": "implant_placement",
+    "name": "Dental Implant Placement",
+    "category": "prosthodontic",
+    "default_cost": 35000,
+    "cost_range": { "min": 25000, "max": 60000 },
+    "description": "Titanium implant surgical placement (fixture only, excludes abutment and crown).",
+    "tags": ["popular"]
+  },
+  {
+    "key": "implant_crown",
+    "name": "Implant Crown (Zirconia)",
+    "category": "prosthodontic",
+    "default_cost": 12000,
+    "cost_range": { "min": 9000, "max": 18000 },
+    "description": "Zirconia crown placed over dental implant abutment.",
+    "tags": []
+  },
+  {
+    "key": "orthodontic_consult",
+    "name": "Orthodontic Consultation",
+    "category": "orthodontic",
+    "default_cost": 500,
+    "cost_range": { "min": 300, "max": 1000 },
+    "description": "Initial assessment and treatment planning for braces or aligners.",
+    "tags": []
+  },
+  {
+    "key": "metal_braces",
+    "name": "Metal Braces (full treatment)",
+    "category": "orthodontic",
+    "default_cost": 35000,
+    "cost_range": { "min": 25000, "max": 50000 },
+    "description": "Conventional metal bracket-and-wire orthodontic treatment.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "ceramic_braces",
+    "name": "Ceramic Braces (full treatment)",
+    "category": "orthodontic",
+    "default_cost": 50000,
+    "cost_range": { "min": 35000, "max": 70000 },
+    "description": "Tooth-coloured ceramic brackets for a more aesthetic alternative to metal braces.",
+    "tags": []
+  },
+  {
+    "key": "clear_aligners",
+    "name": "Clear Aligners (full treatment)",
+    "category": "orthodontic",
+    "default_cost": 80000,
+    "cost_range": { "min": 50000, "max": 150000 },
+    "description": "Removable transparent aligner therapy (e.g., Invisalign or local brands).",
+    "tags": ["cosmetic"]
+  },
+  {
+    "key": "simple_extraction",
+    "name": "Simple Extraction",
+    "category": "oral_surgery",
+    "default_cost": 800,
+    "cost_range": { "min": 500, "max": 1500 },
+    "description": "Extraction of a mobile or non-impacted tooth under local anaesthesia.",
+    "tags": ["popular", "common"]
+  },
+  {
+    "key": "surgical_extraction",
+    "name": "Surgical Extraction (complicated)",
+    "category": "oral_surgery",
+    "default_cost": 2500,
+    "cost_range": { "min": 1500, "max": 5000 },
+    "description": "Extraction requiring soft-tissue or bone removal; includes suturing.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "wisdom_tooth_extraction",
+    "name": "Wisdom Tooth Extraction (impacted)",
+    "category": "oral_surgery",
+    "default_cost": 5000,
+    "cost_range": { "min": 3000, "max": 10000 },
+    "description": "Surgical removal of impacted third molar; difficulty and cost vary by angulation.",
+    "tags": ["popular"]
+  },
+  {
+    "key": "alveoloplasty",
+    "name": "Alveoloplasty",
+    "category": "oral_surgery",
+    "default_cost": 4000,
+    "cost_range": { "min": 2500, "max": 7000 },
+    "description": "Reshaping of the alveolar ridge post-extraction to improve denture fit.",
+    "tags": []
+  },
+  {
+    "key": "incision_drainage",
+    "name": "Incision & Drainage of Abscess",
+    "category": "oral_surgery",
+    "default_cost": 1500,
+    "cost_range": { "min": 1000, "max": 3000 },
+    "description": "Surgical drainage of a localised dentoalveolar abscess.",
+    "tags": []
+  },
+  {
+    "key": "tooth_whitening",
+    "name": "In-Office Teeth Whitening",
+    "category": "cosmetic",
+    "default_cost": 8000,
+    "cost_range": { "min": 5000, "max": 15000 },
+    "description": "Professional chair-side bleaching using hydrogen peroxide gel with light activation.",
+    "tags": ["popular", "cosmetic"]
+  },
+  {
+    "key": "composite_veneer",
+    "name": "Composite Veneer (per tooth)",
+    "category": "cosmetic",
+    "default_cost": 3000,
+    "cost_range": { "min": 2000, "max": 5000 },
+    "description": "Directly applied composite resin to improve shape, colour, or minor alignment.",
+    "tags": ["cosmetic"]
+  },
+  {
+    "key": "porcelain_veneer",
+    "name": "Porcelain Veneer (per tooth)",
+    "category": "cosmetic",
+    "default_cost": 12000,
+    "cost_range": { "min": 8000, "max": 20000 },
+    "description": "Lab-fabricated thin porcelain shell bonded to the labial surface of anterior teeth.",
+    "tags": ["cosmetic"]
+  },
+  {
+    "key": "smile_design_consult",
+    "name": "Smile Design Consultation",
+    "category": "cosmetic",
+    "default_cost": 1000,
+    "cost_range": { "min": 500, "max": 2000 },
+    "description": "Digital smile design planning with photographs and mock-up presentation.",
+    "tags": ["cosmetic"]
+  },
+  {
+    "key": "pulpectomy_primary",
+    "name": "Pulpectomy – Primary Tooth",
+    "category": "pediatric",
+    "default_cost": 1500,
+    "cost_range": { "min": 1000, "max": 2500 },
+    "description": "Complete removal of pulp tissue from a primary (baby) tooth followed by resorbable obturation.",
+    "tags": ["pediatric"]
+  },
+  {
+    "key": "stainless_steel_crown",
+    "name": "Stainless Steel Crown – Primary Tooth",
+    "category": "pediatric",
+    "default_cost": 1200,
+    "cost_range": { "min": 800, "max": 2000 },
+    "description": "Prefabricated stainless steel crown to restore severely decayed primary molars.",
+    "tags": ["pediatric"]
+  },
+  {
+    "key": "space_maintainer",
+    "name": "Space Maintainer",
+    "category": "pediatric",
+    "default_cost": 3000,
+    "cost_range": { "min": 2000, "max": 5000 },
+    "description": "Fixed or removable appliance to preserve arch space after premature primary tooth loss.",
+    "tags": ["pediatric"]
+  },
+  {
+    "key": "xray_iopa",
+    "name": "X-Ray – IOPA (per film)",
+    "category": "diagnostic",
+    "default_cost": 150,
+    "cost_range": { "min": 100, "max": 300 },
+    "description": "Intraoral periapical radiograph for detailed view of individual teeth and surrounding bone.",
+    "tags": ["common"]
+  },
+  {
+    "key": "xray_opg",
+    "name": "X-Ray – OPG (Panoramic)",
+    "category": "diagnostic",
+    "default_cost": 500,
+    "cost_range": { "min": 300, "max": 900 },
+    "description": "Full-jaw panoramic radiograph for comprehensive view of all teeth and bone.",
+    "tags": ["common", "popular"]
+  },
+  {
+    "key": "consultation_new",
+    "name": "Consultation – New Patient",
+    "category": "diagnostic",
+    "default_cost": 300,
+    "cost_range": { "min": 200, "max": 600 },
+    "description": "Initial clinical examination, treatment planning, and record taking for a new patient.",
+    "tags": ["common"]
+  },
+  {
+    "key": "consultation_followup",
+    "name": "Consultation – Follow-up",
+    "category": "diagnostic",
+    "default_cost": 200,
+    "cost_range": { "min": 100, "max": 400 },
+    "description": "Review visit to monitor treatment progress or post-operative healing.",
+    "tags": ["common"]
+  }
+]
