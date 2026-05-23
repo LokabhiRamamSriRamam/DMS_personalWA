@@ -1,11 +1,11 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 const limiterConfig = {
   windowMs:        15 * 60 * 1000, // 15 minutes
   max:             3,
   standardHeaders: true,
   legacyHeaders:   false,
-  keyGenerator:    (req) => req.ip,
+  keyGenerator:    (req) => ipKeyGenerator(req),
 };
 
 export const forgotPwLimiter   = rateLimit(limiterConfig);

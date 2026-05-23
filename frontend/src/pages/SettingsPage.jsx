@@ -1435,13 +1435,13 @@ const SettingsPage = () => {
     is_active: true,
     notes: '',
     availability: {
-      monday: { start: '09:00', end: '17:00' },
-      tuesday: { start: '09:00', end: '17:00' },
-      wednesday: { start: '09:00', end: '17:00' },
-      thursday: { start: '09:00', end: '17:00' },
-      friday: { start: '09:00', end: '17:00' },
-      saturday: { start: '10:00', end: '14:00' },
-      sunday: { start: '', end: '' }
+      monday:    [{ start: '09:00', end: '17:00' }],
+      tuesday:   [{ start: '09:00', end: '17:00' }],
+      wednesday: [{ start: '09:00', end: '17:00' }],
+      thursday:  [{ start: '09:00', end: '17:00' }],
+      friday:    [{ start: '09:00', end: '17:00' }],
+      saturday:  [{ start: '10:00', end: '14:00' }],
+      sunday:    []
     }
   });
 
@@ -1710,13 +1710,13 @@ const SettingsPage = () => {
       is_active: true,
       notes: '',
       availability: {
-        monday: { start: '09:00', end: '17:00' },
-        tuesday: { start: '09:00', end: '17:00' },
-        wednesday: { start: '09:00', end: '17:00' },
-        thursday: { start: '09:00', end: '17:00' },
-        friday: { start: '09:00', end: '17:00' },
-        saturday: { start: '10:00', end: '14:00' },
-        sunday: { start: '', end: '' }
+        monday:    [{ start: '09:00', end: '17:00' }],
+        tuesday:   [{ start: '09:00', end: '17:00' }],
+        wednesday: [{ start: '09:00', end: '17:00' }],
+        thursday:  [{ start: '09:00', end: '17:00' }],
+        friday:    [{ start: '09:00', end: '17:00' }],
+        saturday:  [{ start: '10:00', end: '14:00' }],
+        sunday:    []
       }
     });
     setShowModal(true);
@@ -1724,7 +1724,19 @@ const SettingsPage = () => {
 
   const handleEditDoctor = (doctor) => {
     setEditingDoctor(doctor);
-    setDoctorFormData({ ...doctor, phone: (doctor.phone || '').replace(/^\+91/, '') });
+    const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+    const availability = {};
+    for (const day of days) {
+      const val = doctor.availability?.[day];
+      if (!val) {
+        availability[day] = [];
+      } else if (Array.isArray(val)) {
+        availability[day] = val;
+      } else {
+        availability[day] = (val.start || val.end) ? [{ start: val.start || '', end: val.end || '' }] : [];
+      }
+    }
+    setDoctorFormData({ ...doctor, phone: (doctor.phone || '').replace(/^\+91/, ''), availability });
     setShowModal(true);
   };
 
@@ -1763,24 +1775,35 @@ const SettingsPage = () => {
 
   const handleDoctorChange = (e) => {
     const { name, value, type, checked } = e.target;
-    if (name.startsWith('availability_')) {
-      const [, day, timeType] = name.split('_');
-      setDoctorFormData(prev => ({
-        ...prev,
-        availability: {
-          ...prev.availability,
-          [day]: {
-            ...prev.availability[day],
-            [timeType]: value
-          }
-        }
-      }));
-    } else {
-      setDoctorFormData(prev => ({
-        ...prev,
-        [name]: type === 'checkbox' ? checked : (name === 'experience_years' ? Number(value) : value)
-      }));
-    }
+    setDoctorFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : (name === 'experience_years' ? Number(value) : value)
+    }));
+  };
+
+  const handleShiftChange = (day, index, field, value) => {
+    setDoctorFormData(prev => {
+      const shifts = [...(prev.availability[day] || [])];
+      shifts[index] = { ...shifts[index], [field]: value };
+      return { ...prev, availability: { ...prev.availability, [day]: shifts } };
+    });
+  };
+
+  const handleAddShift = (day) => {
+    setDoctorFormData(prev => ({
+      ...prev,
+      availability: {
+        ...prev.availability,
+        [day]: [...(prev.availability[day] || []), { start: '', end: '' }],
+      },
+    }));
+  };
+
+  const handleRemoveShift = (day, index) => {
+    setDoctorFormData(prev => {
+      const shifts = (prev.availability[day] || []).filter((_, i) => i !== index);
+      return { ...prev, availability: { ...prev.availability, [day]: shifts } };
+    });
   };
 
   const addBulkRow = () => {
@@ -2677,31 +2700,52 @@ const SettingsPage = () => {
               {/* Availability */}
               <div className="border-t border-slate-200 dark:border-slate-700 pt-4">
                 <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3">Weekly Availability</h4>
-                <div className="space-y-2">
-                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => (
-                    <div key={day} className="flex flex-col xs:flex-row xs:items-center gap-1.5 xs:gap-3">
-                      <label className="w-24 text-sm font-medium text-slate-700 dark:text-slate-300 capitalize flex-shrink-0">
-                        {day}
-                      </label>
-                      <div className="flex items-center gap-2 flex-1">
-                        <input
-                          type="time"
-                          name={`availability_${day}_start`}
-                          value={doctorFormData.availability[day]?.start || ''}
-                          onChange={handleDoctorChange}
-                          className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                        />
-                        <span className="text-slate-500 flex-shrink-0">to</span>
-                        <input
-                          type="time"
-                          name={`availability_${day}_end`}
-                          value={doctorFormData.availability[day]?.end || ''}
-                          onChange={handleDoctorChange}
-                          className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
-                        />
+                <div className="space-y-3">
+                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map(day => {
+                    const shifts = doctorFormData.availability[day] || [];
+                    return (
+                      <div key={day} className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium text-slate-700 dark:text-slate-300 capitalize">{day}</label>
+                          {shifts.length === 0 && (
+                            <span className="text-xs text-slate-400 italic">Off</span>
+                          )}
+                        </div>
+                        {shifts.map((shift, idx) => (
+                          <div key={idx} className="flex items-center gap-2 pl-2">
+                            <input
+                              type="time"
+                              value={shift.start || ''}
+                              onChange={e => handleShiftChange(day, idx, 'start', e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+                            />
+                            <span className="text-slate-500 flex-shrink-0 text-xs">to</span>
+                            <input
+                              type="time"
+                              value={shift.end || ''}
+                              onChange={e => handleShiftChange(day, idx, 'end', e.target.value)}
+                              className="flex-1 px-2 py-1.5 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white dark:bg-slate-800"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveShift(day, idx)}
+                              className="text-slate-400 hover:text-red-500 text-sm font-bold flex-shrink-0 px-1"
+                              title="Remove shift"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => handleAddShift(day)}
+                          className="text-xs text-[#137fec] hover:underline text-left pl-2 mt-0.5 w-fit"
+                        >
+                          + Add shift
+                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 

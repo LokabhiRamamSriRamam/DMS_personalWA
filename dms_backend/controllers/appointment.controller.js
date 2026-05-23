@@ -140,10 +140,11 @@ export async function createAppointment(req, res) {
     triggerAppointmentBooked({ tenantModels: req.tenantModels, appointment: saved });
 
     // WaSender flows (fire-and-forget)
+    const apptId = saved._id.toString();
     buildApptTemplateData(req.tenantModels, saved).then(templateData => {
       const phone = templateData.phone;
       if (phone) {
-        fireFlow(req.tenantModels, 'appointment_booked', phone, templateData);
+        fireFlow(req.tenantModels, 'appointment_booked', phone, templateData, { idempotencyKey: `apptBooked:${apptId}` });
         scheduleReminder(req.tenantModels, saved);
       }
     });
@@ -167,7 +168,7 @@ export async function updateStatus(req, res) {
     );
 
     // Fire-and-forget email on completion
-    if (status === 'Completed' && appt?.patient_id) {
+    if (status === 'Completed' && currentAppt?.status !== 'Completed' && appt?.patient_id) {
       triggerAppointmentCompleted({
         tenantModels: req.tenantModels,
         patientId: appt.patient_id.toString(),
@@ -178,11 +179,12 @@ export async function updateStatus(req, res) {
 
     // WaSender flows (fire-and-forget)
     if (['Completed', 'Confirmed', 'Cancelled'].includes(status) && appt?.patient_id) {
+      const appointmentId = appt._id.toString();
       buildApptTemplateData(req.tenantModels, appt).then(templateData => {
         const phone = templateData.phone;
         if (!phone) return;
-        if (status === 'Completed')  fireFlow(req.tenantModels, 'appointment_completed',  phone, templateData);
-        if (status === 'Confirmed')  fireFlow(req.tenantModels, 'appointment_confirmed',  phone, templateData);
+        if (status === 'Completed')  fireFlow(req.tenantModels, 'appointment_completed',  phone, templateData, { idempotencyKey: `apptCompleted:${appointmentId}` });
+        if (status === 'Confirmed')  fireFlow(req.tenantModels, 'appointment_confirmed',  phone, templateData, { idempotencyKey: `apptConfirmed:${appointmentId}` });
       });
     }
 
@@ -230,7 +232,9 @@ export async function updateAppointment(req, res) {
       buildApptTemplateData(req.tenantModels, appt).then(templateData => {
         const phone = templateData.phone;
         if (phone) {
-          fireFlow(req.tenantModels, 'appointment_rescheduled', phone, templateData);
+          fireFlow(req.tenantModels, 'appointment_rescheduled', phone, templateData, {
+            idempotencyKey: `apptRescheduled:${appt._id.toString()}:${new Date(appt.start_time).getTime()}`,
+          });
           scheduleReminder(req.tenantModels, appt);
         }
       });
