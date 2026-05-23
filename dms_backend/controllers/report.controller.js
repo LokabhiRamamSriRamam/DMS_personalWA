@@ -308,6 +308,9 @@ export async function transcribeAudio(req, res) {
 
     const directText = (req.body.transcript_text || '').trim();
     if (!req.file && !directText) return res.status(400).json({ error: 'No audio file or transcript_text provided' });
+    if (req.file && !directText && !credentials.sarvamApiKey) {
+      return res.status(400).json({ error: 'Sarvam API key is not configured for this clinic. Please add it in Settings.' });
+    }
 
     const patient = await Patient.findById(patient_id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
