@@ -290,6 +290,24 @@ export function useDrSmilo(navigate) {
     });
   }
 
+  async function handleOpenToNode(nodeId) {
+    const node = NODES[nodeId];
+    if (!node) return;
+    mountedRef.current = true;
+    setCurrentNodeId(nodeId);
+    setNodeStack(['root']);
+    setMessages([]);
+    setWalkthrough(null);
+    setInputMode('chips');
+    setPendingSlug(null);
+    setShowConfetti(false);
+    setIsOpen(true);
+    await smiloSay(node.smilo, {
+      avatarState: node.avatarState || 'idle',
+      quickReplies: node.options,
+    });
+  }
+
   function handleClose() {
     mountedRef.current = false;
     setIsOpen(false);
@@ -305,6 +323,7 @@ export function useDrSmilo(navigate) {
     showConfetti,
     inputMode,
     open:             handleOpen,
+    openToNode:       handleOpenToNode,
     close:            handleClose,
     selectChip:       handleChipSelect,
     submitText:       handleTextSubmit,

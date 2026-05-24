@@ -2,16 +2,6 @@ import { useState, useEffect } from 'react';
 import { Printer, X } from 'lucide-react';
 import API from '../services/api';
 
-// ── Update these with your clinic details ─────────────────────────────────────
-const CLINIC = {
-  name:    'Dental Clinic',
-  tagline: 'Your Smile, Our Priority',
-  phone:   '+91 98765 43210',
-  address: '123 Main Street, City, State – 000000',
-  email:   'info@dentalclinic.com',
-};
-// ─────────────────────────────────────────────────────────────────────────────
-
 function SectionBlock({ title, rx, children }) {
   return (
     <div className="mb-5">
@@ -26,8 +16,22 @@ function SectionBlock({ title, rx, children }) {
 
 const DONE = ['Completed', 'Cancelled', 'No Show'];
 
+const DEFAULT_CLINIC = { name: '', tagline: '', addressLines: [], phone: '', email: '', logoUrl: '' };
+
 export default function PrescriptionModal({ isOpen, onClose, patient, visits, doctorName }) {
   const [nextRecall, setNextRecall] = useState(null);
+  const [clinic, setClinic]         = useState(DEFAULT_CLINIC);
+  const [footerText, setFooterText] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    API.get('/settings/prescription')
+      .then(({ data }) => {
+        if (data?.clinic) setClinic({ ...DEFAULT_CLINIC, ...data.clinic });
+        if (data?.footerText) setFooterText(data.footerText);
+      })
+      .catch(() => {});
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen || !patient?._id) return;
@@ -138,12 +142,13 @@ export default function PrescriptionModal({ isOpen, onClose, patient, visits, do
 <body>
 
   <div class="clinic-header">
-    <div class="clinic-name">${CLINIC.name}</div>
-    ${CLINIC.tagline ? `<div class="clinic-tagline">${CLINIC.tagline}</div>` : ''}
+    ${clinic.logoUrl ? `<img src="${clinic.logoUrl}" alt="logo" style="max-height:56px;margin-bottom:8px;" />` : ''}
+    <div class="clinic-name">${clinic.name || 'Dental Clinic'}</div>
+    ${clinic.tagline ? `<div class="clinic-tagline">${clinic.tagline}</div>` : ''}
     <div class="clinic-contact">
-      <span>📞 ${CLINIC.phone}</span>
-      ${CLINIC.address ? `<span>📍 ${CLINIC.address}</span>` : ''}
-      ${CLINIC.email   ? `<span>✉ ${CLINIC.email}</span>` : ''}
+      ${clinic.phone ? `<span>📞 ${clinic.phone}</span>` : ''}
+      ${(clinic.addressLines || []).filter(Boolean).map(l => `<span>📍 ${l}</span>`).join('')}
+      ${clinic.email ? `<span>✉ ${clinic.email}</span>` : ''}
     </div>
   </div>
 
@@ -216,7 +221,7 @@ export default function PrescriptionModal({ isOpen, onClose, patient, visits, do
   </div>
 
   <div class="footer">
-    <span>${CLINIC.name}</span>
+    <span>${footerText || clinic.name || ''}</span>
     <span>Generated on ${today}</span>
   </div>
 
@@ -256,12 +261,13 @@ export default function PrescriptionModal({ isOpen, onClose, patient, visits, do
 
           {/* Clinic header */}
           <div className="text-center border-b-2 border-[#137fec] pb-4 mb-5">
-            <p className="text-xl font-bold text-[#137fec]">{CLINIC.name}</p>
-            {CLINIC.tagline && <p className="text-xs text-slate-400 italic mt-0.5">{CLINIC.tagline}</p>}
+            {clinic.logoUrl && <img src={clinic.logoUrl} alt="logo" className="max-h-14 mx-auto mb-2" />}
+            <p className="text-xl font-bold text-[#137fec]">{clinic.name || 'Dental Clinic'}</p>
+            {clinic.tagline && <p className="text-xs text-slate-400 italic mt-0.5">{clinic.tagline}</p>}
             <div className="flex items-center justify-center gap-4 mt-2 text-xs text-slate-500 flex-wrap">
-              <span>📞 {CLINIC.phone}</span>
-              {CLINIC.address && <span>📍 {CLINIC.address}</span>}
-              {CLINIC.email   && <span>✉ {CLINIC.email}</span>}
+              {clinic.phone && <span>📞 {clinic.phone}</span>}
+              {(clinic.addressLines || []).filter(Boolean).map((l, i) => <span key={i}>📍 {l}</span>)}
+              {clinic.email && <span>✉ {clinic.email}</span>}
             </div>
           </div>
 
@@ -355,13 +361,21 @@ export default function PrescriptionModal({ isOpen, onClose, patient, visits, do
           {/* Signature */}
           <div className="mt-4 flex justify-end">
             <div className="text-center">
-              <div className="h-14" /> {/* signing space */}
+              <div className="h-14" />
               <div className="border-t border-slate-400 pt-1.5 min-w-[140px]">
                 <p className="text-xs font-semibold text-slate-700">Dr. {doctorName || 'Doctor'}</p>
                 <p className="text-[10px] text-slate-400">Signature &amp; Stamp</p>
               </div>
             </div>
           </div>
+
+          {/* Footer */}
+          {(footerText || clinic.name) && (
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between text-[10px] text-slate-400">
+              <span>{footerText || clinic.name}</span>
+              <span>Generated on {today}</span>
+            </div>
+          )}
 
         </div>
       </div>

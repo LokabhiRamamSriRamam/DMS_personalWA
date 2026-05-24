@@ -22,13 +22,15 @@ import { InventorySettingsSchema }  from '../models/InventorySettings.model.js';
 import { EmailTemplateSchema }      from '../models/EmailTemplate.model.js';
 import { EmailLogSchema }           from '../models/EmailLog.model.js';
 import { ReportJobSchema }          from '../models/ReportJob.model.js';
+import { ReportDeliverySettingsSchema } from '../models/ReportDeliverySettings.model.js';
 import { WaSenderConfigSchema }     from '../models/WaSenderConfig.model.js';
 import { WaSenderMessageSchema }    from '../models/WaSenderMessage.model.js';
 import { ChatbotFlowSchema }        from '../models/ChatbotFlow.model.js';
 import { ChatbotSessionSchema }     from '../models/ChatbotSession.model.js';
 import { ScheduledMessageSchema }   from '../models/ScheduledMessage.model.js';
 import { FlowLogSchema }            from '../models/FlowLog.model.js';
-import { BookingSettingsSchema }    from '../models/BookingSettings.model.js';
+import { BookingSettingsSchema }         from '../models/BookingSettings.model.js';
+import { PrescriptionSettingsSchema }    from '../models/PrescriptionSettings.model.js';
 import { DoctorSchema }             from '../models/Doctor.model.js';
 import { WhatsAppMediaSchema }      from '../models/WhatsAppMedia.model.js';
 
@@ -66,7 +68,8 @@ export function getTenantModels(conn) {
     InventorySettings:  getOrCreate('InventorySettings',  InventorySettingsSchema),
     EmailTemplate:      getOrCreate('EmailTemplate',      EmailTemplateSchema),
     EmailLog:           getOrCreate('EmailLog',           EmailLogSchema),
-    ReportJob:          getOrCreate('ReportJob',          ReportJobSchema),
+    ReportJob:               getOrCreate('ReportJob',               ReportJobSchema),
+    ReportDeliverySettings:  getOrCreate('ReportDeliverySettings',  ReportDeliverySettingsSchema),
 
     WaSenderConfig:     getOrCreate('WaSenderConfig',     WaSenderConfigSchema),
     WaSenderMessage:    getOrCreate('WaSenderMessage',    WaSenderMessageSchema),
@@ -74,7 +77,8 @@ export function getTenantModels(conn) {
     ChatbotSession:     getOrCreate('ChatbotSession',     ChatbotSessionSchema),
     ScheduledMessage:   getOrCreate('ScheduledMessage',   ScheduledMessageSchema),
     FlowLog:            getOrCreate('FlowLog',            FlowLogSchema),
-    BookingSettings:    getOrCreate('BookingSettings',    BookingSettingsSchema),
+    BookingSettings:         getOrCreate('BookingSettings',         BookingSettingsSchema),
+    PrescriptionSettings:    getOrCreate('PrescriptionSettings',    PrescriptionSettingsSchema),
     WhatsAppMedia:      getOrCreate('WhatsAppMedia',      WhatsAppMediaSchema),
   };
 

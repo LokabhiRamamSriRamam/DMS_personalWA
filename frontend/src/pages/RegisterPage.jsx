@@ -8,6 +8,7 @@ const RegisterPage = () => {
     lastName: '',
     email: '',
     password: '',
+    confirmPassword: '',
     phone: '',
     role: 'Owner'
   });
@@ -25,11 +26,18 @@ const RegisterPage = () => {
     setLoading(true);
     setError('');
 
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      setLoading(false);
+      return;
+    }
+
     try {
+      const { confirmPassword, ...payload } = formData;
       const res = await fetch(`${API_BASE_URL}/users/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
 
@@ -126,17 +134,40 @@ const RegisterPage = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-gray-700 px-1">Password</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
-                placeholder="••••••••"
-                required
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700 px-1">Password</label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 transition-all outline-none"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-gray-700 px-1">Confirm Password</label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 rounded-xl border transition-all outline-none ${
+                    formData.confirmPassword.length > 0
+                      ? formData.password === formData.confirmPassword
+                        ? 'border-emerald-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100'
+                        : 'border-red-300 focus:border-red-400 focus:ring-4 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100'
+                  }`}
+                  placeholder="••••••••"
+                  required
+                />
+                {formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword && (
+                  <p className="text-xs text-red-500 font-medium px-1">Passwords do not match.</p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -173,7 +204,7 @@ const RegisterPage = () => {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword)}
               className="w-full py-4 px-4 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed mt-4"
             >
               {loading ? (

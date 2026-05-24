@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Download, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2, BookOpen, MessageSquare, Save, Eye, ChevronDown } from 'lucide-react';
 import API from '../services/api';
 import { parseSpreadsheet, downloadSampleSheet } from '../utils/spreadsheet';
-import EmailTemplateEditorModal from '../modals/EmailTemplateEditorModal';
+import AddClinicalDataModal from '../modals/AddClinicalDataModal';
+import SingleClinicalItemModal from '../modals/SingleClinicalItemModal';
+import BulkUploadClinicalModal from '../modals/BulkUploadClinicalModal';
 import { useInventorySettings } from '../Context/SettingsContext';
 import { useAuth } from '../Context/AuthContext';
 
@@ -439,7 +441,7 @@ function InventoryTab() {
 
 // ─── Invoice Settings Tab ────────────────────────────────────────────────────
 
-function InvoiceSettingsTab() {
+function InvoiceSettingsTab({ embedded } = {}) {
   const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
 
   const [form, setForm] = React.useState({
@@ -501,11 +503,17 @@ function InvoiceSettingsTab() {
 
   if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
 
+  const Wrapper = ({ children }) => embedded
+    ? <div className="max-w-2xl space-y-8">{children}</div>
+    : <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 max-w-2xl space-y-8">{children}</div>;
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 max-w-2xl space-y-8">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-        Invoice Settings
-      </h2>
+    <Wrapper>
+      {!embedded && (
+        <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          Invoice Settings
+        </h2>
+      )}
 
       {/* Clinic / Branding */}
       <section className="space-y-4">
@@ -619,7 +627,132 @@ function InvoiceSettingsTab() {
           </p>
         )}
       </div>
-    </div>
+    </Wrapper>
+  );
+}
+
+// ─── Prescription Settings Tab ───────────────────────────────────────────────
+
+function PrescriptionSettingsTab({ embedded } = {}) {
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  const [form, setForm] = React.useState({
+    clinic: { name: '', tagline: '', addressLines: ['', ''], phone: '', email: '', logoUrl: '' },
+    footerText: '',
+  });
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving]   = React.useState(false);
+  const [banner, setBanner]   = React.useState(null);
+
+  React.useEffect(() => {
+    API.get('/settings/prescription')
+      .then(r => {
+        if (r.data && Object.keys(r.data).length > 0) {
+          const { _id, __v, createdAt, updatedAt, ...data } = r.data;
+          setForm(prev => ({
+            ...prev,
+            ...data,
+            clinic: { ...prev.clinic, ...(data.clinic || {}) },
+          }));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    setBanner(null);
+    try {
+      const { _id, __v, createdAt, updatedAt, ...payload } = form;
+      await API.put('/settings/prescription', payload);
+      setBanner({ ok: true, msg: 'Prescription settings saved.' });
+    } catch (err) {
+      setBanner({ ok: false, msg: err.response?.data?.message || err.message });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function setClinic(field, val) {
+    setForm(f => ({ ...f, clinic: { ...f.clinic, [field]: val } }));
+  }
+  function setAddressLine(idx, val) {
+    const lines = [...(form.clinic.addressLines || ['', ''])];
+    lines[idx] = val;
+    setForm(f => ({ ...f, clinic: { ...f.clinic, addressLines: lines } }));
+  }
+
+  if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
+
+  const Wrapper = ({ children }) => embedded
+    ? <div className="max-w-2xl space-y-8">{children}</div>
+    : <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 max-w-2xl space-y-8">{children}</div>;
+
+  return (
+    <Wrapper>
+      {!embedded && <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Prescription Settings</h2>}
+
+      {/* Clinic / Branding */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Clinic / Branding
+        </h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Clinic Name</label>
+            <input type="text" value={form.clinic.name} onChange={e => setClinic('name', e.target.value)} placeholder="City Dental Clinic" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Tagline</label>
+            <input type="text" value={form.clinic.tagline} onChange={e => setClinic('tagline', e.target.value)} placeholder="Your Smile, Our Priority" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Address Line 1</label>
+            <input type="text" value={(form.clinic.addressLines || [])[0] || ''} onChange={e => setAddressLine(0, e.target.value)} placeholder="123, Main Street" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Address Line 2</label>
+            <input type="text" value={(form.clinic.addressLines || [])[1] || ''} onChange={e => setAddressLine(1, e.target.value)} placeholder="Mumbai, Maharashtra 400001" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Phone</label>
+            <input type="text" value={form.clinic.phone} onChange={e => setClinic('phone', e.target.value)} placeholder="+91 98765 43210" className={inputCls} />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Email</label>
+            <input type="email" value={form.clinic.email} onChange={e => setClinic('email', e.target.value)} placeholder="clinic@example.com" className={inputCls} />
+          </div>
+          <div className="col-span-2">
+            <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Logo URL (optional)</label>
+            <input type="url" value={form.clinic.logoUrl} onChange={e => setClinic('logoUrl', e.target.value)} placeholder="https://…/logo.png" className={inputCls} />
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <section className="space-y-4">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Footer
+        </h3>
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Footer Text</label>
+          <input type="text" value={form.footerText} onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))} placeholder="Thank you for choosing us!" className={inputCls} />
+        </div>
+      </section>
+
+      <div className="flex items-center gap-4 pt-2">
+        <button onClick={save} disabled={saving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save Prescription Settings'}
+        </button>
+        {banner && (
+          <p className={`text-sm font-medium flex items-center gap-1.5 ${banner.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {banner.ok ? <CheckCircle size={15} /> : <XCircle size={15} />}
+            {banner.msg}
+          </p>
+        )}
+      </div>
+    </Wrapper>
   );
 }
 
@@ -628,18 +761,45 @@ function InvoiceSettingsTab() {
 const EVENT_LABELS = {
   appointmentBooked:    'Appointment Booked',
   appointmentCompleted: 'Appointment Completed',
-  invoiceGenerated:     'Invoice Generated',
-  aiReportReady:        'AI Report Ready',
 };
 
-const COMPLETION_DOCS = [
-  { key: 'smartReport',  label: 'Smart Report',  sub: 'Treatments, notes & visit summary PDF' },
-  { key: 'prescription', label: 'Prescription',  sub: 'Medication list from the visit' },
-  { key: 'invoice',      label: 'Invoice',        sub: 'Latest invoice for this patient' },
-  { key: 'aiReport',     label: 'AI Report',      sub: 'Most recent AI-generated clinical report' },
-];
-
-const LANG_LABELS = { en: 'English', hi: 'Hindi', mr: 'Marathi' };
+// Frontend-only preset templates — imported into the automation editor
+const EMAIL_PRESETS = {
+  appointmentBooked: [
+    {
+      name: 'Appointment Confirmed (Formal)',
+      subject: 'Your appointment is confirmed — {{date}}',
+      body: 'Dear {{first_name}},\n\nThis is to confirm your appointment with {{doctor}} on {{date}} at {{time}}.\n\nPlease arrive 10 minutes before your scheduled time.\n\nWarm regards,\n{{clinic}}',
+    },
+    {
+      name: 'Appointment Confirmed (Friendly)',
+      subject: "Great, you're booked! See you on {{date}} 😊",
+      body: "Hi {{first_name}},\n\nJust confirming your appointment with {{doctor}} on {{date}} at {{time}}. We're looking forward to seeing you!\n\nAny questions? Just reply to this email.\n\nBest,\n{{clinic}}",
+    },
+    {
+      name: 'Appointment Confirmed (Minimal)',
+      subject: 'Appointment Confirmed',
+      body: 'Dear {{name}},\n\nYour appointment with {{doctor}} on {{date}} at {{time}} has been confirmed.\n\nSee you soon,\n{{clinic}}',
+    },
+  ],
+  appointmentCompleted: [
+    {
+      name: 'Thank You — Standard',
+      subject: 'Thank you for your visit — {{date}}',
+      body: 'Dear {{first_name}},\n\nThank you for visiting us today. Your appointment with {{doctor}} on {{date}} has been completed.\n\nTreatments received: {{treatments}}.\n\nFor any queries, feel free to reach out to us.\n\nWarm regards,\n{{clinic}}',
+    },
+    {
+      name: 'Post-Visit Follow-Up',
+      subject: 'Your visit is complete — follow-up care inside',
+      body: "Hi {{first_name}},\n\nYour appointment with {{doctor}} on {{date}} is now complete.\n\nTreatments completed: {{treatments}}.\n\nPlease follow the post-care instructions from your doctor. If you experience any discomfort, don't hesitate to contact us.\n\nLooking forward to seeing you again!\n\n{{clinic}}",
+    },
+    {
+      name: 'Simple Thank You',
+      subject: 'Visit Complete — {{date}}',
+      body: "Dear {{name}},\n\nThank you for your visit on {{date}} with {{doctor}}. We hope you're feeling great.\n\nWarm regards,\n{{clinic}}",
+    },
+  ],
+};
 
 function EmailTab() {
   const [emailSubTab, setEmailSubTab] = useState('connection');
@@ -652,10 +812,8 @@ function EmailTab() {
     fromName: '', fromEmail: '', replyTo: '',
     smtp: { host: 'smtp.gmail.com', port: 465, secure: true, user: '', password: '' },
     events: {
-      appointmentBooked:    { enabled: false, delayMinutes: 0 },
-      appointmentCompleted: { enabled: false, delayMinutes: 0, include: {} },
-      invoiceGenerated:     { enabled: false, delayMinutes: 0, attachInvoice: true },
-      aiReportReady:        { enabled: false, delayMinutes: 0, attachReport: true },
+      appointmentBooked:    { enabled: false, delayMinutes: 0, subject: '', body: '' },
+      appointmentCompleted: { enabled: false, delayMinutes: 0, subject: '', body: '' },
     },
   });
   const [testEmail, setTestEmail] = useState('');
@@ -664,10 +822,8 @@ function EmailTab() {
   const [saveBanner, setSaveBanner] = useState(null); // null | { ok, msg }
   const [showGuide, setShowGuide] = useState(false);
 
-  // Templates state
-  const [templates, setTemplates] = useState([]);
-  const [templateModal, setTemplateModal] = useState(null); // null | template obj | 'new'
-  const [templatesLoading, setTemplatesLoading] = useState(false);
+  // Per-event preset picker state: which event has the picker open
+  const [presetPickerOpen, setPresetPickerOpen] = useState(null); // null | 'appointmentBooked' | 'appointmentCompleted'
 
   // Logs state
   const [logs, setLogs] = useState([]);
@@ -680,7 +836,6 @@ function EmailTab() {
   }, []);
 
   useEffect(() => {
-    if (emailSubTab === 'templates') fetchTemplates();
     if (emailSubTab === 'logs') fetchLogs();
   }, [emailSubTab]);
 
@@ -702,11 +857,19 @@ function EmailTab() {
           user:     res.data.smtp?.user || '',
           password: '', // never pre-fill password
         },
-        events: res.data.events || {
-          appointmentBooked:    { enabled: false, delayMinutes: 0 },
-          appointmentCompleted: { enabled: false, delayMinutes: 0, include: {} },
-          invoiceGenerated:     { enabled: false, delayMinutes: 0, attachInvoice: true },
-          aiReportReady:        { enabled: false, delayMinutes: 0, attachReport: true },
+        events: {
+          appointmentBooked: {
+            enabled:      res.data.events?.appointmentBooked?.enabled      || false,
+            delayMinutes: res.data.events?.appointmentBooked?.delayMinutes || 0,
+            subject:      res.data.events?.appointmentBooked?.subject      || '',
+            body:         res.data.events?.appointmentBooked?.body         || '',
+          },
+          appointmentCompleted: {
+            enabled:      res.data.events?.appointmentCompleted?.enabled      || false,
+            delayMinutes: res.data.events?.appointmentCompleted?.delayMinutes || 0,
+            subject:      res.data.events?.appointmentCompleted?.subject      || '',
+            body:         res.data.events?.appointmentCompleted?.body         || '',
+          },
         },
       });
     } catch (err) {
@@ -762,31 +925,12 @@ function EmailTab() {
     }));
   }
 
-  async function fetchTemplates() {
-    setTemplatesLoading(true);
-    try {
-      const res = await API.get('/email/templates');
-      setTemplates(res.data);
-    } catch (err) {
-      console.error('Failed to load email templates:', err);
-    } finally {
-      setTemplatesLoading(false);
-    }
-  }
-
-  async function handleSaveTemplate(form, id) {
-    if (id) {
-      await API.put(`/email/templates/${id}`, form);
-    } else {
-      await API.post('/email/templates', form);
-    }
-    await fetchTemplates();
-  }
-
-  async function handleDeleteTemplate(id) {
-    if (!window.confirm('Delete this template?')) return;
-    await API.delete(`/email/templates/${id}`);
-    setTemplates(ts => ts.filter(t => t._id !== id));
+  function applyPreset(event, preset) {
+    setSmtpForm(f => ({
+      ...f,
+      events: { ...f.events, [event]: { ...f.events[event], subject: preset.subject, body: preset.body } },
+    }));
+    setPresetPickerOpen(null);
   }
 
   async function fetchLogs() {
@@ -815,7 +959,7 @@ function EmailTab() {
       {/* Sub-tabs — scrollable on mobile */}
       <div className="overflow-x-auto scrollbar-none -mx-6 px-6 mb-6 border-b border-slate-200 dark:border-slate-700">
         <div className="flex gap-0 min-w-max">
-          {['connection', 'automation', 'templates', 'logs'].map(t => (
+          {['connection', 'automation', 'logs'].map(t => (
             <button
               key={t}
               onClick={() => setEmailSubTab(t)}
@@ -1074,17 +1218,17 @@ function EmailTab() {
               <p className="text-sm font-bold text-green-800">What is Automation?</p>
             </div>
             <p className="text-xs text-green-700 leading-relaxed">
-              Automation lets the system send emails to patients <strong>automatically</strong> — without you having to click anything. For example, the moment an invoice is created, the patient gets a copy by email. Or when an AI Report is generated, it is emailed directly to the patient.
+              Automation lets the system send emails to patients <strong>automatically</strong> — without you having to click anything. When an appointment is booked, the patient gets a confirmation. When an appointment is completed, they get a plain-text notification.
             </p>
             <div className="bg-white border border-green-100 rounded-lg p-3 text-xs text-slate-600 space-y-1.5 leading-relaxed">
               <p><strong>Prerequisites before using Automation:</strong></p>
               <p>✅ Gmail (or SMTP) must be connected and tested in the <strong>Connection</strong> tab</p>
               <p>✅ <strong>Enable Email Delivery</strong> must be turned ON in the Connection tab</p>
               <p>✅ The <strong>Automation Master Switch</strong> below must be turned ON</p>
-              <p>✅ Each individual event (Invoice, AI Report, etc.) must also be turned ON</p>
+              <p>✅ Each individual event must also be turned ON and have a subject & body configured</p>
             </div>
             <p className="text-xs text-slate-500 leading-relaxed">
-              If Automation is <strong>OFF</strong>, emails are not sent automatically — the doctor can still send them manually using the <strong>Send Mail</strong> button on the Treatment page.
+              Documents (Invoice, Smart Report, AI Report) are sent <strong>manually</strong> from the treatment page using <strong>Send via Email</strong> or <strong>Send via WhatsApp</strong>. When the Appointment Completed automation is ON, manual email send is temporarily disabled to avoid duplicate messages.
             </p>
           </div>
 
@@ -1104,168 +1248,146 @@ function EmailTab() {
           {/* Per-event explainer */}
           <div className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-xl p-3 leading-relaxed space-y-1">
             <p className="font-semibold text-slate-600">Per-event settings</p>
-            <p><strong>Toggle</strong> — Turn individual events on or off. For example, you may want to auto-send invoices but not AI reports.</p>
-            <p><strong>Delay (minutes)</strong> — How many minutes after the event to wait before sending. Set to 0 to send immediately. Useful if you want to review before the email goes out.</p>
+            <p><strong>Toggle</strong> — Turn each event on or off independently. Both automations can run at the same time.</p>
+            <p><strong>Delay (minutes)</strong> — How many minutes after the event to wait before sending. Set to 0 to send immediately.</p>
+            <p><strong>Subject & Body</strong> — Use "Choose from templates" to start from a preset, then edit freely. Use <code className="bg-slate-100 px-1 rounded">{'{{variables}}'}</code> to personalise. If left blank, a built-in default is used.</p>
           </div>
 
-          {/* Per-event toggles — invoice & AI report are delivered via the
-              appointmentCompleted bundle (include flags), not as standalone
-              automations, so only these two are configurable here. */}
-          <div className="space-y-4">
-            {['appointmentBooked', 'appointmentCompleted'].map(event => (
-              <div key={event} className="p-4 border border-slate-200 dark:border-slate-700 rounded-xl space-y-3">
-                {/* Header row */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      {event === 'appointmentBooked'    && 'Sends a confirmation email to the patient when a new appointment is created'}
-                      {event === 'appointmentCompleted' && 'Sends a summary email with selected documents when an appointment is marked Completed'}
-                    </p>
-                  </div>
-                  <div
-                    onClick={() => setSmtpForm(f => ({
-                      ...f,
-                      events: { ...f.events, [event]: { ...f.events[event], enabled: !f.events[event]?.enabled } }
-                    }))}
-                    className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-colors cursor-pointer ${smtpForm.events?.[event]?.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
-                  >
-                    <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.events?.[event]?.enabled ? 'left-5' : 'left-0.5'}`} />
-                  </div>
-                </div>
+          {/* Per-event editors */}
+          <div className="space-y-6">
+            {['appointmentBooked', 'appointmentCompleted'].map(event => {
+              const evtVars = event === 'appointmentBooked'
+                ? ['{{first_name}}', '{{name}}', '{{doctor}}', '{{date}}', '{{time}}', '{{clinic}}']
+                : ['{{first_name}}', '{{name}}', '{{doctor}}', '{{date}}', '{{treatments}}', '{{clinic}}'];
 
-                {/* Delay */}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-slate-500 whitespace-nowrap">Send after (minutes):</label>
-                  <input
-                    type="number" min="0"
-                    value={smtpForm.events?.[event]?.delayMinutes || 0}
-                    onChange={e => setSmtpForm(f => ({
-                      ...f,
-                      events: { ...f.events, [event]: { ...f.events[event], delayMinutes: Number(e.target.value) } }
-                    }))}
-                    className="w-20 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none"
-                  />
-                  <span className="text-xs text-slate-400">0 = immediately</span>
-                </div>
+              return (
+                <div key={event} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                  {/* Header row */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-slate-50 dark:bg-slate-700/50">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{EVENT_LABELS[event]}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {event === 'appointmentBooked'    && 'Confirmation email sent when a new appointment is created'}
+                        {event === 'appointmentCompleted' && 'Plain-text notification sent when an appointment is marked Completed'}
+                      </p>
+                    </div>
+                    <div
+                      onClick={() => setSmtpForm(f => ({
+                        ...f,
+                        events: { ...f.events, [event]: { ...f.events[event], enabled: !f.events[event]?.enabled } }
+                      }))}
+                      className={`flex-shrink-0 w-10 h-5 rounded-full relative transition-colors cursor-pointer ${smtpForm.events?.[event]?.enabled ? 'bg-[#137fec]' : 'bg-slate-300 dark:bg-slate-600'}`}
+                    >
+                      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all ${smtpForm.events?.[event]?.enabled ? 'left-5' : 'left-0.5'}`} />
+                    </div>
+                  </div>
 
-                {/* Document selection — appointmentCompleted */}
-                {event === 'appointmentCompleted' && (
-                  <div className="space-y-1.5 pt-1 border-t border-slate-100">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Documents to attach</p>
-                    {COMPLETION_DOCS.map(doc => (
-                      <label key={doc.key} className="flex items-start gap-3 p-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={smtpForm.events?.appointmentCompleted?.include?.[doc.key] ?? false}
-                          onChange={() => setSmtpForm(f => ({
-                            ...f,
-                            events: {
-                              ...f.events,
-                              appointmentCompleted: {
-                                ...f.events?.appointmentCompleted,
-                                include: {
-                                  ...f.events?.appointmentCompleted?.include,
-                                  [doc.key]: !f.events?.appointmentCompleted?.include?.[doc.key],
-                                },
-                              },
-                            },
-                          }))}
-                          className="accent-[#137fec] w-4 h-4 mt-0.5 flex-shrink-0"
-                        />
-                        <div>
-                          <p className="text-sm font-medium text-slate-700">{doc.label}</p>
-                          <p className="text-xs text-slate-400">{doc.sub}</p>
+                  <div className="p-4 space-y-3">
+                    {/* Delay */}
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-500 whitespace-nowrap">Send after (minutes):</label>
+                      <input
+                        type="number" min="0"
+                        value={smtpForm.events?.[event]?.delayMinutes || 0}
+                        onChange={e => setSmtpForm(f => ({
+                          ...f,
+                          events: { ...f.events, [event]: { ...f.events[event], delayMinutes: Number(e.target.value) } }
+                        }))}
+                        className="w-20 px-2 py-1 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none"
+                      />
+                      <span className="text-xs text-slate-400">0 = immediately</span>
+                    </div>
+
+                    {/* Choose from templates button */}
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setPresetPickerOpen(presetPickerOpen === event ? null : event)}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-[#137fec] hover:text-blue-700 px-3 py-1.5 border border-blue-200 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        <BookOpen size={12} /> Choose from templates
+                        <ChevronDown size={12} className={`transition-transform ${presetPickerOpen === event ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {presetPickerOpen === event && (
+                        <div className="mt-1.5 border border-slate-200 rounded-xl shadow-lg bg-white dark:bg-slate-800 overflow-hidden z-10 relative">
+                          <p className="px-3 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                            Select a preset — it will fill the subject & body below
+                          </p>
+                          {(EMAIL_PRESETS[event] || []).map((preset, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => applyPreset(event, preset)}
+                              className="w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-50 last:border-0"
+                            >
+                              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{preset.name}</p>
+                              <p className="text-xs text-slate-400 truncate mt-0.5">{preset.subject}</p>
+                            </button>
+                          ))}
                         </div>
-                      </label>
-                    ))}
-                    <p className="text-xs text-slate-400 pt-1">Only documents that exist for the patient at the time of completion will be attached. If none exist, the email is skipped.</p>
-                  </div>
-                )}
+                      )}
+                    </div>
 
-              </div>
-            ))}
+                    {/* Subject */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Subject Line</label>
+                      <input
+                        type="text"
+                        value={smtpForm.events?.[event]?.subject || ''}
+                        onChange={e => setSmtpForm(f => ({
+                          ...f,
+                          events: { ...f.events, [event]: { ...f.events[event], subject: e.target.value } }
+                        }))}
+                        placeholder={event === 'appointmentBooked'
+                          ? 'Your appointment is confirmed — {{date}}'
+                          : 'Thank you for your visit — {{date}}'}
+                        className={inputCls}
+                      />
+                    </div>
+
+                    {/* Body */}
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Email Body</label>
+                      <textarea
+                        rows={6}
+                        value={smtpForm.events?.[event]?.body || ''}
+                        onChange={e => setSmtpForm(f => ({
+                          ...f,
+                          events: { ...f.events, [event]: { ...f.events[event], body: e.target.value } }
+                        }))}
+                        placeholder={event === 'appointmentBooked'
+                          ? 'Dear {{first_name}},\n\nYour appointment with {{doctor}} is confirmed for {{date}} at {{time}}.\n\nWarm regards,\n{{clinic}}'
+                          : 'Dear {{first_name}},\n\nThank you for your visit on {{date}} with {{doctor}}.\n\nTreatments: {{treatments}}\n\nWarm regards,\n{{clinic}}'}
+                        className={`${inputCls} font-mono text-xs resize-y`}
+                      />
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {evtVars.map(v => (
+                          <code key={v} className="text-[10px] bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded font-mono">{v}</code>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-1">Click a variable chip above to see what it resolves to. Leave subject/body blank to use the built-in default.</p>
+                    </div>
+
+                    {/* Warning — manual send disabled when appointmentCompleted automation is on */}
+                    {event === 'appointmentCompleted' && smtpForm.events?.appointmentCompleted?.enabled && (
+                      <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                        <span className="text-amber-500 mt-0.5 flex-shrink-0">⚠️</span>
+                        <p className="text-xs text-amber-700 leading-relaxed">
+                          <strong>Manual send is disabled on the treatment page while this automation is on.</strong>{' '}
+                          To send documents (Invoice, Smart Report, AI Report) manually, turn this automation off first.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <button onClick={saveSettings} disabled={settingsSaving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
             {settingsSaving ? 'Saving...' : 'Save Automation Settings'}
           </button>
-        </div>
-      )}
-
-      {/* ── Templates ── */}
-      {emailSubTab === 'templates' && (
-        <div>
-          <div className="flex justify-between items-center mb-3">
-            <p className="text-sm font-semibold text-slate-700">Email Templates</p>
-            <button onClick={() => setTemplateModal('new')} className="flex items-center gap-2 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors">
-              <Plus size={16} /> New Template
-            </button>
-          </div>
-
-          {/* Guide card */}
-          <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 text-xs text-slate-600">
-            <p className="text-sm font-bold text-slate-700">How templates work</p>
-            <p className="leading-relaxed">Templates define the <strong>subject line and body text</strong> of the email. They apply to both automated emails (when an appointment is completed) and the manual <strong>Send Mail</strong> button on the Treatment page. The selected PDF documents (Smart Report, Invoice, etc.) are attached automatically — you only write the message here.</p>
-            <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-2">
-              <p className="font-bold text-slate-700">Available variables — type these in your subject or body:</p>
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                {[
-                  ['{{name}}',        'Patient full name (e.g. Rahul Sharma)'],
-                  ['{{first_name}}',  'Patient first name only (e.g. Rahul)'],
-                  ['{{doctor}}',      'Doctor\'s name'],
-                  ['{{date}}',        'Today\'s date (e.g. 12 May 2026)'],
-                  ['{{treatments}}',  'Comma-separated treatment names from the visit'],
-                ].map(([v, d]) => (
-                  <div key={v} className="flex gap-2 items-start">
-                    <code className="bg-blue-50 text-blue-700 border border-blue-100 px-1.5 py-0.5 rounded font-mono text-xs flex-shrink-0">{v}</code>
-                    <span className="text-slate-500">{d}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <p className="text-slate-400">Each event can have one active template per language. If no template is set for an event, a sensible default message is used automatically.</p>
-          </div>
-
-          {templatesLoading ? (
-            <div className="text-center py-8 text-slate-500">Loading...</div>
-          ) : templates.length === 0 ? (
-            <div className="text-center py-12 text-slate-400">No templates yet. Create one to get started.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-slate-50 dark:bg-slate-700">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Event</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Language</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Subject</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 dark:text-slate-300">Status</th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 dark:text-slate-300">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {templates.map(t => (
-                    <tr key={t._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                      <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{EVENT_LABELS[t.event] || t.event}</td>
-                      <td className="px-4 py-3 text-sm text-slate-500">{LANG_LABELS[t.language] || t.language}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300 max-w-xs truncate">{t.subject}</td>
-                      <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${t.isActive ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                          {t.isActive ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex justify-center gap-2">
-                          <button onClick={() => setTemplateModal(t)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                          <button onClick={() => handleDeleteTemplate(t._id)} className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"><Trash2 size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
 
@@ -1350,14 +1472,6 @@ function EmailTab() {
         </div>
       )}
 
-      {/* Template editor modal */}
-      {templateModal && (
-        <EmailTemplateEditorModal
-          template={templateModal === 'new' ? null : templateModal}
-          onClose={() => setTemplateModal(null)}
-          onSave={handleSaveTemplate}
-        />
-      )}
     </div>
   );
 }
@@ -1411,6 +1525,843 @@ function DayRow({ day, dayData = {}, onChange }) {
   );
 }
 
+// ─── Report Delivery Tab ──────────────────────────────────────────────────────
+
+const REPORT_VARS = [
+  { token: 'patientName',  label: 'Patient name' },
+  { token: 'firstName',    label: 'First name' },
+  { token: 'doctorName',   label: 'Doctor name' },
+  { token: 'clinicName',   label: 'Clinic name' },
+  { token: 'date',         label: 'Date' },
+  { token: 'templateName', label: 'Report type' },
+];
+
+const REPORT_SAMPLE = {
+  patientName: 'Jane Doe', firstName: 'Jane', doctorName: 'Dr. Smith',
+  clinicName: 'City Dental', date: '23 May 2026', templateName: 'H&P Note',
+};
+
+function renderReportVars(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/\{\{(\w+)\}\}/g, (_, k) => (REPORT_SAMPLE[k] ?? `{{${k}}}`));
+}
+
+// ─── Document preview components ─────────────────────────────────────────────
+
+// Shared wrapper: paper shadow + scroll container
+function DocSheet({ children, label }) {
+  return (
+    <div className="flex flex-col gap-2 min-h-0">
+      <style>{`.docsheet-scroll::-webkit-scrollbar{display:none}`}</style>
+      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5 flex-shrink-0">
+        <Eye size={12} /> {label}
+      </p>
+      <div className="rounded-xl shadow-md border border-slate-200 bg-white overflow-hidden flex-1 min-h-0">
+        <div className="docsheet-scroll overflow-y-auto h-full" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {children}
+        </div>
+      </div>
+      <p className="text-[10px] text-slate-400 text-center flex-shrink-0">
+        Sample — reflects your saved clinic settings.
+      </p>
+    </div>
+  );
+}
+
+function InvoiceDocPreview({ clinicInfo }) {
+  const clinic  = clinicInfo?.name  || 'Your Clinic';
+  const phone   = clinicInfo?.phone || '';
+  const email   = clinicInfo?.email || '';
+  const address = clinicInfo?.address || '';
+  const ITEMS = [
+    { name: 'Root Canal Treatment', qty: 1, rate: 2500, total: 2500 },
+    { name: 'Scaling & Polishing',  qty: 1, rate:  800, total:  800 },
+    { name: 'Consultation Fee',     qty: 1, rate:  200, total:  200 },
+  ];
+  const subtotal = 3500;
+  return (
+    <DocSheet label="Invoice preview">
+      {/* Clinic header */}
+      <div className="px-4 pt-4 pb-3 border-b border-slate-100 text-center">
+        <p className="font-bold text-sm text-slate-800">{clinic}</p>
+        {address && <p className="text-[10px] text-slate-500 mt-0.5">{address}</p>}
+        {(phone || email) && (
+          <p className="text-[10px] text-slate-500 mt-0.5">
+            {[phone, email].filter(Boolean).join('  ·  ')}
+          </p>
+        )}
+      </div>
+
+      {/* Invoice meta */}
+      <div className="px-4 py-3 flex justify-between items-start border-b border-slate-100">
+        <div>
+          <p className="text-base font-bold text-slate-700 uppercase tracking-wide">Invoice</p>
+          <p className="text-xs text-slate-400 mt-0.5">INV-2026-042</p>
+        </div>
+        <div className="text-right text-xs text-slate-500 space-y-0.5">
+          <p>15 May 2026</p>
+          <p className="font-medium text-slate-700">Rahul Sharma</p>
+        </div>
+      </div>
+
+      {/* Column headers */}
+      <div className="px-4 pt-3">
+        <div className="grid grid-cols-12 gap-1 text-[9px] font-bold text-slate-400 uppercase pb-1 border-b border-slate-100">
+          <span className="col-span-6">Item</span>
+          <span className="col-span-2 text-center">Qty</span>
+          <span className="col-span-2 text-right">Rate</span>
+          <span className="col-span-2 text-right">Total</span>
+        </div>
+        {ITEMS.map((item, i) => (
+          <div key={i} className="grid grid-cols-12 gap-1 text-[10px] py-1.5 border-b border-slate-50">
+            <span className="col-span-6 text-slate-700">{item.name}</span>
+            <span className="col-span-2 text-center text-slate-500">{item.qty}</span>
+            <span className="col-span-2 text-right text-slate-500">₹{item.rate.toLocaleString()}</span>
+            <span className="col-span-2 text-right text-slate-700 font-medium">₹{item.total.toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Totals */}
+      <div className="px-4 py-3 space-y-1 text-xs">
+        <div className="flex justify-between text-slate-500">
+          <span>Subtotal</span><span>₹{subtotal.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between font-bold text-slate-800 text-sm border-t border-slate-200 pt-1.5 mt-1">
+          <span>Total</span><span>₹{subtotal.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-between text-green-600 font-medium">
+          <span>Paid</span><span>₹{subtotal.toLocaleString()}</span>
+        </div>
+        <div className="flex justify-end mt-1">
+          <span className="text-[9px] bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full uppercase">Paid</span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2 border-t border-slate-100 text-center">
+        <p className="text-[9px] text-slate-400">Thank you for choosing {clinic}.</p>
+      </div>
+    </DocSheet>
+  );
+}
+
+function PrescriptionDocPreview({ clinicInfo }) {
+  const clinic = clinicInfo?.name  || 'Your Clinic';
+  const phone  = clinicInfo?.phone || '';
+  const MEDS = [
+    { name: 'Amoxicillin 500mg',    sig: '1 capsule three times daily', dur: '5 days', note: 'After food' },
+    { name: 'Ibuprofen 400mg',      sig: '1 tablet twice daily',        dur: '3 days', note: 'With meals' },
+    { name: 'Metronidazole 400mg',  sig: '1 tablet three times daily',  dur: '5 days', note: 'After food' },
+  ];
+  return (
+    <DocSheet label="Prescription preview">
+      {/* Header */}
+      <div className="px-4 pt-4 pb-3 border-b-2 border-[#137fec]">
+        <p className="font-bold text-sm text-slate-800">{clinic}</p>
+        {phone && <p className="text-[10px] text-slate-500 mt-0.5">{phone}</p>}
+        <div className="flex justify-between mt-2 text-xs text-slate-500">
+          <span>Patient: <strong className="text-slate-700">Rahul Sharma</strong></span>
+          <span>15 May 2026</span>
+        </div>
+        <div className="mt-1 text-[10px] text-slate-500">Age: 32 · M</div>
+      </div>
+
+      {/* Rx symbol + meds */}
+      <div className="px-4 py-3">
+        <p className="text-2xl font-serif text-slate-600 mb-3">℞</p>
+        <div className="space-y-3">
+          {MEDS.map((m, i) => (
+            <div key={i} className="border-b border-dashed border-slate-200 pb-3 last:border-0 last:pb-0">
+              <p className="font-semibold text-[11px] text-slate-800">{i + 1}. {m.name}</p>
+              <p className="text-[10px] text-slate-600 mt-0.5">Sig: {m.sig}</p>
+              <p className="text-[10px] text-slate-500">Duration: {m.dur}</p>
+              <p className="text-[10px] text-slate-400 italic">{m.note}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-3 border-t border-slate-100 flex justify-between items-end">
+        <p className="text-[10px] text-slate-400">Follow-up: 1 week</p>
+        <div className="text-center">
+          <div className="border-t border-slate-400 w-20 mb-1" />
+          <p className="text-[9px] text-slate-500">Doctor Signature</p>
+        </div>
+      </div>
+    </DocSheet>
+  );
+}
+
+function SmartReportDocPreview({ clinicInfo }) {
+  const clinic  = clinicInfo?.name    || 'Your Clinic';
+  const tagline = clinicInfo?.tagline || '';
+  const phone   = clinicInfo?.phone   || '';
+  return (
+    <DocSheet label="Smart report preview">
+      {/* Blue branded header — matches actual PDF output */}
+      <div className="px-4 py-3" style={{ background: 'linear-gradient(135deg,#1d6fe8 0%,#137fec 100%)' }}>
+        <p className="text-white font-bold text-sm">{clinic}</p>
+        {tagline && <p className="text-blue-100 text-xs mt-0.5">{tagline}</p>}
+        {phone   && <p className="text-blue-100 text-[10px]">{phone}</p>}
+      </div>
+
+      {/* Patient info card */}
+      <div className="bg-blue-50 border-b border-blue-100 px-4 py-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
+        {[['Patient', 'Rahul Sharma'], ['Doctor', 'Dr. Avtansh Giri'], ['Date', '15 May 2026'], ['Visit', 'Treatment']].map(([k, v]) => (
+          <div key={k}>
+            <p className="text-[8px] font-bold text-blue-400 uppercase">{k}</p>
+            <p className="text-[10px] text-slate-700">{v}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Treatments */}
+      <div className="px-4 py-2.5 border-b border-slate-100">
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Treatment Plan</p>
+        {[
+          'Root Canal (Tooth 46)  ·  Completed  ·  ₹2,500',
+          'Scaling & Polishing  ·  Completed  ·  ₹800',
+        ].map((t, i) => (
+          <p key={i} className="text-[10px] text-slate-600 py-0.5">• {t}</p>
+        ))}
+      </div>
+
+      {/* Prescriptions */}
+      <div className="px-4 py-2.5 border-b border-slate-100">
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Prescriptions</p>
+        {[
+          'Amoxicillin 500mg — 1 cap TID × 5 days — After food',
+          'Ibuprofen 400mg — 1 tab BD × 3 days — With meals',
+        ].map((p, i) => (
+          <p key={i} className="text-[10px] text-slate-600 py-0.5">• {p}</p>
+        ))}
+      </div>
+
+      {/* Advice */}
+      <div className="px-4 py-2.5">
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Advice</p>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          Avoid hard foods for 48 hours. Apply ice pack if swelling persists. Return for follow-up in 1 week.
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-slate-50 border-t border-slate-100 px-4 py-2 text-center">
+        <p className="text-[8px] text-slate-400">{clinic} · Powered by Molaris</p>
+      </div>
+    </DocSheet>
+  );
+}
+
+// AI Report: keep the email-preview phone mockup since this tab configures email/WhatsApp templates
+function AIReportEmailPreview({ clinicInfo }) {
+  const clinic  = clinicInfo?.name    || 'Your Clinic';
+  const tagline = clinicInfo?.tagline || '';
+  const phone   = clinicInfo?.phone   || '';
+  const email   = clinicInfo?.email   || '';
+  const footer  = [clinic, phone, email].filter(Boolean).join(' · ');
+  const initial = clinic.charAt(0).toUpperCase();
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+        <Eye size={12} /> Patient email view
+      </p>
+
+      {/* Phone shell */}
+      <div className="mx-auto w-full max-w-[240px]">
+        <div className="bg-slate-900 rounded-[24px] p-1.5 shadow-2xl">
+          <div className="bg-slate-100 rounded-[18px] overflow-hidden">
+
+            <div className="bg-slate-800 flex justify-between items-center px-4 py-1">
+              <span className="text-[9px] text-white font-semibold">9:41</span>
+              <span className="text-[8px] text-white/70">●●● WiFi ⬛</span>
+            </div>
+
+            <div className="bg-white px-3 py-2 border-b border-slate-100 flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-[#137fec] flex items-center justify-center flex-shrink-0 text-white text-[9px] font-bold">{initial}</div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold text-slate-800 truncate">{clinic}</p>
+                <p className="text-[9px] text-slate-400">to: patient@email.com</p>
+              </div>
+            </div>
+
+            <div className="bg-white px-3 pt-2 pb-1 border-b border-slate-50">
+              <p className="text-[10px] font-bold text-slate-800 truncate">Your Clinical Report is Ready</p>
+            </div>
+
+            <div className="overflow-hidden" style={{ maxHeight: 280 }}>
+              <div style={{ background: 'linear-gradient(135deg,#1d6fe8 0%,#137fec 100%)' }} className="px-3 py-2.5">
+                <p className="text-white font-bold text-[10px]">{clinic}</p>
+                {tagline && <p className="text-blue-100 text-[8px] mt-0.5">{tagline}</p>}
+              </div>
+              <div className="bg-white px-3 py-2.5 space-y-1">
+                {['Dear Rahul,', '', 'Your AI clinical report prepared by Dr. Giri is ready.', '', 'The full report is attached as a PDF.', '', `Warm regards,`, clinic].map((l, i) =>
+                  l ? <p key={i} className="text-[9px] text-slate-600 leading-relaxed">{l}</p>
+                    : <div key={i} className="h-1" />
+                )}
+              </div>
+              <div className="bg-white px-3 pb-2.5">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
+                  <span className="text-[10px]">✨</span>
+                  <p className="text-[8px] text-slate-600 font-medium truncate">AIReport_Rahul_2026-05-15.pdf</p>
+                </div>
+              </div>
+              <div className="bg-slate-50 border-t border-slate-100 px-3 py-1.5">
+                <p className="text-[8px] text-slate-400 text-center truncate">{footer}</p>
+                <p className="text-[7px] text-slate-300 text-center mt-0.5">Molaris Dental DMS</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-slate-400 text-center">Email your patient receives on their phone.</p>
+    </div>
+  );
+}
+
+// Dispatcher — right preview panel per section
+function SectionPreviewPane({ clinicInfo, section }) {
+  if (section === 'invoice')      return <InvoiceDocPreview      clinicInfo={clinicInfo} />;
+  if (section === 'prescription') return <PrescriptionDocPreview clinicInfo={clinicInfo} />;
+  if (section === 'smart_report') return <SmartReportDocPreview  clinicInfo={clinicInfo} />;
+  if (section === 'ai_report')    return <AIReportEmailPreview   clinicInfo={clinicInfo} />;
+  if (section === 'send_email')   return <AIReportEmailPreview   clinicInfo={clinicInfo} />;
+  return null;
+}
+
+// ─── Share with Patient (unified hub) ────────────────────────────────────────
+function PatientDocumentsTab() {
+  const [section, setSection] = React.useState('invoice');
+  const [previewVisible, setPreviewVisible] = React.useState(false);
+  const [clinicInfo, setClinicInfo] = React.useState({ name: '', tagline: '', phone: '', email: '' });
+
+  React.useEffect(() => {
+    // Load clinic info for the preview panel from saved Invoice settings
+    API.get('/settings/invoice').catch(() => null).then(r => {
+      if (!r?.data) return;
+      setClinicInfo(c => ({
+        ...c,
+        name:  r.data.clinic?.name  || '',
+        phone: r.data.clinic?.phone || '',
+        email: r.data.clinic?.email || '',
+      }));
+    });
+    API.get('/report/delivery-settings').catch(() => null).then(r => {
+      if (!r?.data) return;
+      setClinicInfo(c => ({
+        ...c,
+        tagline: r.data.pdf?.clinicTagline || c.tagline,
+        name:    r.data.pdf?.clinicName    || c.name,
+      }));
+    });
+  }, []);
+
+  const sections = [
+    { id: 'invoice',      label: '🧾 Invoice' },
+    { id: 'prescription', label: '💊 Prescription' },
+    { id: 'smart_report', label: '📋 Smart Report' },
+    { id: 'ai_report',    label: '✨ AI Report' },
+    { id: 'send_email',   label: '📧 Send Email' },
+    { id: 'send_whatsapp', label: '💬 Send WhatsApp' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg overflow-hidden">
+
+        {/* Header */}
+        <div className="px-4 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-slate-100 dark:border-slate-700 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">Share with Patient</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+              Configure how each document is formatted and delivered from the treatment page.
+            </p>
+          </div>
+          {/* Mobile-only preview toggle — hidden on tabs that have inline preview */}
+          {section !== 'send_email' && section !== 'send_whatsapp' && (
+            <button
+              onClick={() => setPreviewVisible(v => !v)}
+              className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#137fec] border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0"
+            >
+              <Eye size={13} />
+              {previewVisible ? 'Hide preview' : 'Patient preview'}
+            </button>
+          )}
+        </div>
+
+        {/* Mobile preview panel (toggleable) */}
+        {previewVisible && section !== 'send_email' && section !== 'send_whatsapp' && (
+          <div className="lg:hidden p-6 bg-slate-50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700">
+            <SectionPreviewPane clinicInfo={clinicInfo} section={section} />
+          </div>
+        )}
+
+        {/* Body: settings column + preview column */}
+        <div className="flex flex-col lg:flex-row lg:divide-x lg:divide-slate-100 dark:lg:divide-slate-700">
+
+          {/* Settings column */}
+          <div className="flex-1 min-w-0">
+            {/* Section sub-tabs */}
+            <div className="flex border-b border-slate-100 dark:border-slate-700 overflow-x-auto scrollbar-none">
+              {sections.map(s => (
+                <button
+                  key={s.id}
+                  onClick={() => setSection(s.id)}
+                  className={`flex-shrink-0 px-4 sm:px-5 py-3 text-xs sm:text-sm font-semibold whitespace-nowrap transition-colors ${
+                    section === s.id
+                      ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                      : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="p-4 sm:p-6">
+              {section === 'invoice'      && <InvoiceSettingsTab embedded />}
+              {section === 'prescription' && <PrescriptionSettingsTab embedded />}
+              {section === 'smart_report' && <SmartReportDeliverySection />}
+              {section === 'ai_report'     && <ReportDeliveryTab embedded />}
+              {section === 'send_email'    && <AIReportEmailSection />}
+              {section === 'send_whatsapp' && <AIReportWhatsAppSection />}
+            </div>
+          </div>
+
+          {/* Preview column — desktop only; hidden on tabs with inline preview */}
+          {section !== 'send_email' && section !== 'send_whatsapp' && (
+            <div className="hidden lg:flex lg:w-72 xl:w-80 flex-shrink-0 flex-col p-6 bg-slate-50/60 dark:bg-slate-700/20" style={{ minHeight: 480 }}>
+              <SectionPreviewPane clinicInfo={clinicInfo} section={section} />
+            </div>
+          )}
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Smart Report Delivery Section ────────────────────────────────────────────
+function SmartReportDeliverySection() {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-1">Smart Report</h3>
+        <p className="text-sm text-slate-400 leading-relaxed">
+          The Smart Report is a PDF summary of the patient's visit — treatments, prescriptions, consultation notes, and advice.
+          It is generated automatically from the current visit data when you click "Send via Email" or "Send via WhatsApp" on the treatment page.
+        </p>
+      </div>
+      <div className="bg-slate-50 dark:bg-slate-700/40 border border-slate-200 dark:border-slate-700 rounded-xl p-4 space-y-2">
+        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">What it includes</p>
+        <ul className="text-sm text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside">
+          <li>Treatment plan (name, status, cost)</li>
+          <li>Prescriptions (drug, dosage, duration)</li>
+          <li>Consultation notes</li>
+          <li>Doctor advice</li>
+        </ul>
+      </div>
+      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <p className="text-sm text-slate-500">
+          Smart Report formatting uses the clinic info from the <strong>Invoice</strong> settings (name, address, phone).
+          No separate branding setup needed.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function ReportDeliveryTab({ embedded }) {
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  const [form, setForm] = React.useState({
+    defaults: { cloud: true, email: false, whatsapp: false },
+    pdf: { enabled: false, clinicName: '', clinicTagline: '', clinicAddress: '', clinicPhone: '', clinicEmail: '', clinicLogoUrl: '' },
+  });
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving]   = React.useState(false);
+  const [banner, setBanner]   = React.useState(null);
+
+  React.useEffect(() => {
+    API.get('/report/delivery-settings')
+      .then(r => {
+        const { _id, __v, createdAt, updatedAt, ...data } = r.data || {};
+        setForm(prev => ({
+          defaults: { ...prev.defaults, ...(data.defaults || {}) },
+          pdf:      { ...prev.pdf,      ...(data.pdf      || {}) },
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function setField(path, value) {
+    setForm(f => {
+      const [a, b] = path.split('.');
+      return { ...f, [a]: { ...f[a], [b]: value } };
+    });
+  }
+
+  async function save() {
+    setSaving(true); setBanner(null);
+    try {
+      await API.put('/report/delivery-settings', form);
+      setBanner({ ok: true, msg: 'Report delivery settings saved.' });
+    } catch (err) {
+      setBanner({ ok: false, msg: err.response?.data?.error || err.message });
+    } finally { setSaving(false); }
+  }
+
+  if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
+
+  const Wrapper = ({ children }) => embedded
+    ? <div className="max-w-3xl space-y-8">{children}</div>
+    : <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 max-w-3xl space-y-8">{children}</div>;
+
+  return (
+    <Wrapper>
+      {!embedded && (
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Report Delivery</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Templates used by the AI report's <b>Approve &amp; Send</b> step. Click a variable to insert it; the preview shows sample values.
+          </p>
+        </div>
+      )}
+
+      {/* Default channels */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1">
+          Default channels (pre-ticked)
+        </h3>
+        <div className="flex flex-wrap gap-4">
+          {[
+            { key: 'cloud',    label: 'Save to Connect Cloud', Icon: Save },
+            { key: 'email',    label: 'Email to patient',      Icon: Mail },
+            { key: 'whatsapp', label: 'WhatsApp to patient',   Icon: MessageSquare },
+          ].map(({ key, label, Icon }) => (
+            <label key={key} className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" checked={form.defaults[key]}
+                onChange={e => setField(`defaults.${key}`, e.target.checked)}
+                className="w-4 h-4 rounded accent-[#137fec]" />
+              <Icon size={15} className="text-slate-400" />
+              <span className="text-sm text-slate-700 dark:text-slate-300">{label}</span>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Branded PDF ── */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+          <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
+            📄 Branded PDF
+          </h3>
+          <ToggleSwitch enabled={form.pdf.enabled} onChange={v => setField('pdf.enabled', v)} />
+        </div>
+        {form.pdf.enabled && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400 leading-relaxed">
+              When enabled, reports are saved and sent as a branded PDF instead of plain text. Fill in your clinic details to appear on the PDF header and footer.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Clinic Name</label>
+                <input type="text" className={inputCls} value={form.pdf.clinicName} onChange={e => setField('pdf.clinicName', e.target.value)} placeholder="City Dental Clinic" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Tagline</label>
+                <input type="text" className={inputCls} value={form.pdf.clinicTagline} onChange={e => setField('pdf.clinicTagline', e.target.value)} placeholder="Your Smile, Our Priority" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Phone</label>
+                <input type="text" className={inputCls} value={form.pdf.clinicPhone} onChange={e => setField('pdf.clinicPhone', e.target.value)} placeholder="+91 98765 43210" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Email</label>
+                <input type="email" className={inputCls} value={form.pdf.clinicEmail} onChange={e => setField('pdf.clinicEmail', e.target.value)} placeholder="clinic@example.com" />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Address</label>
+                <input type="text" className={inputCls} value={form.pdf.clinicAddress} onChange={e => setField('pdf.clinicAddress', e.target.value)} placeholder="123 Main St, Mumbai 400001" />
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      <div className="flex items-center gap-4 pt-1">
+        <button onClick={save} disabled={saving}
+          className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save Report Delivery Settings'}
+        </button>
+        {banner && (
+          <p className={`text-sm font-medium flex items-center gap-1.5 ${banner.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {banner.ok ? <CheckCircle size={15} /> : <XCircle size={15} />}
+            {banner.msg}
+          </p>
+        )}
+      </div>
+    </Wrapper>
+  );
+}
+
+// ─── AI Report — Send WhatsApp configuration (separate tab) ──────────────────
+function AIReportWhatsAppSection() {
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  const [form, setForm] = React.useState({ whatsapp: { text: '' } });
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving]   = React.useState(false);
+  const [banner, setBanner]   = React.useState(null);
+  const activeFieldRef = React.useRef(null);
+
+  React.useEffect(() => {
+    API.get('/report/delivery-settings')
+      .then(r => {
+        const data = r.data || {};
+        setForm(prev => ({ whatsapp: { ...prev.whatsapp, ...(data.whatsapp || {}) } }));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function setField(path, value) {
+    setForm(f => {
+      const [a, b] = path.split('.');
+      return { ...f, [a]: { ...f[a], [b]: value } };
+    });
+  }
+
+  function insertVar(token) {
+    const active = activeFieldRef.current;
+    const snippet = `{{${token}}}`;
+    if (!active) return;
+    const { path, el } = active;
+    const [a, b] = path.split('.');
+    const cur = form[a][b] || '';
+    const start = el.selectionStart ?? cur.length;
+    const end   = el.selectionEnd ?? cur.length;
+    const updated = cur.slice(0, start) + snippet + cur.slice(end);
+    setField(path, updated);
+    requestAnimationFrame(() => {
+      try { el.focus(); el.selectionStart = el.selectionEnd = start + snippet.length; } catch { /* noop */ }
+    });
+  }
+
+  async function save() {
+    setSaving(true); setBanner(null);
+    try {
+      const current = await API.get('/report/delivery-settings').then(r => r.data || {});
+      await API.put('/report/delivery-settings', { ...current, whatsapp: form.whatsapp });
+      setBanner({ ok: true, msg: 'WhatsApp settings saved.' });
+    } catch (err) {
+      setBanner({ ok: false, msg: err.response?.data?.error || err.message });
+    } finally { setSaving(false); }
+  }
+
+  if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
+
+  return (
+    <div className="max-w-3xl space-y-8">
+      <div>
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+          WhatsApp message template
+        </h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Sent to the patient when the AI report is shared via WhatsApp from the treatment page. The Cloud link is appended automatically.
+        </p>
+      </div>
+
+      {/* Variable palette */}
+      <section>
+        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Available variables</p>
+        <div className="flex flex-wrap gap-1.5">
+          {REPORT_VARS.map(v => (
+            <button key={v.token} type="button" onClick={() => insertVar(v.token)}
+              title={`Insert {{${v.token}}}`}
+              className="text-[11px] font-medium bg-[#137fec]/10 text-[#137fec] hover:bg-[#137fec]/20 px-2 py-1 rounded-full transition-colors">
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1 flex items-center gap-2">
+          <MessageSquare size={15} /> Message
+        </h3>
+        <textarea rows={5} className={`${inputCls} resize-y`} value={form.whatsapp.text}
+          onFocus={e => (activeFieldRef.current = { path: 'whatsapp.text', el: e.target })}
+          onChange={e => setField('whatsapp.text', e.target.value)} />
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+          <p className="text-[11px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Eye size={11} /> Preview</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap">{renderReportVars(form.whatsapp.text)}</p>
+        </div>
+      </section>
+
+      <div className="flex items-center gap-4 pt-1">
+        <button onClick={save} disabled={saving}
+          className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+        </button>
+        {banner && (
+          <p className={`text-sm font-medium flex items-center gap-1.5 ${banner.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {banner.ok ? <CheckCircle size={15} /> : <XCircle size={15} />}
+            {banner.msg}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── AI Report — Send Email configuration (separate tab) ─────────────────────
+function AIReportEmailSection() {
+  const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
+
+  const [form, setForm] = React.useState({
+    email:     { subject: '', body: '' },
+    htmlEmail: { enabled: false },
+  });
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving]   = React.useState(false);
+  const [banner, setBanner]   = React.useState(null);
+  const activeFieldRef = React.useRef(null);
+
+  React.useEffect(() => {
+    API.get('/report/delivery-settings')
+      .then(r => {
+        const data = r.data || {};
+        setForm(prev => ({
+          email:     { ...prev.email,     ...(data.email     || {}) },
+          htmlEmail: { ...prev.htmlEmail, ...(data.htmlEmail || {}) },
+        }));
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function setField(path, value) {
+    setForm(f => {
+      const [a, b] = path.split('.');
+      return { ...f, [a]: { ...f[a], [b]: value } };
+    });
+  }
+
+  function insertVar(token) {
+    const active = activeFieldRef.current;
+    const snippet = `{{${token}}}`;
+    if (!active) return;
+    const { path, el } = active;
+    const [a, b] = path.split('.');
+    const cur = form[a][b] || '';
+    const start = el.selectionStart ?? cur.length;
+    const end   = el.selectionEnd ?? cur.length;
+    const updated = cur.slice(0, start) + snippet + cur.slice(end);
+    setField(path, updated);
+    requestAnimationFrame(() => {
+      try { el.focus(); el.selectionStart = el.selectionEnd = start + snippet.length; } catch { /* noop */ }
+    });
+  }
+
+  async function save() {
+    setSaving(true); setBanner(null);
+    try {
+      // Merge-patch — only send the email fields so other settings aren't overwritten
+      const current = await API.get('/report/delivery-settings').then(r => r.data || {});
+      await API.put('/report/delivery-settings', { ...current, email: form.email, htmlEmail: form.htmlEmail });
+      setBanner({ ok: true, msg: 'Email settings saved.' });
+    } catch (err) {
+      setBanner({ ok: false, msg: err.response?.data?.error || err.message });
+    } finally { setSaving(false); }
+  }
+
+  if (loading) return <div className="text-center py-12 text-slate-500">Loading…</div>;
+
+  return (
+    <div className="max-w-3xl space-y-8">
+      <div>
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+          Email template
+        </h3>
+        <p className="text-xs text-slate-400 mt-0.5">
+          Used when sending the AI report to the patient via email from the treatment page.
+        </p>
+      </div>
+
+      {/* Variable palette */}
+      <section>
+        <p className="text-xs font-bold text-slate-500 uppercase mb-2">Available variables</p>
+        <div className="flex flex-wrap gap-1.5">
+          {REPORT_VARS.map(v => (
+            <button key={v.token} type="button" onClick={() => insertVar(v.token)}
+              title={`Insert {{${v.token}}}`}
+              className="text-[11px] font-medium bg-[#137fec]/10 text-[#137fec] hover:bg-[#137fec]/20 px-2 py-1 rounded-full transition-colors">
+              {v.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Subject */}
+      <section className="space-y-3">
+        <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide border-b border-slate-100 dark:border-slate-700 pb-1 flex items-center gap-2">
+          <Mail size={15} /> Subject &amp; Body
+        </h3>
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Subject</label>
+          <input type="text" className={inputCls} value={form.email.subject}
+            onFocus={e => (activeFieldRef.current = { path: 'email.subject', el: e.target })}
+            onChange={e => setField('email.subject', e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Body</label>
+          <textarea rows={6} className={`${inputCls} resize-y`} value={form.email.body}
+            onFocus={e => (activeFieldRef.current = { path: 'email.body', el: e.target })}
+            onChange={e => setField('email.body', e.target.value)} />
+        </div>
+        <div className="bg-slate-50 dark:bg-slate-900 rounded-lg p-3 border border-slate-100 dark:border-slate-700">
+          <p className="text-[11px] font-bold text-slate-400 uppercase mb-1 flex items-center gap-1"><Eye size={11} /> Preview</p>
+          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{renderReportVars(form.email.subject)}</p>
+          <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap mt-1">{renderReportVars(form.email.body)}</p>
+        </div>
+      </section>
+
+      {/* Rich HTML toggle */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-700 pb-1">
+          <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
+            ✉️ Rich HTML Email
+          </h3>
+          <ToggleSwitch enabled={form.htmlEmail.enabled} onChange={v => setField('htmlEmail.enabled', v)} />
+        </div>
+        <p className="text-xs text-slate-400 leading-relaxed">
+          When on, report emails are sent as branded HTML (clinic header, patient details, report body inline) instead of the plain-text body above.
+          Clinic branding is pulled from the AI Report tab's PDF settings.
+        </p>
+      </section>
+
+      <div className="flex items-center gap-4 pt-1">
+        <button onClick={save} disabled={saving}
+          className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          {saving ? 'Saving…' : 'Save Email Settings'}
+        </button>
+        {banner && (
+          <p className={`text-sm font-medium flex items-center gap-1.5 ${banner.ok ? 'text-green-600' : 'text-red-600'}`}>
+            {banner.ok ? <CheckCircle size={15} /> : <XCircle size={15} />}
+            {banner.msg}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Settings Page ───────────────────────────────────────────────────────
 
 const SettingsPage = () => {
@@ -1452,6 +2403,9 @@ const SettingsPage = () => {
   const [treatmentTab, setTreatmentTab] = useState('findings');
   const [bulkMode, setBulkMode] = useState(false);
   const [bulkItems, setBulkItems] = useState([]);
+  const [showAddChooser, setShowAddChooser] = useState(false);
+  const [showSingleAdd, setShowSingleAdd] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   // Booking settings state
   const defaultDay = (open, start = '09:00', end = '17:00') => ({ isOpen: open, start, end, breaks: [] });
@@ -1915,8 +2869,8 @@ const SettingsPage = () => {
               { id: 'doctors',         label: 'Doctors' },
               { id: 'treatment',       label: 'Clinical Data' },
               { id: 'inventory',       label: 'Inventory' },
-              { id: 'email',           label: 'Email' },
-              { id: 'invoice',         label: 'Invoice' },
+              { id: 'email',            label: 'Email' },
+              { id: 'patientDocuments', label: 'Share with Patient' },
               { id: 'booking',         label: 'Online Booking' },
               { id: 'doctorSchedules', label: 'Doctor Schedules' },
             ].map(t => (
@@ -2020,275 +2974,273 @@ const SettingsPage = () => {
           </div>
         )}
 
-        {/* Treatment Tab */}
-        {activeTab === 'treatment' && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-            {/* Treatment Sub-tabs — scrollable on mobile */}
-            <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
-              <div className="flex gap-0 min-w-max">
-                {['findings', 'diagnoses', 'treatments'].map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setTreatmentTab(tab)}
-                    className={`flex-shrink-0 px-4 py-2 font-semibold transition-all ${
-                      treatmentTab === tab
-                        ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                        : 'text-slate-600 dark:text-slate-400'
-                    }`}
-                  >
-                    {tab === 'findings' ? 'Clinical Findings' : tab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Clinical Data Tab */}
+        {activeTab === 'treatment' && (() => {
+          const tabLabel = treatmentTab === 'findings' ? 'Clinical Findings' : treatmentTab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments';
+          const currentItems = treatmentTab === 'findings' ? clinicalFindings : treatmentTab === 'diagnoses' ? diagnoses : suggestedTreatments;
 
-            {/* Bulk Mode Toggle */}
-            <div className="flex flex-wrap justify-between items-center gap-3 mb-6">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">
-                {treatmentTab === 'findings' ? 'Clinical Findings' : treatmentTab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
-              </h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => navigate('/settings/import-catalog')}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-[#137fec]/10 text-[#137fec] hover:bg-[#137fec]/20"
-                >
-                  <BookOpen size={18} /> Import from Library
-                </button>
-                <button
-                  onClick={handleDownloadSample}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200"
-                >
-                  <Download size={18} /> Sample Sheet
-                </button>
-                <label className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 cursor-pointer">
-                  <FileSpreadsheet size={18} /> Upload File
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={handleBulkFileUpload}
-                    className="hidden"
-                  />
-                </label>
-                <button
-                  onClick={() => setBulkMode(!bulkMode)}
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold transition-colors ${
-                    bulkMode
-                      ? 'bg-orange-500 text-white hover:bg-orange-600'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
-                  }`}
-                >
-                  <Upload size={18} /> {bulkMode ? 'Cancel Bulk' : 'Bulk Add'}
-                </button>
-              </div>
-            </div>
-
-            {/* Bulk Mode Input */}
-            {bulkMode && (
-              <div className="mb-6 p-6 bg-slate-50 dark:bg-slate-700 rounded-lg border-2 border-orange-300">
-                <div className="flex justify-between items-center mb-4">
-                  <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                    Add {treatmentTab === 'findings' ? 'Clinical Findings' : treatmentTab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'} in Bulk
-                  </h4>
-                  <button
-                    onClick={addBulkRow}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    <Plus size={16} /> Add Row
-                  </button>
+          return (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+              {/* Sub-tab bar */}
+              <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex gap-0 min-w-max">
+                  {['findings', 'diagnoses', 'treatments'].map(tab => (
+                    <button
+                      key={tab}
+                      onClick={() => { setTreatmentTab(tab); setBulkMode(false); setBulkItems([]); }}
+                      className={`flex-shrink-0 px-4 py-2 font-semibold transition-all ${
+                        treatmentTab === tab
+                          ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+                      }`}
+                    >
+                      {tab === 'findings' ? 'Clinical Findings' : tab === 'diagnoses' ? 'Diagnoses' : 'Suggested Treatments'}
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="overflow-x-auto mb-4 border border-orange-300 rounded-lg">
-                  <table className="w-full">
-                    <thead className="bg-orange-100 dark:bg-slate-600">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Name</th>
-                        {treatmentTab === 'diagnoses' && (
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Code</th>
-                        )}
-                        {treatmentTab === 'treatments' && (
-                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Cost (₹)</th>
-                        )}
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Category</th>
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Description</th>
-                        <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-orange-200 dark:divide-slate-600">
-                      {bulkItems.length === 0 ? (
+              {/* Header row */}
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white">{tabLabel}</h3>
+                {bulkMode ? (
+                  <button
+                    onClick={() => { setBulkMode(false); setBulkItems([]); }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                  >
+                    <X size={16} /> Cancel Quick Entry
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowAddChooser(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-[#137fec] hover:bg-blue-600 text-white transition-colors"
+                  >
+                    <Plus size={18} /> Add {tabLabel}
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Entry inline table */}
+              {bulkMode && (
+                <div className="mb-6 p-6 bg-slate-50 dark:bg-slate-700/50 rounded-xl border-2 border-orange-300">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      Quick Entry — {tabLabel}
+                    </h4>
+                    <button
+                      onClick={addBulkRow}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >
+                      <Plus size={15} /> Add Row
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto mb-4 border border-orange-300 rounded-xl">
+                    <table className="w-full">
+                      <thead className="bg-orange-100 dark:bg-slate-600">
                         <tr>
-                          <td colSpan={treatmentTab === 'treatments' ? 5 : treatmentTab === 'diagnoses' ? 5 : 4} className="px-4 py-8 text-center text-slate-500">
-                            Click "Add Row" to start adding items
-                          </td>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Name</th>
+                          {treatmentTab === 'diagnoses' && (
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">ICD Code</th>
+                          )}
+                          {treatmentTab === 'treatments' && (
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Cost (₹)</th>
+                          )}
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Category</th>
+                          <th className="px-4 py-3 text-left text-xs font-semibold text-slate-700 dark:text-slate-300">Description</th>
+                          <th className="px-4 py-3 text-center text-xs font-semibold text-slate-700 dark:text-slate-300">✕</th>
                         </tr>
-                      ) : (
-                        bulkItems.map((item, idx) => (
+                      </thead>
+                      <tbody className="divide-y divide-orange-200 dark:divide-slate-600">
+                        {bulkItems.length === 0 ? (
+                          <tr>
+                            <td colSpan={treatmentTab === 'treatments' ? 5 : treatmentTab === 'diagnoses' ? 5 : 4}
+                              className="px-4 py-8 text-center text-slate-400 text-sm">
+                              Click "Add Row" to start adding items
+                            </td>
+                          </tr>
+                        ) : bulkItems.map((item, idx) => (
                           <tr key={idx} className="hover:bg-orange-50 dark:hover:bg-slate-600/50 transition-colors">
                             <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.name}
-                                onChange={(e) => updateBulkRow(idx, 'name', e.target.value)}
+                              <input type="text" value={item.name}
+                                onChange={e => updateBulkRow(idx, 'name', e.target.value)}
                                 placeholder="Item name"
-                                className="w-full px-2 py-1.5 border border-orange-300 rounded text-sm bg-white dark:bg-slate-800 dark:border-orange-500 focus:ring-2 focus:ring-orange-500 outline-none"
-                              />
+                                className="w-full px-2 py-1.5 border border-orange-300 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-orange-500 outline-none" />
                             </td>
                             {treatmentTab === 'diagnoses' && (
                               <td className="px-4 py-3">
-                                <input
-                                  type="text"
-                                  value={item.code}
-                                  onChange={(e) => updateBulkRow(idx, 'code', e.target.value)}
-                                  placeholder="ICD Code"
-                                  className="w-full px-2 py-1.5 border border-orange-300 rounded text-sm bg-white dark:bg-slate-800 dark:border-orange-500 focus:ring-2 focus:ring-orange-500 outline-none"
-                                />
+                                <input type="text" value={item.code}
+                                  onChange={e => updateBulkRow(idx, 'code', e.target.value)}
+                                  placeholder="K02.1"
+                                  className="w-full px-2 py-1.5 border border-orange-300 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-orange-500 outline-none" />
                               </td>
                             )}
                             {treatmentTab === 'treatments' && (
                               <td className="px-4 py-3">
-                                <input
-                                  type="number"
-                                  value={item.cost}
-                                  onChange={(e) => updateBulkRow(idx, 'cost', e.target.value)}
+                                <input type="number" value={item.cost}
+                                  onChange={e => updateBulkRow(idx, 'cost', e.target.value)}
                                   placeholder="0"
-                                  className="w-full px-2 py-1.5 border border-orange-300 rounded text-sm bg-white dark:bg-slate-800 dark:border-orange-500 focus:ring-2 focus:ring-orange-500 outline-none"
-                                />
+                                  className="w-full px-2 py-1.5 border border-orange-300 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-orange-500 outline-none" />
                               </td>
                             )}
                             <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.category}
-                                onChange={(e) => updateBulkRow(idx, 'category', e.target.value)}
-                                placeholder="Category"
-                                className="w-full px-2 py-1.5 border border-orange-300 rounded text-sm bg-white dark:bg-slate-800 dark:border-orange-500 focus:ring-2 focus:ring-orange-500 outline-none"
-                              />
+                              <input type="text" value={item.category}
+                                onChange={e => updateBulkRow(idx, 'category', e.target.value)}
+                                placeholder="e.g. Periodontal"
+                                className="w-full px-2 py-1.5 border border-orange-300 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-orange-500 outline-none" />
                             </td>
                             <td className="px-4 py-3">
-                              <input
-                                type="text"
-                                value={item.description}
-                                onChange={(e) => updateBulkRow(idx, 'description', e.target.value)}
-                                placeholder="Description (optional)"
-                                className="w-full px-2 py-1.5 border border-orange-300 rounded text-sm bg-white dark:bg-slate-800 dark:border-orange-500 focus:ring-2 focus:ring-orange-500 outline-none"
-                              />
+                              <input type="text" value={item.description}
+                                onChange={e => updateBulkRow(idx, 'description', e.target.value)}
+                                placeholder="Optional"
+                                className="w-full px-2 py-1.5 border border-orange-300 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-orange-500 outline-none" />
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => removeBulkRow(idx)}
-                                className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded transition-colors"
-                              >
+                              <button onClick={() => removeBulkRow(idx)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-600 rounded transition-colors">
+                                <Trash2 size={15} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <button
+                    onClick={handleBulkAdd}
+                    disabled={loading || bulkItems.filter(i => i.name?.trim()).length === 0}
+                    className="w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {loading ? <><Loader2 size={15} className="animate-spin" /> Saving…</> : `Add All Items (${bulkItems.filter(i => i.name?.trim()).length})`}
+                  </button>
+                </div>
+              )}
+
+              {/* Items list */}
+              {loading ? (
+                <div className="flex justify-center py-12"><Loader2 className="animate-spin text-[#137fec]" /></div>
+              ) : currentItems.length === 0 && !bulkMode ? (
+                /* Empty state */
+                <div className="flex flex-col items-center gap-4 py-12 px-6 rounded-xl bg-[#137fec]/5 border border-[#137fec]/10">
+                  <div className="p-3 bg-[#137fec]/10 rounded-2xl">
+                    <BookOpen size={28} className="text-[#137fec]" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-bold text-slate-800 dark:text-white">No {tabLabel} yet</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
+                      Import from our dental library to get started instantly, or add them manually.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowAddChooser(true)}
+                    className="flex items-center gap-2 px-5 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    <Plus size={16} /> Add {tabLabel}
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile card stack */}
+                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                    {currentItems.map(item => (
+                      <div key={item._id} className="py-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-slate-800 dark:text-white text-sm">{item.name}</p>
+                          <div className="flex flex-wrap gap-1.5 mt-1">
+                            {treatmentTab === 'diagnoses' && item.code && (
+                              <span className="text-xs font-mono bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">{item.code}</span>
+                            )}
+                            {treatmentTab === 'treatments' && (
+                              <span className="text-xs font-semibold text-emerald-600">₹{item.cost?.toLocaleString('en-IN') || '0'}</span>
+                            )}
+                            {item.category && (
+                              <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded">{item.category}</span>
+                            )}
+                          </div>
+                        </div>
+                        <button onClick={() => handleDeleteTreatmentItem(item._id, treatmentTab)}
+                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg flex-shrink-0">
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden sm:block overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                    <table className="w-full text-sm">
+                      <thead className="bg-slate-50 dark:bg-slate-700/50">
+                        <tr>
+                          <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300">Name</th>
+                          {treatmentTab === 'diagnoses' && (
+                            <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300">Code</th>
+                          )}
+                          {treatmentTab === 'treatments' && (
+                            <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300">Cost</th>
+                          )}
+                          <th className="px-5 py-3 text-left font-semibold text-slate-600 dark:text-slate-300">Category</th>
+                          <th className="px-5 py-3 text-center font-semibold text-slate-600 dark:text-slate-300">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        {currentItems.map(item => (
+                          <tr key={item._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-white">{item.name}</td>
+                            {treatmentTab === 'diagnoses' && (
+                              <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{item.code || '—'}</td>
+                            )}
+                            {treatmentTab === 'treatments' && (
+                              <td className="px-5 py-3.5 font-semibold text-emerald-600 tabular-nums">
+                                ₹{item.cost?.toLocaleString('en-IN') || '0'}
+                              </td>
+                            )}
+                            <td className="px-5 py-3.5">
+                              {item.category
+                                ? <span className="text-xs bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">{item.category}</span>
+                                : <span className="text-slate-300">—</span>}
+                            </td>
+                            <td className="px-5 py-3.5 text-center">
+                              <button onClick={() => handleDeleteTreatmentItem(item._id, treatmentTab)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg transition-colors">
                                 <Trash2 size={16} />
                               </button>
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleBulkAdd}
-                    disabled={loading || bulkItems.length === 0}
-                    className="flex-1 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg disabled:opacity-50 transition-colors"
-                  >
-                    Add All Items
-                  </button>
-                  <button
-                    onClick={() => {
-                      setBulkMode(false);
-                      setBulkItems([]);
-                    }}
-                    className="flex-1 px-4 py-2 bg-slate-300 hover:bg-slate-400 text-slate-800 font-semibold rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Items Table */}
-            {loading ? (
-              <div className="text-center py-8 text-slate-500">Loading...</div>
-            ) : (
-              <>
-                {/* Empty-state library banner */}
-                {(treatmentTab === 'findings' ? clinicalFindings :
-                  treatmentTab === 'diagnoses' ? diagnoses :
-                  suggestedTreatments).length === 0 && (
-                  <div className="mb-5 flex items-center gap-4 p-4 rounded-xl bg-[#137fec]/5 border border-[#137fec]/20">
-                    <div className="p-2.5 bg-[#137fec]/10 rounded-xl flex-shrink-0">
-                      <BookOpen size={22} className="text-[#137fec]" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-slate-800 dark:text-white text-sm">Start with our dental library</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        Import pre-built {treatmentTab === 'findings' ? 'clinical findings' : treatmentTab} from our curated starter catalog — edit before importing.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => navigate('/settings/import-catalog')}
-                      className="flex-shrink-0 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                    >
-                      Open Library
-                    </button>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                )}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-700">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Name</th>
-                      {treatmentTab === 'diagnoses' && (
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Code</th>
-                      )}
-                      {treatmentTab === 'treatments' && (
-                        <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Cost</th>
-                      )}
-                      <th className="px-6 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Category</th>
-                      <th className="px-6 py-3 text-center text-sm font-semibold text-slate-700 dark:text-slate-300">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {(treatmentTab === 'findings' ? clinicalFindings :
-                      treatmentTab === 'diagnoses' ? diagnoses :
-                      suggestedTreatments).map(item => (
-                      <tr key={item._id} className="hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                        <td className="px-6 py-4">
-                          <p className="font-semibold text-slate-800 dark:text-white">{item.name}</p>
-                        </td>
-                        {treatmentTab === 'diagnoses' && (
-                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                            {item.code || '-'}
-                          </td>
-                        )}
-                        {treatmentTab === 'treatments' && (
-                          <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                            ₹{item.cost?.toLocaleString('en-IN') || '0'}
-                          </td>
-                        )}
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          <span className="text-xs bg-slate-100 dark:bg-slate-600 px-2 py-1 rounded">
-                            {item.category || '-'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <button
-                            onClick={() => handleDeleteTreatmentItem(item._id, treatmentTab)}
-                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              </>
-            )}
-          </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Clinical Data Modals */}
+        {showAddChooser && (
+          <AddClinicalDataModal
+            tab={treatmentTab}
+            onClose={() => setShowAddChooser(false)}
+            onPickSingle={() => { setShowAddChooser(false); setShowSingleAdd(true); }}
+            onPickQuickEntry={() => { setShowAddChooser(false); setBulkMode(true); setBulkItems([{ name: '', category: '', description: '', code: '', cost: 0 }]); }}
+            onPickBulkUpload={() => { setShowAddChooser(false); setShowBulkUpload(true); }}
+            onPickLibrary={() => { setShowAddChooser(false); navigate(`/settings/import-catalog?type=${treatmentTab}`); }}
+          />
+        )}
+        {showSingleAdd && (
+          <SingleClinicalItemModal
+            tab={treatmentTab}
+            onClose={() => setShowSingleAdd(false)}
+            onSaved={fetchTreatmentData}
+          />
+        )}
+        {showBulkUpload && (
+          <BulkUploadClinicalModal
+            tab={treatmentTab}
+            onClose={() => setShowBulkUpload(false)}
+            onSaved={fetchTreatmentData}
+          />
         )}
         {/* Inventory Tab */}
         {activeTab === 'inventory' && <InventoryTab />}
@@ -2296,8 +3248,8 @@ const SettingsPage = () => {
         {/* Email Tab */}
         {activeTab === 'email' && <EmailTab />}
 
-        {/* Invoice Settings Tab */}
-        {activeTab === 'invoice' && <InvoiceSettingsTab />}
+        {/* Share with Patient Tab — unified hub */}
+        {activeTab === 'patientDocuments' && <PatientDocumentsTab />}
 
         {/* Online Booking Tab */}
         {activeTab === 'booking' && (

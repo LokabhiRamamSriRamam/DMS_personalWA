@@ -3,14 +3,11 @@ import {
   getSettings,
   updateSettings,
   testSend,
-  getTemplates,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
   getTemplateVariables,
   sendReportEmail,
   getPatientEmailStatus,
   sendTreatmentSummary,
+  sendWhatsAppDocuments,
   getLogs,
 } from '../controllers/email.controller.js';
 
@@ -21,17 +18,14 @@ router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 router.post('/test', testSend);
 
-// Templates
+// Template variable catalog (used by compose panels)
 router.get('/template-variables', getTemplateVariables);
-router.get('/templates', getTemplates);
-router.post('/templates', createTemplate);
-router.put('/templates/:id', updateTemplate);
-router.delete('/templates/:id', deleteTemplate);
 
 // Send (must register specific paths before /:id wildcards)
 router.get('/patient-status/:patientId', getPatientEmailStatus);
 router.post('/send-report', sendReportEmail);
 router.post('/send-treatment-summary', sendTreatmentSummary);
+router.post('/send-whatsapp-documents', sendWhatsAppDocuments);
 
 // Logs
 router.get('/logs', getLogs);

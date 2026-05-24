@@ -21,6 +21,7 @@ import AppointmentTimeline from '../components/AppointmentTimeline.jsx';
 import InventoryConsumption from '../components/InventoryConsumption.jsx';
 import { useInventorySettings } from '../Context/SettingsContext.jsx';
 import SendMailDropdown from '../components/SendMailDropdown.jsx';
+import SendWhatsAppDropdown from '../components/SendWhatsAppDropdown.jsx';
 
 // --- Sub-Components ---
 
@@ -1071,6 +1072,9 @@ function MobileActionBar({ onConclude, onPrescription, onInvoice, patientId, pat
           <div onClick={() => setOpen(false)}>
             <SendMailDropdown patientId={patientId} patient={patient} fullWidth />
           </div>
+          <div onClick={() => setOpen(false)}>
+            <SendWhatsAppDropdown patientId={patientId} patient={patient} fullWidth />
+          </div>
           <button
             onClick={() => { onPrescription(); setOpen(false); }}
             className="w-full flex items-center gap-2 px-4 py-3 bg-white border border-[#137fec] text-[#137fec] font-semibold rounded-xl shadow-lg text-sm"
@@ -1319,6 +1323,7 @@ export default function TreatmentPage({ patientIdProp }) {
           </button>
           <div className="flex gap-2 sm:gap-3 flex-wrap justify-end">
             <SendMailDropdown patientId={id} patient={patient} />
+            <SendWhatsAppDropdown patientId={id} patient={patient} />
             <button onClick={() => setIsPrescriptionOpen(true)} className="px-4 sm:px-6 py-2 border border-[#137fec] text-[#137fec] font-medium rounded-lg hover:bg-blue-50 flex items-center gap-2 transition-colors text-sm">
               <FileText size={16} /> Prescription
             </button>

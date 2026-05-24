@@ -3,11 +3,30 @@ import {
   X, Mic, MicOff, Loader2, CheckCircle, ExternalLink,
   FileText, Minimize2, Maximize2, Sparkles, Save, SendHorizonal,
   ChevronDown, Mail, MessageSquare, XCircle, Pause, Play, Edit3,
-  RefreshCw, Headphones,
+  RefreshCw, Headphones, HelpCircle,
 } from 'lucide-react';
 import { openExternal } from '../utils/openExternal';
 import API from '../services/api';
 import { useAuth } from '../Context/AuthContext.jsx';
+
+// Substitute {{placeholder}} tokens; unknown tokens collapse to ''.
+export function applyVars(str, vars) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/\{\{(\w+)\}\}/g, (_, k) => (vars[k] ?? ''));
+}
+
+// Build the variable map used for report-delivery templates.
+export function reportDeliveryVars(patient, user, selectedTemplate) {
+  const patientName = patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : '';
+  return {
+    patientName,
+    firstName:    patient?.first_name || patientName,
+    doctorName:   user?.name || 'Your Doctor',
+    clinicName:   user?.clinicName || user?.tenantName || '',
+    date:         new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+    templateName: selectedTemplate?.name || 'clinical report',
+  };
+}
 
 function ReportDisplay({ text }) {
   if (!text) return <p className="text-slate-400 italic">Not generated.</p>;
@@ -100,6 +119,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   const streamRef         = useRef(null);
   const audioPlaybackRef  = useRef(null);   // <audio> element for preview
   const playbackUrlRef    = useRef(null);   // ObjectURL — always revoke before replacing
+  const isGeneratingRef   = useRef(false);  // synchronous lock — blocks double-submit before state updates
+  const generateAbortRef  = useRef(null);   // AbortController for the in-flight generate stream
 
   // stages: idle | recording | paused | transcribing | editing | generating | done
   const [stage, setStage]             = useState('idle');
@@ -108,6 +129,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   const [editedTranscript, setEditedTranscript] = useState('');
   const [isEditingTranscript, setIsEditingTranscript] = useState(false);
   const [reportText, setReportText]   = useState('');
+  const [isEditingReport, setIsEditingReport] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [driveLinks, setDriveLinks]   = useState({});
   const [autofillData, setAutofillData] = useState(null);
@@ -131,11 +153,12 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   const [playbackProgress, setPlaybackProgress] = useState(0); // seconds
   const [playbackDuration, setPlaybackDuration] = useState(0); // seconds
 
-  // Share panel state
-  const [showEmailPanel, setShowEmailPanel] = useState(false);
+  // Delivery panel state (Approve & Send)
   const [emailForm, setEmailForm] = useState({ to: '', subject: '', body: '' });
-  const [sending, setSending]     = useState(null);
-  const [sendResult, setSendResult] = useState(null);
+  const [deliver, setDeliver]               = useState({ cloud: true, email: false, whatsapp: false });
+  const [waForm, setWaForm]                 = useState({ to: '', text: '' });
+  const [delivering, setDelivering]         = useState(false);
+  const [deliverResults, setDeliverResults] = useState({});
 
   // Fetch templates once on first open
   useEffect(() => {
@@ -180,6 +203,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
     setEditedTranscript('');
     setIsEditingTranscript(false);
     setReportText('');
+    setIsEditingReport(false);
     setStreamingText('');
     setDriveLinks({});
     setAutofillData(null);
@@ -193,12 +217,15 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
     setTextInput('');
     setJobId(null);
     setCachedTranscript(false);
-    setShowEmailPanel(false);
     setEmailForm({ to: '', subject: '', body: '' });
-    setSending(null);
-    setSendResult(null);
+    setDeliver({ cloud: true, email: false, whatsapp: false });
+    setWaForm({ to: '', text: '' });
+    setDelivering(false);
+    setDeliverResults({});
     revokePlaybackUrl();
     if (jobPollRef.current) { clearInterval(jobPollRef.current); jobPollRef.current = null; }
+    if (generateAbortRef.current) { generateAbortRef.current.abort(); generateAbortRef.current = null; }
+    isGeneratingRef.current = false;
   }
 
   function handleClose() {
@@ -225,48 +252,121 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
     setSelectedTemplate(t);
   }
 
-  // ── Share panel pre-fill ──────────────────────────────────────────────────────
-  function openEmailPanel() {
-    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const patientName  = patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : '';
-    const patientEmail = patient?.contact?.email || '';
-    setEmailForm({
-      to:      patientEmail,
-      subject: `Your visit summary — ${today}`,
-      body:    `Hi ${patientName},\n\nPlease find your visit summary attached.\n\nWarm regards,\n${user?.name || 'Your Doctor'}`,
-    });
-    setShowEmailPanel(true);
-    setSendResult(null);
 
-    API.get('/email/templates', { params: { event: 'aiReportReady', language: 'en' } })
+  // ── Prefill the delivery forms once the report is ready ─────────────────────────
+  useEffect(() => {
+    if (stage !== 'done') return;
+    const patientName  = patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : '';
+    const patientEmail = patient?.contact?.email  || '';
+    const patientPhone = patient?.contact?.mobile || '';
+
+    const vars = reportDeliveryVars(patient, user, selectedTemplate);
+
+    setEmailForm({ to: patientEmail, subject: '', body: '' });
+    setWaForm({ to: patientPhone, text: '' });
+    setDeliverResults({});
+
+    // Pull the tenant's unified Report Delivery templates + defaults, then
+    // substitute placeholders for this patient/doctor/report.
+    API.get('/report/delivery-settings')
       .then(res => {
-        const active = res.data.find(t => t.isActive);
-        if (!active) return;
-        const data = {
-          name: patientName, firstName: patient?.first_name || patientName,
-          doctor: user?.name || 'Your Doctor', doctorName: user?.name || 'Your Doctor',
-          date: today, templateName: selectedTemplate?.name || 'Clinical Report',
-        };
-        const subj = active.subject.replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] ?? `{{${k}}}`);
-        const body = active.body.replace(/\{\{(\w+)\}\}/g, (_, k) => data[k] ?? `{{${k}}}`);
-        setEmailForm(f => ({ ...f, subject: subj, body }));
+        const s = res.data || {};
+        setEmailForm(f => ({
+          ...f,
+          subject: applyVars(s.email?.subject || 'Your visit summary — {{date}}', vars),
+          body:    applyVars(s.email?.body    || 'Hi {{patientName}},\n\nPlease find your {{templateName}} attached.\n\nWarm regards,\n{{doctorName}}', vars),
+        }));
+        setWaForm(f => ({
+          ...f,
+          text: applyVars(s.whatsapp?.text || 'Hi {{patientName}}, please find your {{templateName}} from {{doctorName}}.', vars),
+        }));
+        setDeliver({
+          cloud:    s.defaults?.cloud    ?? true,
+          email:    s.defaults?.email    ?? false,
+          whatsapp: s.defaults?.whatsapp ?? false,
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        // Fallback if settings can't load — sensible substituted defaults.
+        setEmailForm(f => ({ ...f,
+          subject: applyVars('Your visit summary — {{date}}', vars),
+          body:    applyVars('Hi {{patientName}},\n\nPlease find your {{templateName}} attached.\n\nWarm regards,\n{{doctorName}}', vars),
+        }));
+        setWaForm(f => ({ ...f, text: applyVars('Hi {{patientName}}, please find your {{templateName}} from {{doctorName}}.', vars) }));
+        setDeliver({ cloud: true, email: false, whatsapp: false });
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
+
+  // ── Approve & Send: run each ticked channel, collect per-channel results ────────
+  async function handleCancelGeneration() {
+    if (generateAbortRef.current) {
+      generateAbortRef.current.abort();
+      generateAbortRef.current = null;
+    }
+    isGeneratingRef.current = false;
+    if (jobId) {
+      try { await API.patch(`/report/jobs/${jobId}/cancel`); } catch { /* ignore */ }
+    }
+    setStage('editing');
   }
 
+  async function handleApproveAndSend() {
+    setDelivering(true);
+    const results = {};
+    let cloudLink = driveLinks[templateId] || '';
 
-  async function handleSendEmail() {
-    if (!emailForm.to.trim()) return;
-    setSending('email'); setSendResult(null);
-    try {
-      await API.post('/email/send-report', {
-        patient_id: patientId, to: emailForm.to.trim(), subject: emailForm.subject,
-        body: emailForm.body, report_text: reportText, template_name: selectedTemplate?.name || 'Clinical Report',
-      });
-      setSendResult({ channel: 'email', status: 'ok', message: `Email sent to ${emailForm.to}` });
-    } catch (err) {
-      setSendResult({ channel: 'email', status: 'fail', message: err.response?.data?.error || err.message });
-    } finally { setSending(null); }
+    if (deliver.cloud) {
+      try {
+        if (cloudLink) {
+          results.cloud = { status: 'ok', message: 'Already saved to Connect Cloud' };
+        } else {
+          const { data } = await API.post(`/report/jobs/${jobId}/save-to-drive`, { report_text: reportText });
+          cloudLink = data.webViewLink;
+          setDriveLinks(d => ({ ...d, [data.templateId || templateId]: data.webViewLink }));
+          results.cloud = { status: 'ok', message: 'Saved to Connect Cloud' };
+        }
+      } catch (err) {
+        results.cloud = { status: 'fail', message: err.response?.data?.error || err.message };
+      }
+    }
+
+    if (deliver.email) {
+      if (!emailForm.to.trim()) {
+        results.email = { status: 'fail', message: 'Patient email is required.' };
+      } else {
+        try {
+          await API.post('/email/send-report', {
+            patient_id:    patientId,
+            to:            emailForm.to.trim(),
+            subject:       emailForm.subject,
+            body:          emailForm.body,
+            report_text:   reportText,
+            template_name: selectedTemplate?.name || 'Clinical Report',
+          });
+          results.email = { status: 'ok', message: `Emailed to ${emailForm.to.trim()}` };
+        } catch (err) {
+          results.email = { status: 'fail', message: err.response?.data?.error || err.message };
+        }
+      }
+    }
+
+    if (deliver.whatsapp) {
+      if (!waForm.to.trim()) {
+        results.whatsapp = { status: 'fail', message: 'Patient phone is required.' };
+      } else {
+        try {
+          const text = waForm.text + (cloudLink ? `\n\n${cloudLink}` : '');
+          await API.post('/wasender/send', { to: waForm.to.trim(), type: 'text', text });
+          results.whatsapp = { status: 'ok', message: `Sent on WhatsApp to ${waForm.to.trim()}` };
+        } catch (err) {
+          results.whatsapp = { status: 'fail', message: err.response?.data?.message || err.response?.data?.error || err.message };
+        }
+      }
+    }
+
+    setDeliverResults(results);
+    setDelivering(false);
   }
 
 
@@ -417,7 +517,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   }
 
   // ── Consume SSE stream from /api/report/generate ───────────────────────────
-  async function consumeGenerateStream(payload) {
+  async function consumeGenerateStream(payload, signal) {
     setStage('generating');
     setStreamingText('');
 
@@ -430,6 +530,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify(payload),
+      signal,
     });
 
     if (!response.ok) {
@@ -535,7 +636,17 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   }
 
   async function runGeneration(jId, transcriptOverride) {
+    // Synchronous lock — a second call (double-click, retry, StrictMode re-invoke)
+    // is ignored immediately, before any async state update can let it through.
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
+
     const jIdToUse  = jId || jobId;
+    const controller = new AbortController();
+    // Abort any prior in-flight stream before starting a new one.
+    if (generateAbortRef.current) generateAbortRef.current.abort();
+    generateAbortRef.current = controller;
+
     try {
       const finalData = await consumeGenerateStream({
         jobId:        jIdToUse,
@@ -544,15 +655,28 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         save_report:  String(saveReport),
         autofill:     String(autofillEnabled),
         ...(transcriptOverride != null ? { transcript: transcriptOverride } : {}),
-      });
+      }, controller.signal);
 
-      const generatedText = finalData?.reports?.[finalData?.template_id] || streamingText;
+      const reportsMap = finalData?.reports || {};
+      const resolvedTemplateId = selectedTemplate?.id || Object.keys(reportsMap)[0] || '';
+      const generatedText = (reportsMap[resolvedTemplateId] || Object.values(reportsMap)[0] || streamingText || '').trim();
+
+      // Guard: an empty result is a failure, not a "done" — keep the user on the
+      // review step with an actionable message instead of a blank report.
+      if (!generatedText) {
+        setError('The AI returned an empty report. Try again, or edit the transcript and regenerate.');
+        setStreamingText('');
+        setStage('editing');
+        setMinimized(false);
+        return;
+      }
+
       setReportText(generatedText);
       setStreamingText('');
       setTranscript(finalData?.transcript || transcript);
       setDriveLinks(finalData?.drive_links || {});
       setAutofillData(finalData?.autofill_v2 || null);
-      setTemplateId(finalData?.template_id || selectedTemplate?.id || '');
+      setTemplateId(resolvedTemplateId);
       setIsEditingTranscript(false);
       setStage('done');
       setMinimized(false);
@@ -560,9 +684,13 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
       if (autofillEnabled && finalData?.autofill_v2) await applyAutofill(finalData.autofill_v2);
       onSuccess?.();
     } catch (err) {
+      if (err.name === 'AbortError') return; // superseded/cancelled — not an error to show
       setError(err.message || 'Generation failed');
       setStage('editing');
       setMinimized(false);
+    } finally {
+      isGeneratingRef.current = false;
+      if (generateAbortRef.current === controller) generateAbortRef.current = null;
     }
   }
 
@@ -678,38 +806,68 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
 
   const canRecord = !!selectedTemplate;
 
+  // Step indicator: Dictate → Review → Deliver
+  const STEPS = ['Dictate', 'Review', 'Deliver'];
+  const currentStep =
+    stage === 'editing' || stage === 'generating' ? 1 :
+    stage === 'done' ? 2 : 0;
+
+  // Delivery outcome flags
+  const deliveryAttempted = Object.keys(deliverResults).length > 0;
+  const deliverySucceeded = deliveryAttempted && Object.values(deliverResults).every(r => r.status === 'ok');
+
+  const CHANNEL_LABEL = { cloud: 'Saved to Connect Cloud', email: 'Emailed to patient', whatsapp: 'Sent on WhatsApp' };
+
   // ── FULL MODAL ──────────────────────────────────────────────────────────────
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-2xl w-full max-w-3xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
+    <div className="fixed inset-0 z-[300] flex items-stretch sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4">
+      <div className="bg-white w-full sm:max-w-3xl shadow-2xl overflow-y-auto overscroll-contain h-[100dvh] sm:max-h-[92vh] sm:rounded-2xl">
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
-            <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-              <span className="size-8 rounded-lg bg-[#137fec]/10 flex items-center justify-center">
+        <div className="sticky top-0 z-10 bg-white border-b border-slate-100">
+          <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
+            <h3 className="font-bold text-base sm:text-lg text-slate-800 flex items-center gap-2 min-w-0">
+              <span className="size-8 rounded-lg bg-[#137fec]/10 flex items-center justify-center flex-shrink-0">
                 <Mic size={16} className="text-[#137fec]" />
               </span>
-              AI Clinical Report Generator
+              <span className="truncate">AI Clinical Report</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Select a template, then dictate the consultation — the AI will generate the document
-            </p>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button onClick={() => setMinimized(true)} title="Minimize"
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                <Minimize2 size={18} />
+              </button>
+              <button onClick={handleClose} title="Close"
+                className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
+                <X size={20} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <button onClick={() => setMinimized(true)} title="Minimize"
-              className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-              <Minimize2 size={18} />
-            </button>
-            <button onClick={handleClose} title="Close"
-              className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors">
-              <X size={20} />
-            </button>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-6 pb-3">
+            {STEPS.map((label, i) => (
+              <div key={label} className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                <span className={`flex items-center justify-center size-5 rounded-full text-[10px] font-bold flex-shrink-0 transition-colors ${
+                  i < currentStep ? 'bg-green-500 text-white'
+                  : i === currentStep ? 'bg-[#137fec] text-white'
+                  : 'bg-slate-200 text-slate-400'
+                }`}>
+                  {i < currentStep ? <CheckCircle size={12} /> : i + 1}
+                </span>
+                <span className={`text-xs font-semibold truncate ${
+                  i === currentStep ? 'text-[#137fec]' : i < currentStep ? 'text-green-600' : 'text-slate-400'
+                }`}>{label}</span>
+                {i < STEPS.length - 1 && (
+                  <span className={`hidden sm:block flex-1 h-0.5 rounded-full ${i < currentStep ? 'bg-green-400' : 'bg-slate-200'}`} />
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 flex flex-col gap-5">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5">
 
           {/* ── IDLE / RECORDING / PAUSED ── */}
           {(stage === 'idle' || stage === 'recording' || stage === 'paused') && (
@@ -745,14 +903,22 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                     {selectedTemplate && (
                       <p className="text-xs text-slate-500 mt-2 leading-relaxed">{selectedTemplate.description}</p>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => window.dispatchEvent(new CustomEvent('smilo:open-node', { detail: { nodeId: 'ai-report-templates' } }))}
+                      className="mt-3 flex items-center gap-1.5 text-xs text-[#137fec] hover:text-blue-700 font-medium transition-colors"
+                    >
+                      <HelpCircle size={13} />
+                      How do I choose the right template?
+                    </button>
                   </div>
 
-                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Detail Level</p>
+                  <div className="bg-slate-50 rounded-xl border border-slate-200 p-3 sm:p-4">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 sm:mb-3">Detail Level</p>
                     <div className="flex gap-2">
                       {DETAIL_LEVELS.map(dl => (
                         <button key={dl.key} onClick={() => setDetailLevel(dl.key)}
-                          className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors border ${
+                          className={`flex-1 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-colors border ${
                             detailLevel === dl.key
                               ? 'bg-[#137fec] text-white border-[#137fec]'
                               : 'bg-white text-slate-600 border-slate-200 hover:border-[#137fec] hover:text-[#137fec]'
@@ -788,7 +954,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                             <p className={`font-semibold text-sm ${autofillEnabled ? 'text-[#137fec]' : 'text-slate-700'}`}>
                               Auto-fill Treatment Page
                             </p>
-                            <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">
+                            <p className="hidden sm:block text-xs text-slate-500 mt-0.5 leading-relaxed">
                               Consultation note, patient advice, and treatment plan entries will be auto-filled from the dictation.
                             </p>
                           </div>
@@ -806,10 +972,10 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">Testing — Text Input (skips Sarvam)</p>
+                    <p className="text-xs font-bold text-amber-600 uppercase tracking-wider mb-2">Testing — Text Input (skips AI transcription)</p>
                     <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                       placeholder="Paste or type the consultation transcript here…"
-                      rows={4}
+                      rows={3}
                       className="w-full text-sm border border-amber-200 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-amber-300 bg-white placeholder:text-amber-300"
                     />
                     <button onClick={processTextInput} disabled={!textInput.trim() || !canRecord}
@@ -964,7 +1130,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
               <Loader2 size={52} className="text-[#137fec] animate-spin" />
               <div className="text-center">
                 <p className="text-slate-700 font-semibold text-base">Transcribing audio…</p>
-                <p className="text-slate-400 text-sm mt-1">Sarvam is processing your dictation. This may take a minute.</p>
+                <p className="text-slate-400 text-sm mt-1">Molaris AI is processing your dictation. This may take a minute.</p>
               </div>
             </div>
           )}
@@ -1013,17 +1179,26 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
           {/* ── GENERATING (streaming) ── */}
           {stage === 'generating' && (
             <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-3 py-4">
-                <Loader2 size={28} className="text-[#137fec] animate-spin flex-shrink-0" />
-                <div>
-                  <p className="text-slate-700 font-semibold text-sm">Generating {selectedTemplate?.name || 'report'}…</p>
-                  <p className="text-slate-400 text-xs mt-0.5">
-                    {autofillEnabled ? 'Will auto-fill treatment page after generation.' : 'Saving to Connect Cloud after generation.'}
-                  </p>
+              <div className="flex items-start justify-between gap-3 py-4">
+                <div className="flex items-center gap-3">
+                  <Loader2 size={28} className="text-[#137fec] animate-spin flex-shrink-0" />
+                  <div>
+                    <p className="text-slate-700 font-semibold text-sm">Generating {selectedTemplate?.name || 'report'}…</p>
+                    <p className="text-slate-400 text-xs mt-0.5">
+                      {autofillEnabled ? 'Will auto-fill treatment page after generation.' : 'Saving to Connect Cloud after generation.'}
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={handleCancelGeneration}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition-colors"
+                  title="Cancel and go back to edit the transcript"
+                >
+                  <XCircle size={13} /> Cancel
+                </button>
               </div>
               {streamingText && (
-                <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono bg-slate-50 rounded-lg p-4 border border-slate-100 overflow-y-auto max-h-[300px]">
+                <div className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap font-mono bg-slate-50 rounded-lg p-4 border border-slate-100 overflow-y-auto max-h-[30vh] sm:max-h-[300px]">
                   {streamingText}
                   <span className="inline-block w-0.5 h-4 bg-[#137fec] ml-0.5 animate-pulse" />
                 </div>
@@ -1031,29 +1206,40 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
             </div>
           )}
 
-          {/* ── DONE ── */}
-          {stage === 'done' && (
-            <>
-              {transcript && (
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle size={15} className="text-green-600" />
-                      <p className="text-sm font-semibold text-green-700">Transcript</p>
-                    </div>
-                    {jobId && (
-                      <button
-                        onClick={() => { setIsEditingTranscript(false); setEditedTranscript(transcript); setStage('editing'); }}
-                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 transition-colors"
-                      >
-                        <RefreshCw size={11} /> Regenerate
-                      </button>
-                    )}
+          {/* ── DONE: success acknowledgement ── */}
+          {stage === 'done' && deliverySucceeded && (
+            <div className="flex flex-col items-center justify-center text-center py-8 gap-4">
+              <div className="size-16 rounded-full bg-green-100 flex items-center justify-center">
+                <CheckCircle size={36} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-lg font-bold text-slate-800">Report delivered</p>
+                <p className="text-sm text-slate-500 mt-1">Everything you selected was completed successfully.</p>
+              </div>
+              <div className="w-full max-w-sm space-y-2">
+                {Object.entries(deliverResults).map(([channel, r]) => (
+                  <div key={channel} className="flex items-center gap-2 text-sm bg-green-50 text-green-700 px-3 py-2.5 rounded-lg">
+                    <CheckCircle size={15} className="flex-shrink-0" />
+                    <span className="font-semibold">{CHANNEL_LABEL[channel] || channel}</span>
                   </div>
-                  <p className="text-sm text-slate-600 leading-relaxed line-clamp-3">{transcript}</p>
-                </div>
+                ))}
+              </div>
+              {driveLinks[templateId] && (
+                <button onClick={() => openExternal(driveLinks[templateId])}
+                  className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 underline underline-offset-2">
+                  <ExternalLink size={12} /> Open the saved file
+                </button>
               )}
+              <button onClick={() => setDeliverResults({})}
+                className="mt-1 text-xs font-semibold text-slate-500 hover:text-slate-700 px-3 py-1.5 rounded border border-slate-200 hover:bg-slate-50">
+                Send to another channel
+              </button>
+            </div>
+          )}
 
+          {/* ── DONE: report + delivery ── */}
+          {stage === 'done' && !deliverySucceeded && (
+            <>
               {driveLinks[templateId] && (
                 <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                   <p className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-slate-700">
@@ -1100,79 +1286,156 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
               )}
 
               <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <FileText size={15} className="text-slate-500" />
-                  <p className="text-sm font-semibold text-slate-700">{selectedTemplate?.name || 'Generated Report'}</p>
-                  {selectedTemplate?.type && (
-                    <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{selectedTemplate.type}</span>
-                  )}
-                </div>
-                <ReportDisplay text={reportText} />
-              </div>
-
-              {/* Share Panel */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-b border-slate-200">
-                  <p className="text-sm font-semibold text-slate-700">Share with Patient</p>
-                  <div className="flex gap-2">
-                    <button onClick={openEmailPanel}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                        showEmailPanel ? 'bg-[#137fec] text-white' : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100'
-                      }`}>
-                      <Mail size={13} /> Email
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={15} className="text-slate-500 flex-shrink-0" />
+                    <p className="text-sm font-semibold text-slate-700 truncate">{selectedTemplate?.name || 'Generated Report'}</p>
+                    {selectedTemplate?.type && (
+                      <span className="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full flex-shrink-0">{selectedTemplate.type}</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {jobId && (
+                      <button
+                        onClick={() => { setIsEditingTranscript(false); setEditedTranscript(transcript); setStage('editing'); }}
+                        className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 transition-colors"
+                        title="Go back and regenerate from the transcript"
+                      >
+                        <RefreshCw size={11} /> Regenerate
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsEditingReport(v => !v)}
+                      className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 px-2 py-1 rounded border border-slate-200 hover:bg-slate-50 transition-colors"
+                    >
+                      <Edit3 size={11} /> {isEditingReport ? 'Done editing' : 'Edit'}
                     </button>
                   </div>
                 </div>
-
-                {sendResult && (
-                  <div className={`px-4 py-2.5 text-sm flex items-center gap-2 ${
-                    sendResult.status === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-                  }`}>
-                    {sendResult.status === 'ok' ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                    {sendResult.message}
+                {isEditingReport ? (
+                  <textarea
+                    autoFocus
+                    value={reportText}
+                    onChange={e => setReportText(e.target.value)}
+                    rows={8}
+                    className="w-full text-sm text-slate-700 leading-relaxed font-mono bg-white rounded-lg p-4 border border-[#137fec]/40 focus:outline-none focus:ring-2 focus:ring-[#137fec] resize-y max-h-[280px]"
+                    placeholder="Edit the patient letter…"
+                  />
+                ) : (
+                  <div onClick={() => setIsEditingReport(true)} className="cursor-text group relative" title="Click to edit">
+                    <ReportDisplay text={reportText} />
+                    <span className="absolute top-2 right-2 text-[10px] font-semibold text-slate-400 bg-white/80 px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 pointer-events-none">
+                      <Edit3 size={10} /> Click to edit
+                    </span>
                   </div>
                 )}
+              </div>
 
-                {showEmailPanel && (
-                  <div className="p-4 space-y-3">
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">To</label>
-                      <input type="email" value={emailForm.to} onChange={e => setEmailForm(f => ({ ...f, to: e.target.value }))}
-                        placeholder="patient@example.com"
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">Subject</label>
-                      <input type="text" value={emailForm.subject} onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
-                    </div>
-                    <div>
-                      <label className="text-xs font-semibold text-slate-500 block mb-1">Message</label>
-                      <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} rows={3}
-                        className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none" />
-                    </div>
-                    <p className="text-xs text-slate-400">
-                      Attachment: {selectedTemplate?.name || 'Report'}_{(patient?.first_name || 'patient')}_{new Date().toISOString().slice(0,10)}.pdf
-                    </p>
-                    <div className="flex gap-2">
-                      <button onClick={handleSendEmail} disabled={!emailForm.to.trim() || sending === 'email'}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-[#137fec] hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-60">
-                        {sending === 'email' ? <Loader2 size={13} className="animate-spin" /> : <Mail size={13} />}
-                        {sending === 'email' ? 'Sending…' : 'Send Email'}
-                      </button>
-                      <button onClick={() => setShowEmailPanel(false)}
-                        className="px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
+              {/* Delivery Panel — checkboxes right under the report */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                  <p className="text-sm font-semibold text-slate-700">Approve &amp; Send</p>
+                  <p className="text-xs text-slate-400 mt-0.5">Pick where this report should go, review each message, then approve.</p>
+                </div>
 
-                {!showEmailPanel && !sendResult && (
-                  <div className="px-4 py-3 text-xs text-slate-400 text-center">
-                    Choose a channel above to send the report to the patient.
+                <div className="p-4 space-y-3">
+                  {/* Save to Connect Cloud */}
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors">
+                    <input type="checkbox" checked={deliver.cloud}
+                      onChange={e => setDeliver(d => ({ ...d, cloud: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 rounded accent-[#137fec] cursor-pointer" />
+                    <Save size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-700">Save to Connect Cloud</p>
+                      {driveLinks[templateId]
+                        ? <button onClick={(e) => { e.preventDefault(); openExternal(driveLinks[templateId]); }}
+                            className="text-xs flex items-center gap-1 text-blue-600 hover:text-blue-800 underline underline-offset-2 mt-0.5">
+                            <ExternalLink size={11} /> Already saved — view file
+                          </button>
+                        : <p className="text-xs text-slate-400 mt-0.5">Stores the report in the patient's Drive folder.</p>}
+                    </div>
+                  </label>
+
+                  {/* Email to patient */}
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <label className="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <input type="checkbox" checked={deliver.email}
+                        onChange={e => setDeliver(d => ({ ...d, email: e.target.checked }))}
+                        className="mt-0.5 w-4 h-4 rounded accent-[#137fec] cursor-pointer" />
+                      <Mail size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-700">Email to patient</p>
+                        <p className="text-xs text-slate-400 mt-0.5">PDF attached. Review the message below.</p>
+                      </div>
+                    </label>
+                    {deliver.email && (
+                      <div className="px-4 pb-4 pt-1 space-y-2 bg-slate-50/60 border-t border-slate-100">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1">To</label>
+                          <input type="email" value={emailForm.to} onChange={e => setEmailForm(f => ({ ...f, to: e.target.value }))}
+                            placeholder="patient@example.com"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1">Subject</label>
+                          <input type="text" value={emailForm.subject} onChange={e => setEmailForm(f => ({ ...f, subject: e.target.value }))}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1">Message</label>
+                          <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} rows={2}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none sm:rows-3" />
+                        </div>
+                        <p className="text-xs text-slate-400">
+                          Attachment: {selectedTemplate?.name || 'Report'}_{(patient?.first_name || 'patient')}_{new Date().toISOString().slice(0,10)}.pdf
+                        </p>
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* WhatsApp to patient */}
+                  <div className="rounded-xl border border-slate-200 overflow-hidden">
+                    <label className="flex items-start gap-3 p-3 cursor-pointer hover:bg-slate-50 transition-colors">
+                      <input type="checkbox" checked={deliver.whatsapp}
+                        onChange={e => setDeliver(d => ({ ...d, whatsapp: e.target.checked }))}
+                        className="mt-0.5 w-4 h-4 rounded accent-[#137fec] cursor-pointer" />
+                      <MessageSquare size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-slate-700">WhatsApp to patient</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sends a text message{driveLinks[templateId] ? ' with the Cloud link' : ''}. Review below.</p>
+                      </div>
+                    </label>
+                    {deliver.whatsapp && (
+                      <div className="px-4 pb-4 pt-1 space-y-2 bg-slate-50/60 border-t border-slate-100">
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1">Phone</label>
+                          <input type="text" value={waForm.to} onChange={e => setWaForm(f => ({ ...f, to: e.target.value }))}
+                            placeholder="+91 98765 43210"
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-slate-500 block mb-1">Message</label>
+                          <textarea value={waForm.text} onChange={e => setWaForm(f => ({ ...f, text: e.target.value }))} rows={2}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none sm:rows-3" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Per-channel results */}
+                  {Object.keys(deliverResults).length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      {Object.entries(deliverResults).map(([channel, r]) => (
+                        <div key={channel} className={`text-sm flex items-center gap-2 px-3 py-2 rounded-lg ${
+                          r.status === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        }`}>
+                          {r.status === 'ok' ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                          <span className="capitalize font-semibold">{channel === 'cloud' ? 'Cloud' : channel}:</span> {r.message}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </>
           )}
@@ -1185,26 +1448,73 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100 bg-slate-50">
-          <p className="text-xs text-slate-400">
-            {stage === 'done'
-              ? 'Scroll down on the treatment page to see the updated sections'
-              : stage === 'editing'
-              ? 'Review or edit the transcript, then click Generate'
-              : 'You can minimize this window while recording or processing'}
-          </p>
-          <div className="flex gap-3">
-            {stage === 'done' && (
+        <div className="sticky bottom-0 bg-slate-50 border-t border-slate-100 px-4 sm:px-6 py-3 sm:py-4">
+          {/* Desktop: single row with hint left + buttons right */}
+          {/* Mobile: buttons stacked, primary action on top */}
+          {stage === 'done' && deliverySucceeded ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-3">
               <button onClick={resetState}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
                 Record Again
               </button>
-            )}
-            <button onClick={handleClose}
-              className="px-5 py-2 text-sm font-medium text-white bg-[#137fec] rounded-lg hover:bg-blue-600 transition-colors">
-              {stage === 'done' ? 'Done' : 'Close'}
-            </button>
-          </div>
+              <button onClick={handleClose}
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 sm:py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors">
+                <CheckCircle size={15} /> Done
+              </button>
+            </div>
+          ) : stage === 'done' ? (
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              {/* Result chips — desktop left, hidden on mobile (already shown in body) */}
+              <div className="hidden sm:flex flex-wrap items-center gap-1.5">
+                {Object.keys(deliverResults).length > 0 ? (
+                  Object.entries(deliverResults).map(([channel, r]) => (
+                    <span key={channel} title={r.message}
+                      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full ${
+                        r.status === 'ok' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                      }`}>
+                      {r.status === 'ok' ? <CheckCircle size={11} /> : <XCircle size={11} />}
+                      {channel === 'cloud' ? 'Cloud' : channel === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                    </span>
+                  ))
+                ) : (
+                  <p className="text-xs text-slate-400">Tick a channel, then Approve &amp; Send</p>
+                )}
+              </div>
+              {/* Mobile: Approve & Send full-width first, secondaries side-by-side below */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 w-full sm:w-auto">
+                <button
+                  onClick={handleApproveAndSend}
+                  disabled={delivering || (!deliver.cloud && !deliver.email && !deliver.whatsapp)}
+                  className="order-first sm:order-last w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-3 sm:py-2 text-sm font-semibold text-white bg-[#137fec] rounded-xl sm:rounded-lg hover:bg-blue-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {delivering ? <Loader2 size={15} className="animate-spin" /> : <SendHorizonal size={15} />}
+                  {delivering ? 'Sending…' : 'Approve & Send'}
+                </button>
+                <div className="flex gap-2">
+                  <button onClick={handleClose}
+                    className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
+                    Close
+                  </button>
+                  <button onClick={resetState}
+                    className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors">
+                    Record Again
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <p className="hidden sm:block text-xs text-slate-400 truncate">
+                {stage === 'editing'
+                  ? 'Review or edit the transcript, then click Generate'
+                  : 'You can minimize this window while recording or processing'}
+              </p>
+              <button onClick={handleClose}
+                className="w-full sm:w-auto px-5 py-2.5 sm:py-2 text-sm font-medium text-white bg-[#137fec] rounded-xl sm:rounded-lg hover:bg-blue-600 transition-colors">
+                Close
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

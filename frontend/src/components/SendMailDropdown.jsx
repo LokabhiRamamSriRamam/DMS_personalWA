@@ -3,36 +3,52 @@ import { useNavigate } from 'react-router-dom';
 import {
   Mail, ChevronDown, FileText, Receipt, Sparkles,
   X, Loader2, CheckCircle, XCircle, Settings, AlertCircle,
-  ChevronDown as ChevronDownSm, Edit3,
+  BookOpen, Edit3,
 } from 'lucide-react';
 import API from '../services/api';
 import { replacePlaceholders, SAMPLE_DATA } from '../utils/templateVariables';
+
+// Frontend-only presets for the manual send compose panel
+const SEND_PRESETS = [
+  {
+    name: 'Thank You — Standard',
+    subject: 'Thank you for your visit — {{date}}',
+    body: 'Dear {{first_name}},\n\nThank you for visiting us today. Your appointment with {{doctor}} on {{date}} has been completed.\n\nTreatments received: {{treatments}}.\n\nFor any queries, feel free to reach out to us.\n\nWarm regards,\n{{clinic}}',
+  },
+  {
+    name: 'Post-Visit Follow-Up',
+    subject: 'Your visit is complete — follow-up care inside',
+    body: "Hi {{first_name}},\n\nYour appointment with {{doctor}} on {{date}} is now complete.\n\nTreatments completed: {{treatments}}.\n\nPlease follow the post-care instructions from your doctor. If you experience any discomfort, don't hesitate to contact us.\n\nLooking forward to seeing you again!\n\n{{clinic}}",
+  },
+  {
+    name: 'Simple Thank You',
+    subject: 'Visit Complete — {{date}}',
+    body: "Dear {{name}},\n\nThank you for your visit on {{date}} with {{doctor}}. We hope you're feeling great.\n\nWarm regards,\n{{clinic}}",
+  },
+];
 
 export default function SendMailDropdown({ patientId, patient }) {
   const [open, setOpen]               = useState(false);
   const [loadState, setLoadState]     = useState('idle'); // idle | loading | ready
   const [emailStatus, setEmailStatus] = useState(null);
-  const [templates, setTemplates]     = useState([]);     // active appointmentCompleted templates
   const [selected, setSelected]       = useState({ smart_report: true, invoice: false, ai_report: false });
   const [emailTo, setEmailTo]         = useState('');
   const [sending, setSending]         = useState(false);
   const [result, setResult]           = useState(null);   // { ok, message }
 
-  // Template customisation
-  const [selectedTemplate, setSelectedTemplate] = useState(''); // template._id or ''
-  const [customSubject, setCustomSubject]        = useState('');
-  const [customBody, setCustomBody]              = useState('');
-  const [showEditor, setShowEditor]              = useState(false);
+  // Compose fields
+  const [customSubject, setCustomSubject] = useState('');
+  const [customBody, setCustomBody]       = useState('');
+  const [showEditor, setShowEditor]       = useState(false);
+  const [presetOpen, setPresetOpen]       = useState(false);
 
   const panelRef = useRef(null);
   const navigate = useNavigate();
 
-  // Pre-fill email from prop whenever patient loads
   useEffect(() => {
     if (patient?.contact?.email) setEmailTo(patient.contact.email);
   }, [patient?.contact?.email]);
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     function onDown(e) {
@@ -48,35 +64,15 @@ export default function SendMailDropdown({ patientId, patient }) {
     if (loadState !== 'idle') return;
     setLoadState('loading');
     try {
-      const [statusRes, templatesRes] = await Promise.all([
-        API.get(`/email/patient-status/${patientId}`),
-        API.get('/email/templates').catch(() => ({ data: [] })),
-      ]);
-      const status = statusRes.data;
+      const res = await API.get(`/email/patient-status/${patientId}`);
+      const status = res.data;
       setEmailStatus(status);
-
-      // Pre-fill email from backend if not already set
       if (!emailTo && status.patientEmail) setEmailTo(status.patientEmail);
-
       setSelected({
         smart_report: true,
         invoice:      !!status.latestInvoice,
         ai_report:    !!status.latestAiReport,
       });
-
-      // Filter to active templates for the appointmentCompleted event
-      const apptTemplates = (templatesRes.data || []).filter(
-        t => t.event === 'appointmentCompleted' && t.isActive
-      );
-      setTemplates(apptTemplates);
-
-      // Auto-select first template
-      if (apptTemplates.length > 0) {
-        const first = apptTemplates[0];
-        setSelectedTemplate(first._id);
-        setCustomSubject(first.subject);
-        setCustomBody(first.body);
-      }
     } catch {
       setEmailStatus({ emailEnabled: false, hasSmtp: false, latestInvoice: null, latestAiReport: null });
     } finally {
@@ -84,9 +80,7 @@ export default function SendMailDropdown({ patientId, patient }) {
     }
   }
 
-  function toggle(key) {
-    setSelected(s => ({ ...s, [key]: !s[key] }));
-  }
+  function toggle(key) { setSelected(s => ({ ...s, [key]: !s[key] })); }
 
   function selectAll() {
     setSelected({
@@ -96,18 +90,11 @@ export default function SendMailDropdown({ patientId, patient }) {
     });
   }
 
-  function handleTemplateChange(templateId) {
-    setSelectedTemplate(templateId);
-    if (!templateId) {
-      setCustomSubject('');
-      setCustomBody('');
-      return;
-    }
-    const tpl = templates.find(t => t._id === templateId);
-    if (tpl) {
-      setCustomSubject(tpl.subject);
-      setCustomBody(tpl.body);
-    }
+  function applyPreset(preset) {
+    setCustomSubject(preset.subject);
+    setCustomBody(preset.body);
+    setShowEditor(true);
+    setPresetOpen(false);
   }
 
   async function handleSend() {
@@ -116,15 +103,9 @@ export default function SendMailDropdown({ patientId, patient }) {
     setSending(true);
     setResult(null);
     try {
-      const payload = {
-        patient_id: patientId,
-        to: emailTo.trim(),
-        include,
-        template_event: 'appointmentCompleted',
-      };
+      const payload = { patient_id: patientId, to: emailTo.trim(), include };
       if (customSubject.trim()) payload.customSubject = customSubject.trim();
       if (customBody.trim())    payload.customBody    = customBody.trim();
-
       const res = await API.post('/email/send-treatment-summary', payload);
       const count = res.data.attachments?.length || 0;
       setResult({ ok: true, message: `Sent to ${res.data.to} — ${count} attachment${count !== 1 ? 's' : ''}` });
@@ -135,22 +116,35 @@ export default function SendMailDropdown({ patientId, patient }) {
     }
   }
 
-  const anySelected = Object.values(selected).some(Boolean);
-  const missingEmail = loadState === 'ready' && emailStatus?.emailEnabled && !emailStatus?.hasPatientEmail;
-  const patientName  = emailStatus?.patientName || patient?.first_name || '';
+  const anySelected    = Object.values(selected).some(Boolean);
+  const missingEmail   = loadState === 'ready' && emailStatus?.emailEnabled && !emailStatus?.hasPatientEmail;
+  const patientName    = emailStatus?.patientName || patient?.first_name || '';
+  const automationActive = !!(emailStatus?.automationActive);
 
   return (
     <div className="relative" ref={panelRef}>
       <button
-        onClick={handleOpen}
-        className="px-4 py-2 border border-slate-300 text-slate-600 font-medium rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-colors text-sm"
+        onClick={automationActive ? undefined : handleOpen}
+        disabled={automationActive}
+        title={automationActive ? 'Appointment-completed automation is on — manual send is disabled' : undefined}
+        className={`px-4 py-2 border font-medium rounded-lg flex items-center gap-2 transition-colors text-sm ${
+          automationActive
+            ? 'border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed opacity-60'
+            : 'border-slate-300 text-slate-600 hover:bg-slate-50 cursor-pointer'
+        }`}
       >
         <Mail size={16} />
         Send Mail
         <ChevronDown size={14} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
+      {automationActive && (
+        <p className="mt-1 text-[11px] text-amber-600 flex items-center gap-1">
+          <AlertCircle size={11} /> Auto-email on — disable in Settings → Email
+        </p>
+      )}
+
+      {open && !automationActive && (
         <div className="absolute bottom-full mb-2 right-0 w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
@@ -163,14 +157,12 @@ export default function SendMailDropdown({ patientId, patient }) {
           </div>
 
           <div className="p-4 space-y-3 max-h-[85vh] overflow-y-auto">
-            {/* Loading */}
             {loadState === 'loading' && (
               <div className="flex justify-center py-6">
                 <Loader2 size={22} className="animate-spin text-[#137fec]" />
               </div>
             )}
 
-            {/* Email not configured */}
             {loadState === 'ready' && !emailStatus?.emailEnabled && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-1">
                 <p className="text-xs font-semibold text-amber-700">Email not configured</p>
@@ -188,10 +180,8 @@ export default function SendMailDropdown({ patientId, patient }) {
               </div>
             )}
 
-            {/* Main UI */}
             {loadState === 'ready' && emailStatus?.emailEnabled && (
               <>
-                {/* Missing patient email warning */}
                 {missingEmail && (
                   <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 flex items-start gap-2">
                     <AlertCircle size={14} className="text-orange-500 flex-shrink-0 mt-0.5" />
@@ -205,9 +195,7 @@ export default function SendMailDropdown({ patientId, patient }) {
                 {/* What to include */}
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Include</p>
-                  <button onClick={selectAll} className="text-[11px] text-[#137fec] hover:underline font-medium">
-                    Select All
-                  </button>
+                  <button onClick={selectAll} className="text-[11px] text-[#137fec] hover:underline font-medium">Select All</button>
                 </div>
 
                 <ItemRow
@@ -218,7 +206,6 @@ export default function SendMailDropdown({ patientId, patient }) {
                   sub="Treatments, prescriptions & notes"
                   available
                 />
-
                 <ItemRow
                   checked={selected.invoice}
                   onChange={() => toggle('invoice')}
@@ -231,7 +218,6 @@ export default function SendMailDropdown({ patientId, patient }) {
                   }
                   available={!!emailStatus.latestInvoice}
                 />
-
                 <ItemRow
                   checked={selected.ai_report}
                   onChange={() => toggle('ai_report')}
@@ -245,78 +231,98 @@ export default function SendMailDropdown({ patientId, patient }) {
                   available={!!emailStatus.latestAiReport}
                 />
 
-                {/* Template picker */}
-                <div className="pt-1 border-t border-slate-100">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Email Template</p>
-                    <button
-                      type="button"
-                      onClick={() => setShowEditor(e => !e)}
-                      className="text-[11px] text-[#137fec] hover:underline font-medium flex items-center gap-1"
-                    >
-                      <Edit3 size={11} /> {showEditor ? 'Hide editor' : 'Edit message'}
-                    </button>
-                  </div>
-                  {templates.length > 0 ? (
-                    <select
-                      value={selectedTemplate}
-                      onChange={e => handleTemplateChange(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#137fec] outline-none bg-white"
-                    >
-                      <option value="">— Use default message —</option>
-                      {templates.map(t => (
-                        <option key={t._id} value={t._id}>{t.subject}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">
-                      No active templates — using system default.{' '}
-                      <button onClick={() => { setOpen(false); navigate('/settings'); }} className="text-[#137fec] hover:underline">Create one in Settings</button>
-                    </p>
-                  )}
-                </div>
-
-                {/* Editable subject / body */}
-                {showEditor && (
-                  <div className="space-y-2 pt-1 border border-slate-200 rounded-xl p-3 bg-slate-50">
-                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Customise message</p>
-                    <div>
-                      <label className="text-[11px] text-slate-500 block mb-0.5">Subject</label>
-                      <input
-                        type="text"
-                        value={customSubject}
-                        onChange={e => setCustomSubject(e.target.value)}
-                        placeholder="Subject line…"
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#137fec] outline-none bg-white"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-slate-500 block mb-0.5">Body</label>
-                      <textarea
-                        value={customBody}
-                        onChange={e => setCustomBody(e.target.value)}
-                        rows={5}
-                        placeholder="Message body… use {{name}}, {{doctor}}, {{date}}, etc."
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#137fec] outline-none bg-white resize-none font-mono"
-                      />
-                    </div>
-                    {(customSubject || customBody) && (
-                      <div className="bg-white border border-slate-200 rounded-lg p-2.5 space-y-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase">Preview</p>
-                        {customSubject && (
-                          <p className="text-xs font-semibold text-slate-700">
-                            {replacePlaceholders(customSubject, { ...SAMPLE_DATA, name: patientName || SAMPLE_DATA.name })}
-                          </p>
-                        )}
-                        {customBody && (
-                          <p className="text-xs text-slate-500 whitespace-pre-wrap">
-                            {replacePlaceholders(customBody, { ...SAMPLE_DATA, name: patientName || SAMPLE_DATA.name })}
-                          </p>
+                {/* Message composer */}
+                <div className="pt-1 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Message</p>
+                    <div className="flex items-center gap-2">
+                      {/* Preset picker */}
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setPresetOpen(p => !p)}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-[#137fec] hover:text-blue-700"
+                        >
+                          <BookOpen size={11} /> Presets
+                          <ChevronDown size={11} className={`transition-transform ${presetOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                        {presetOpen && (
+                          <div className="absolute right-0 top-5 w-64 border border-slate-200 rounded-xl shadow-lg bg-white z-20 overflow-hidden">
+                            {SEND_PRESETS.map((p, i) => (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => applyPreset(p)}
+                                className="w-full text-left px-3 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0"
+                              >
+                                <p className="text-xs font-semibold text-slate-700">{p.name}</p>
+                                <p className="text-[10px] text-slate-400 truncate mt-0.5">{p.subject}</p>
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    )}
+                      <button
+                        type="button"
+                        onClick={() => setShowEditor(e => !e)}
+                        className="text-[11px] text-slate-500 hover:text-slate-700 flex items-center gap-0.5"
+                      >
+                        <Edit3 size={11} /> {showEditor ? 'Hide' : 'Edit'}
+                      </button>
+                    </div>
                   </div>
-                )}
+
+                  {!showEditor && !customSubject && !customBody && (
+                    <p className="text-xs text-slate-400 italic">Using built-in default — click Presets or Edit to customise.</p>
+                  )}
+
+                  {!showEditor && (customSubject || customBody) && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-2.5 space-y-0.5">
+                      {customSubject && <p className="text-xs font-semibold text-slate-700 truncate">{customSubject}</p>}
+                      {customBody    && <p className="text-xs text-slate-400 line-clamp-2 whitespace-pre-line">{customBody}</p>}
+                    </div>
+                  )}
+
+                  {showEditor && (
+                    <div className="space-y-2 border border-slate-200 rounded-xl p-3 bg-slate-50">
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-0.5">Subject</label>
+                        <input
+                          type="text"
+                          value={customSubject}
+                          onChange={e => setCustomSubject(e.target.value)}
+                          placeholder="Subject line… e.g. Thank you for your visit — {{date}}"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#137fec] outline-none bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] text-slate-500 block mb-0.5">Body</label>
+                        <textarea
+                          value={customBody}
+                          onChange={e => setCustomBody(e.target.value)}
+                          rows={5}
+                          placeholder="Dear {{first_name}}, … use {{name}}, {{doctor}}, {{date}}, {{treatments}}, {{clinic}}"
+                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-[#137fec] outline-none bg-white resize-none font-mono"
+                        />
+                      </div>
+                      {(customSubject || customBody) && (
+                        <div className="bg-white border border-slate-200 rounded-lg p-2.5 space-y-1">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">Preview</p>
+                          {customSubject && (
+                            <p className="text-xs font-semibold text-slate-700">
+                              {replacePlaceholders(customSubject, { ...SAMPLE_DATA, name: patientName || SAMPLE_DATA.name, first_name: patientName || SAMPLE_DATA.first_name })}
+                            </p>
+                          )}
+                          {customBody && (
+                            <p className="text-xs text-slate-500 whitespace-pre-wrap">
+                              {replacePlaceholders(customBody, { ...SAMPLE_DATA, name: patientName || SAMPLE_DATA.name, first_name: patientName || SAMPLE_DATA.first_name })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 {/* Email address */}
                 <div className="pt-1">
@@ -334,7 +340,6 @@ export default function SendMailDropdown({ patientId, patient }) {
                   />
                 </div>
 
-                {/* Result banner */}
                 {result && (
                   <div className={`flex items-start gap-2 p-3 rounded-xl text-xs font-medium ${
                     result.ok ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'
@@ -346,7 +351,6 @@ export default function SendMailDropdown({ patientId, patient }) {
                   </div>
                 )}
 
-                {/* Send button */}
                 <button
                   onClick={handleSend}
                   disabled={sending || !anySelected || !emailTo.trim()}

@@ -3,6 +3,7 @@ import SmiloAvatar from './SmiloAvatar.jsx';
 
 function StreamingText({ text }) {
   const [revealed, setRevealed] = useState('');
+  const done = revealed.length >= (text?.length || 0);
 
   useEffect(() => {
     if (!text) return;
@@ -17,12 +18,29 @@ function StreamingText({ text }) {
   }, [text]);
 
   return (
-    <span>
-      {revealed}
-      {revealed.length < text.length && (
+    <>
+      <SmiloText text={revealed} />
+      {!done && (
         <span className="inline-block w-0.5 h-4 bg-slate-400 ml-0.5 animate-pulse align-middle" />
       )}
-    </span>
+    </>
+  );
+}
+
+// Renders **bold** and \n line-breaks from tree node text.
+function SmiloText({ text }) {
+  return (
+    <>
+      {text.split('\n').map((line, li) => (
+        <span key={li} className="block">
+          {line.split(/(\*\*[^*]+\*\*)/).map((part, pi) =>
+            part.startsWith('**') && part.endsWith('**')
+              ? <strong key={pi}>{part.slice(2, -2)}</strong>
+              : part
+          )}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -36,7 +54,7 @@ export default function ChatBubble({ msg }) {
           <SmiloAvatar state="idle" size={28} />
         </div>
         <div className="bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm shadow-sm leading-relaxed">
-          {msg.streaming ? <StreamingText text={msg.content} /> : msg.content}
+          {msg.streaming ? <StreamingText text={msg.content} /> : <SmiloText text={msg.content} />}
         </div>
       </div>
     );

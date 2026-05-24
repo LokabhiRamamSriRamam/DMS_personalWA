@@ -2,11 +2,12 @@ import PDFDocumentLib from 'pdfkit';
 import {
   getTransporter,
   invalidateTransporterCache,
-  buildEmailMessage,
-  generateReportPdf,
   sendEmail,
   replacePlaceholders,
 } from '../services/email.service.js';
+import { generateReportPdf } from '../services/reportPdf.service.js';
+import { uploadFile as uploadToCloudinary } from '../services/cloudinary.service.js';
+import { sendMessage as waSendMessage } from '../services/wasender.service.js';
 import { encrypt, decrypt } from '../utils/crypto.util.js';
 
 // ─── Template variable catalog ─────────────────────────────────────────────
@@ -254,6 +255,79 @@ function generateInvoicePdf(invoice, patientName, settings) {
   });
 }
 
+// ─── Rich HTML email builder ───────────────────────────────────────────────
+// Wraps a plain-text body (with \n line breaks) in a branded, mobile-responsive
+// HTML email. clinicName drives the header; attachmentInfo (optional) appears
+// as a footer hint above the clinic details.
+function buildRichHtml(body, {
+  clinicName = '', clinicTagline = '',
+  clinicPhone = '', clinicEmail = '',
+  attachmentInfo = '',
+} = {}) {
+  const clinic = clinicName || 'Your Clinic';
+
+  const bodyHtml = (body || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .split('\n')
+    .map(l => l.trim()
+      ? `<p style="margin:0 0 10px;font-size:14px;color:#334155;line-height:1.75;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">${l}</p>`
+      : `<div style="height:4px"></div>`)
+    .join('');
+
+  const footerParts = [clinic, clinicPhone, clinicEmail].filter(Boolean);
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;-webkit-font-smoothing:antialiased">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9">
+  <tr><td align="center" style="padding:20px 12px 40px">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px">
+      <tr><td style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 8px rgba(0,0,0,.08)">
+
+        <!-- Header -->
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="background:linear-gradient(135deg,#1d6fe8 0%,#137fec 100%);padding:24px 28px 22px">
+            <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-.01em">${clinic}</div>
+            ${clinicTagline ? `<div style="font-size:12px;color:rgba(255,255,255,.75);margin-top:4px">${clinicTagline}</div>` : ''}
+          </td></tr>
+        </table>
+
+        <!-- Body -->
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:28px 28px 20px">${bodyHtml}</td></tr>
+        </table>
+
+        ${attachmentInfo ? `
+        <!-- Attachment note -->
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="padding:0 28px 20px">
+            <div style="padding:12px 14px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#64748b">
+              📎 ${attachmentInfo}
+            </div>
+          </td></tr>
+        </table>` : ''}
+
+        <!-- Footer -->
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr><td style="background:#f8fafc;border-top:1px solid #e2e8f0;padding:14px 28px;text-align:center">
+            <div style="font-size:11px;color:#94a3b8">${footerParts.join(' · ')}</div>
+            <div style="font-size:10px;color:#cbd5e1;margin-top:4px">Powered by Molaris Dental DMS</div>
+          </td></tr>
+        </table>
+
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+</body>
+</html>`;
+}
+
 // ─── Settings ──────────────────────────────────────────────────────────────
 
 export async function getSettings(req, res) {
@@ -270,14 +344,8 @@ export async function getSettings(req, res) {
         mode: 'gmail',
         smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
         events: {
-          appointmentBooked:    { enabled: false, delayMinutes: 0 },
-          appointmentCompleted: {
-            enabled: false,
-            delayMinutes: 0,
-            include: { smartReport: true, invoice: true, aiReport: false, prescription: true },
-          },
-          invoiceGenerated:     { enabled: false, delayMinutes: 0, attachInvoice: true },
-          aiReportReady:        { enabled: false, delayMinutes: 0, attachReport: true },
+          appointmentBooked:    { enabled: false, delayMinutes: 0, subject: '', body: '' },
+          appointmentCompleted: { enabled: false, delayMinutes: 0, subject: '', body: '' },
         },
       };
     }
@@ -342,6 +410,7 @@ export async function updateSettings(req, res) {
 
     if (events) {
       settings.events = { ...settings.events, ...events };
+      settings.markModified('events');
     }
 
     await settings.save();
@@ -507,7 +576,7 @@ export async function deleteTemplate(req, res) {
 // ─── Send Report Email ─────────────────────────────────────────────────────
 
 export async function sendReportEmail(req, res) {
-  const { EmailSettings, Patient } = req.tenantModels;
+  const { EmailSettings, Patient, ReportDeliverySettings } = req.tenantModels;
   const { patient_id, to, subject, body, report_text, template_name } = req.body;
 
   if (!patient_id || !to || !report_text) {
@@ -518,7 +587,6 @@ export async function sendReportEmail(req, res) {
 
   try {
     let settings = await EmailSettings.findOne({});
-
     if (!settings || !settings.enabled) {
       return res.status(400).json({ error: 'Email delivery is not enabled' });
     }
@@ -528,49 +596,97 @@ export async function sendReportEmail(req, res) {
       return res.status(404).json({ error: 'Patient not found' });
     }
 
-    const doctorName = req.user?.name || 'Attending Doctor';
-    const today = new Date().toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    // Pull delivery settings for branding + HTML mode
+    let ds = null;
+    try { ds = await ReportDeliverySettings.findOne({}); } catch { /* non-fatal */ }
+    const htmlEnabled = ds?.htmlEmail?.enabled ?? false;
+    const pdfMeta = {
+      clinicName:    ds?.pdf?.clinicName    || '',
+      clinicTagline: ds?.pdf?.clinicTagline || '',
+      clinicAddress: ds?.pdf?.clinicAddress || '',
+      clinicPhone:   ds?.pdf?.clinicPhone   || '',
+      clinicEmail:   ds?.pdf?.clinicEmail   || '',
+    };
 
-    // Generate PDF
+    const doctorName  = req.user?.name || 'Attending Doctor';
+    const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
+    const templateName = template_name || 'Clinical Report';
+
+    // Generate branded PDF attachment
     const pdfBuffer = await generateReportPdf(report_text, {
-      patientName,
-      doctorName,
-      date: today,
-      templateName: template_name || 'Clinical Report',
+      patientName, doctorName, date: today, templateName, ...pdfMeta,
     });
+    const dateStr  = new Date().toISOString().slice(0, 10);
+    const filename = `${templateName}_${patientName}_${dateStr}.pdf`;
 
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const filename = `${template_name || 'Report'}_${patientName}_${dateStr}.pdf`;
+    // Build email body — HTML if enabled, plain text otherwise
+    let emailPayload;
+    if (htmlEnabled) {
+      const escapedReport = report_text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const reportHtml = escapedReport.split('\n').map(l => `<p style="margin:0 0 4px">${l || '&nbsp;'}</p>`).join('');
+      const personalMsg = (body || '').replace(/\n/g, '<br>');
+      const clinicDisplay = pdfMeta.clinicName || 'Your Clinic';
 
-    // Send email
+      emailPayload = {
+        html: `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f4f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+<div style="max-width:640px;margin:0 auto;padding:24px 16px 48px">
+  <div style="background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden">
+    <div style="background:#137fec;padding:24px 28px">
+      <h1 style="margin:0;color:#fff;font-size:20px;font-weight:700">${clinicDisplay}</h1>
+      ${pdfMeta.clinicTagline ? `<p style="margin:4px 0 0;color:rgba(255,255,255,.8);font-size:13px">${pdfMeta.clinicTagline}</p>` : ''}
+    </div>
+    <div style="padding:24px 28px;border-bottom:1px solid #e2e8f0">
+      ${personalMsg ? `<p style="font-size:14px;color:#4a5568;line-height:1.7;margin:0 0 16px">${personalMsg}</p>` : ''}
+      <table style="width:100%;border-collapse:collapse;background:#f7fafc;border-radius:8px;overflow:hidden">
+        <tr>
+          <td style="padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:#a0aec0;border-bottom:1px solid #e2e8f0">Patient</td>
+          <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#1a202c;border-bottom:1px solid #e2e8f0">${patientName}</td>
+          <td style="padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:#a0aec0;border-bottom:1px solid #e2e8f0">Doctor</td>
+          <td style="padding:10px 14px;font-size:13px;font-weight:600;color:#1a202c;border-bottom:1px solid #e2e8f0">${doctorName}</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:#a0aec0">Report</td>
+          <td style="padding:10px 14px;font-size:13px;color:#2d3748">${templateName}</td>
+          <td style="padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;color:#a0aec0">Date</td>
+          <td style="padding:10px 14px;font-size:13px;color:#2d3748">${today}</td>
+        </tr>
+      </table>
+    </div>
+    <div style="padding:24px 28px">
+      <p style="margin:0 0 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#137fec">${templateName}</p>
+      <div style="font-size:13px;color:#4a5568;line-height:1.75;font-family:Georgia,serif;background:#f7fafc;border-radius:8px;padding:16px;border:1px solid #e2e8f0">
+        ${reportHtml}
+      </div>
+      <p style="margin:16px 0 0;font-size:12px;color:#a0aec0">The full report is also attached as a PDF.</p>
+    </div>
+    <div style="background:#f7fafc;border-top:1px solid #e2e8f0;padding:14px 28px;text-align:center;font-size:11px;color:#a0aec0">
+      ${[clinicDisplay, pdfMeta.clinicPhone, pdfMeta.clinicEmail].filter(Boolean).join(' · ')}
+      &nbsp;·&nbsp; Generated by Molaris AI
+    </div>
+  </div>
+</div>
+</body></html>`,
+        text: body || report_text,
+      };
+    } else {
+      emailPayload = { text: body || report_text };
+    }
+
     const result = await sendEmail({
       tenantModels: req.tenantModels,
       settings,
       to,
-      subject: subject || `Your Visit Summary - ${today}`,
-      text: body || report_text,
-      attachments: [
-        {
-          filename,
-          content: pdfBuffer,
-          contentType: 'application/pdf',
-        },
-      ],
+      subject: subject || `Your Visit Summary — ${today}`,
+      ...emailPayload,
+      attachments: [{ filename, content: pdfBuffer, contentType: 'application/pdf' }],
       patientId: patient_id,
       event: 'manual',
     });
 
-    res.json({
-      status: 'sent',
-      to,
-      messageId: result.messageId,
-      filename,
-    });
+    res.json({ status: 'sent', to, messageId: result.messageId, filename });
   } catch (err) {
     console.error('[Email] Error:', err.message);
     res.status(500).json({ error: err.message });
@@ -597,9 +713,18 @@ export async function getPatientEmailStatus(req, res) {
       ? `${patient.first_name} ${patient.last_name || ''}`.trim()
       : '';
 
+    // automationActive = appointment-completed automation is on.
+    // When true, the treatment-page manual send is disabled.
+    const automationActive = !!(
+      settings?.enabled &&
+      settings?.automationEnabled &&
+      settings?.events?.appointmentCompleted?.enabled
+    );
+
     res.json({
       emailEnabled: settings?.enabled || false,
       hasSmtp:      !!(settings?.smtp?.user),
+      automationActive,
       patientName,
       patientEmail: patient?.contact?.email || '',
       hasPatientEmail: !!(patient?.contact?.email),
@@ -618,7 +743,6 @@ export async function sendTreatmentSummary(req, res) {
   const {
     patient_id, to, include = [],
     subject: customSubject, body: customBody,
-    template_event = 'appointmentCompleted',
   } = req.body;
 
   if (!patient_id || !to) {
@@ -690,28 +814,33 @@ export async function sendTreatmentSummary(req, res) {
       clinic:      settings.fromName || 'your clinic',
     };
 
-    // If the dialog supplied an edited subject/body (template picker + editable
-    // preview), substitute variables into those directly. Otherwise fall back
-    // to the active DB template for the chosen event.
-    let subject, body;
-    if ((customSubject && customSubject.trim()) || (customBody && customBody.trim())) {
-      subject = replacePlaceholders(customSubject || `Your visit summary — ${today}`, templateData);
-      body    = replacePlaceholders(customBody    || `Dear {{first_name}},\n\nThank you for visiting us. Please find your documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`, templateData);
-    } else {
-      ({ subject, body } = await buildEmailMessage({
-        tenantModels: req.tenantModels,
-        eventType: template_event,
-        data: templateData,
-        defaultSubject: `Your visit summary — ${today}`,
-        defaultBody:    `Dear {{first_name}},\n\nThank you for visiting us. Please find your appointment documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`,
-      }));
-    }
+    const rawSubject = (customSubject && customSubject.trim())
+      ? customSubject
+      : `Your visit summary — ${today}`;
+    const rawBody = (customBody && customBody.trim())
+      ? customBody
+      : `Dear {{first_name}},\n\nThank you for visiting us. Please find your documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`;
+
+    const subject = replacePlaceholders(rawSubject, templateData);
+    const body    = replacePlaceholders(rawBody,    templateData);
+
+    const invCfg = await loadInvoiceSettings(req.tenantModels).catch(() => ({}));
+    const attachmentNote = attachments.length
+      ? `${attachments.length} document${attachments.length !== 1 ? 's' : ''} attached: ${attachments.map(a => a.filename).join(', ')}`
+      : '';
+    const html = buildRichHtml(body, {
+      clinicName:     invCfg.clinic?.name  || settings.fromName || '',
+      clinicPhone:    invCfg.clinic?.phone  || '',
+      clinicEmail:    invCfg.clinic?.email  || '',
+      attachmentInfo: attachmentNote,
+    });
 
     const result = await sendEmail({
       tenantModels: req.tenantModels,
       settings,
       to,
       subject,
+      html,
       text: body,
       attachments,
       patientId: patient_id,
@@ -727,78 +856,29 @@ export async function sendTreatmentSummary(req, res) {
 
 // ─── Automation trigger: Appointment Completed ────────────────────────────
 // Called fire-and-forget from appointment.controller on status -> Completed.
+// Plain-text notification only — no attachments. Documents are sent manually
+// from the treatment page; when automation is on, manual send is disabled.
 export async function triggerAppointmentCompleted({ tenantModels, patientId, appointmentId, doctorName }) {
   try {
     if (!patientId) return;
     const ctx = await loadAutomationContext(tenantModels, 'appointmentCompleted', patientId.toString());
     if (!ctx) return;
     const { settings, eventCfg, patient } = ctx;
-    const { Visit, Invoice, ReportJob } = tenantModels;
 
     const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
-    const today   = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-    const dateStr = new Date().toISOString().slice(0, 10);
-    const include = eventCfg.include || {};
+    const today  = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
     const docName = doctorName || 'Attending Doctor';
 
-    // Resolve the visit tied to THIS appointment. Fall back to the patient's
-    // newest visit only if the appointment has no linked visit (e.g. status
-    // flipped without a charted visit).
-    let visit = null;
+    // Look up visit for treatment names only (no PDF generation)
+    let treatmentNames = [];
+    const { Visit } = tenantModels;
     if (Visit) {
-      if (appointmentId) {
-        visit = await Visit.findOne({ appointment_id: appointmentId }).sort({ date: -1 }).lean();
-      }
-      if (!visit) {
-        visit = await Visit.findOne({ patient_id: patientId }).sort({ date: -1 }).lean();
-      }
-    }
-
-    const attachments = [];
-
-    if ((include.smartReport || include.prescription) && visit) {
-      const pdf = await generateVisitSummaryPdf(visit, patientName, docName, today);
-      attachments.push({ filename: `VisitSummary_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
-    }
-
-    if (include.invoice) {
-      // Prefer the invoice referenced by this visit's treatments/prescriptions
-      // so we attach THIS appointment's bill, not the patient's newest one.
-      let invoice = null;
-      const linkedInvoiceIds = [
-        ...((visit?.treatments || []).map(t => t.invoice_id)),
-        ...((visit?.prescriptions || []).map(p => p.invoice_id)),
-      ].filter(Boolean).map(String);
-
-      if (linkedInvoiceIds.length) {
-        invoice = await Invoice.findOne({ _id: { $in: linkedInvoiceIds } })
-          .sort({ createdAt: -1 }).lean();
-      }
-      if (!invoice) {
-        invoice = await Invoice.findOne({ patient_id: patientId })
-          .sort({ createdAt: -1 }).lean();
-      }
-      if (invoice) {
-        const invCfg = await loadInvoiceSettings(tenantModels);
-        const pdf = await generateInvoicePdf(invoice, patientName, invCfg);
-        attachments.push({ filename: `Invoice_${invoice.invoice_id}_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
-      }
-    }
-
-    if (include.aiReport && ReportJob) {
-      let job = appointmentId
-        ? await ReportJob.findOne({ patientId, appointmentId, status: 'done' }).sort({ createdAt: -1 }).lean()
+      let visit = appointmentId
+        ? await Visit.findOne({ appointment_id: appointmentId }).sort({ date: -1 }).lean()
         : null;
-      if (!job) job = await ReportJob.findOne({ patientId, status: 'done' }).sort({ createdAt: -1 }).lean();
-      if (job?.reportText) {
-        const pdf = await generateReportPdf(job.reportText, { patientName, doctorName: docName, date: today, templateName: job.templateId || 'Clinical Report' });
-        attachments.push({ filename: `AIReport_${patientName}_${dateStr}.pdf`, content: pdf, contentType: 'application/pdf' });
-      }
+      if (!visit) visit = await Visit.findOne({ patient_id: patientId }).sort({ date: -1 }).lean();
+      treatmentNames = (visit?.treatments || []).map(t => t.treatment_name).filter(Boolean);
     }
-
-    if (!attachments.length) return;
-
-    const treatmentNames = (visit?.treatments || []).map(t => t.treatment_name).filter(Boolean);
 
     await deliverAutomationEmail({
       tenantModels, settings, eventKey: 'appointmentCompleted',
@@ -810,9 +890,9 @@ export async function triggerAppointmentCompleted({ tenantModels, patientId, app
         date:       today,
         treatments: treatmentNames.join(', ') || 'your recent treatment',
       },
-      attachments,
-      defaultSubject: `Your appointment summary — ${today}`,
-      defaultBody:    `Dear {{first_name}},\n\nThank you for visiting us. Please find your appointment documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`,
+      attachments: [],
+      defaultSubject: `Your appointment is complete — ${today}`,
+      defaultBody:    `Dear {{first_name}},\n\nThank you for visiting us today. Your doctor {{doctor}} has completed your appointment.\n\nWarm regards,\n{{clinic}}`,
       delayMinutes: eventCfg.delayMinutes,
     });
   } catch (err) {
@@ -836,22 +916,33 @@ async function loadAutomationContext(tenantModels, eventKey, patientId) {
   return { settings, eventCfg, patient };
 }
 
-// Renders the active template (or supplied defaults) and sends, honouring the
-// per-event delay. `clinic` is injected from the From Name unless overridden.
+// Sends the automation email using subject/body stored in EmailSettings for the
+// event. Falls back to defaultSubject/defaultBody when none configured yet.
 async function deliverAutomationEmail({
   tenantModels, settings, eventKey, patient, patientId,
   templateData, defaultSubject, defaultBody, attachments = [], delayMinutes = 0,
 }) {
   const data = { clinic: settings.fromName || 'your clinic', ...templateData };
+  const eventCfg = settings.events?.[eventKey] || {};
 
-  const { subject, body } = await buildEmailMessage({
-    tenantModels, eventType: eventKey, data, defaultSubject, defaultBody,
+  const rawSubject = (eventCfg.subject && eventCfg.subject.trim()) ? eventCfg.subject : defaultSubject;
+  const rawBody    = (eventCfg.body    && eventCfg.body.trim())    ? eventCfg.body    : defaultBody;
+
+  const subject = replacePlaceholders(rawSubject, data);
+  const body    = replacePlaceholders(rawBody,    data);
+
+  // Load clinic info for the branded HTML wrapper (non-fatal)
+  const invCfg = await loadInvoiceSettings(tenantModels).catch(() => ({}));
+  const html = buildRichHtml(body, {
+    clinicName:    invCfg.clinic?.name    || settings.fromName || '',
+    clinicPhone:   invCfg.clinic?.phone   || '',
+    clinicEmail:   invCfg.clinic?.email   || '',
   });
 
   const send = () => sendEmail({
     tenantModels, settings,
     to: patient.contact.email,
-    subject, text: body,
+    subject, html, text: body,
     attachments, patientId, event: eventKey,
   }).catch(err => console.error(`[Email] ${eventKey} delivery failed:`, err.message));
 
@@ -897,9 +988,112 @@ export async function triggerAppointmentBooked({ tenantModels, appointment }) {
   }
 }
 
-// Note: invoice and AI-report emails are no longer standalone automations.
-// They are delivered only as part of the appointmentCompleted bundle via its
-// include.invoice / include.aiReport flags (see triggerAppointmentCompleted).
+// ─── Send WhatsApp Documents ───────────────────────────────────────────────
+// POST /api/email/send-whatsapp-documents
+// Generates selected PDFs, uploads to Cloudinary, sends as WaSender document messages.
+
+export async function sendWhatsAppDocuments(req, res) {
+  const { Patient, Visit, Invoice, ReportJob, WaSenderConfig } = req.tenantModels;
+  const { patient_id, phone, include = [] } = req.body;
+
+  if (!patient_id || !phone || !Array.isArray(include) || !include.length) {
+    return res.status(400).json({ error: 'patient_id, phone, and include[] are required' });
+  }
+
+  try {
+    const config = await WaSenderConfig.findOne({}).lean();
+    if (!config?.sessionApiKey) {
+      return res.status(400).json({ error: 'WhatsApp not configured. Set up WaSender in Settings.' });
+    }
+
+    const patient = await Patient.findById(patient_id).lean();
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+    const patientName = `${patient.first_name} ${patient.last_name || ''}`.trim();
+    const doctorName  = req.user?.name || 'Attending Doctor';
+    const today       = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const dateStr     = new Date().toISOString().slice(0, 10);
+
+    // Normalise phone: ensure it starts with country code, no +
+    const to = phone.replace(/^\+/, '').replace(/\D/g, '');
+
+    const sent = [];
+    const failed = [];
+
+    async function uploadAndSend(pdfBuffer, filename, caption) {
+      const uploaded = await uploadToCloudinary(
+        pdfBuffer, filename, 'dms/patient-docs', ['patient-doc'], req.tenantConfig,
+      );
+      await waSendMessage(config.sessionApiKey, {
+        to,
+        type: 'document',
+        documentUrl: uploaded.url,
+        fileName:    filename,
+        caption,
+      });
+      sent.push(filename);
+    }
+
+    if (include.includes('smart_report')) {
+      try {
+        const visit = await Visit.findOne({ patient_id }).sort({ date: -1 }).lean();
+        if (visit) {
+          const pdf = await generateVisitSummaryPdf(visit, patientName, doctorName, today);
+          await uploadAndSend(pdf, `SmartReport_${patientName}_${dateStr}.pdf`, 'Your visit summary');
+        }
+      } catch (e) { failed.push({ type: 'smart_report', error: e.message }); }
+    }
+
+    if (include.includes('invoice')) {
+      try {
+        const invoice = await Invoice.findOne({ patient_id }).sort({ createdAt: -1 }).lean();
+        if (invoice) {
+          const invCfg = await loadInvoiceSettings(req.tenantModels);
+          const pdf = await generateInvoicePdf(invoice, patientName, invCfg);
+          await uploadAndSend(pdf, `Invoice_${invoice.invoice_id}_${patientName}_${dateStr}.pdf`, `Invoice ${invoice.invoice_id}`);
+        }
+      } catch (e) { failed.push({ type: 'invoice', error: e.message }); }
+    }
+
+    if (include.includes('ai_report')) {
+      try {
+        const job = ReportJob
+          ? await ReportJob.findOne({ patientId: patient_id, status: 'done' }).sort({ createdAt: -1 }).lean()
+          : null;
+        if (job?.reportText) {
+          const ds = await loadDeliverySettings(req.tenantModels);
+          const pdfMeta = {
+            templateName:  job.templateId || 'Clinical Report',
+            patientName, doctorName,
+            clinicName:    ds?.pdf?.clinicName    || '',
+            clinicTagline: ds?.pdf?.clinicTagline || '',
+            clinicAddress: ds?.pdf?.clinicAddress || '',
+            clinicPhone:   ds?.pdf?.clinicPhone   || '',
+            clinicEmail:   ds?.pdf?.clinicEmail   || '',
+          };
+          const pdf = await generateReportPdf(job.reportText, pdfMeta);
+          await uploadAndSend(pdf, `AIReport_${patientName}_${dateStr}.pdf`, `AI Clinical Report — ${pdfMeta.templateName}`);
+        }
+      } catch (e) { failed.push({ type: 'ai_report', error: e.message }); }
+    }
+
+    if (!sent.length && failed.length) {
+      return res.status(502).json({ error: 'All documents failed to send', failed });
+    }
+
+    res.json({ status: 'sent', to: phone, sent, failed });
+  } catch (err) {
+    console.error('[WhatsApp] sendWhatsAppDocuments:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// Helper — loads ReportDeliverySettings without throwing
+async function loadDeliverySettings(tenantModels) {
+  try {
+    return (await tenantModels.ReportDeliverySettings?.findOne({}).lean()) || {};
+  } catch { return {}; }
+}
 
 // ─── Logs ──────────────────────────────────────────────────────────────────
 

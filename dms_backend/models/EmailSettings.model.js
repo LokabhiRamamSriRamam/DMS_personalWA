@@ -36,28 +36,16 @@ export const EmailSettingsSchema = new mongoose.Schema(
     replyTo: String,
     events: {
       appointmentBooked: {
-        enabled: { type: Boolean, default: false },
-        delayMinutes: { type: Number, default: 0 },
+        enabled:      { type: Boolean, default: false },
+        delayMinutes: { type: Number,  default: 0 },
+        subject:      { type: String,  default: '' },
+        body:         { type: String,  default: '' },
       },
       appointmentCompleted: {
-        enabled: { type: Boolean, default: false },
-        delayMinutes: { type: Number, default: 0 },
-        include: {
-          smartReport:  { type: Boolean, default: true },
-          invoice:      { type: Boolean, default: true },
-          aiReport:     { type: Boolean, default: false },
-          prescription: { type: Boolean, default: true },
-        },
-      },
-      invoiceGenerated: {
-        enabled: { type: Boolean, default: false },
-        delayMinutes: { type: Number, default: 0 },
-        attachInvoice: { type: Boolean, default: true },
-      },
-      aiReportReady: {
-        enabled: { type: Boolean, default: false },
-        delayMinutes: { type: Number, default: 0 },
-        attachReport: { type: Boolean, default: true },
+        enabled:      { type: Boolean, default: false },
+        delayMinutes: { type: Number,  default: 0 },
+        subject:      { type: String,  default: '' },
+        body:         { type: String,  default: '' },
       },
     },
   },

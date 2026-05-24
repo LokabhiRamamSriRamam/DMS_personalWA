@@ -229,8 +229,13 @@ export async function sendMessageHandler(req, res) {
     const config = await WaSenderConfig.findOne();
     if (!config?.sessionApiKey) return res.status(400).json({ message: 'No session API key configured' });
 
-    const { to, type, text, imageUrl, videoUrl, documentUrl, fileName,
+    const { to: rawTo, type, text, imageUrl, videoUrl, documentUrl, fileName,
             audioUrl, caption, poll, location, replyTo } = req.body;
+
+    // WaSender requires 91XXXXXXXXXX format (no +, no spaces).
+    // Strip everything non-digit, drop leading country code if present, re-add 91.
+    const digits = String(rawTo || '').replace(/\D/g, '');
+    const to = digits.length === 10 ? `91${digits}` : digits.length === 12 && digits.startsWith('91') ? digits : digits;
 
     const payload = { to, type };
     if (text)        payload.text        = text;

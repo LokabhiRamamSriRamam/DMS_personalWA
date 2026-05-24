@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL } from '../config/env.js';
 
-const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const BASE = API_BASE_URL;
 const pub  = (tid, path) => `${BASE}/public/${tid}/booking${path}`;
 
 const DAYS       = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];

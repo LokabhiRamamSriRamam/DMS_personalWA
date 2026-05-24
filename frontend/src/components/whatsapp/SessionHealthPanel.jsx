@@ -725,7 +725,7 @@ export default function SessionHealthPanel() {
                       </div>
                       {webhookUrlError && <p className="text-xs text-red-600">{webhookUrlError}</p>}
                       {!config?.webhookUrl && <p className="text-[11px] text-amber-600">Required to create a session — contact your Connect POC for this URL</p>}
-                      {editingWebhookUrl && <p className="text-[11px] text-blue-600">Saving will update the URL in DMS and sync it to WaSender automatically.</p>}
+                      {editingWebhookUrl && <p className="text-[11px] text-blue-600">Saving will update the URL in DMS and sync it automatically.</p>}
                     </div>
                   )}
                 </div>

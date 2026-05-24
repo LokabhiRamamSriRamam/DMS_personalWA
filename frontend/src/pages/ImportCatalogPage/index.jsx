@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, BookOpen } from 'lucide-react';
 import { treatments, diagnoses, findings } from '../../data/dentalCatalog/index.js';
 import CatalogImporter from './CatalogImporter.jsx';
@@ -33,7 +33,10 @@ const TABS = [
 
 export default function ImportCatalogPage() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('treatments');
+  const [searchParams] = useSearchParams();
+  const typeParam = searchParams.get('type');
+  const validTypes = ['treatments', 'diagnoses', 'findings'];
+  const [activeTab, setActiveTab] = useState(validTypes.includes(typeParam) ? typeParam : 'treatments');
   const tab = TABS.find(t => t.id === activeTab);
 
   return (

@@ -5,6 +5,7 @@ import {
   createSubfolder,
 } from '../services/googleDrive.service.js';
 import { TEMPLATES, getTemplateById } from '../config/templates.config.js';
+import { generateReportPdf } from '../services/reportPdf.service.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 export const uploadMiddleware = upload.single('file');
@@ -189,23 +190,35 @@ ${transcript}
 
 Generate the document now following the structure and detail level above. Return plain text only — no JSON, no markdown code blocks.`;
 
-  const upstream = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'minimaxai/minimax-m2.7',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user',   content: userPrompt   },
-      ],
-      max_tokens:  4096,
-      temperature: 1.0,
-      stream:      true,
-    }),
-  });
+  const llmAbort = new AbortController();
+  const llmTimeout = setTimeout(() => llmAbort.abort(), 210_000); // 210s hard timeout
+
+  let upstream;
+  try {
+    upstream = await fetch('https://integrate.api.nvidia.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'minimaxai/minimax-m2.7',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userPrompt   },
+        ],
+        max_tokens:  4096,
+        temperature: 1.0,
+        stream:      true,
+      }),
+      signal: llmAbort.signal,
+    });
+  } catch (err) {
+    clearTimeout(llmTimeout);
+    if (err.name === 'AbortError') throw new Error('NVIDIA API timed out after 210 seconds. Try again.');
+    throw err;
+  }
+  clearTimeout(llmTimeout);
 
   if (!upstream.ok) throw new Error(`LLM API error ${upstream.status}: ${await upstream.text()}`);
 
@@ -277,11 +290,24 @@ Return JSON:
   return JSON.parse(data.choices?.[0]?.message?.content || '{}');
 }
 
-// ─── Upload report text to Drive ────────────────────────────────────────────────
+// ─── Upload helpers ────────────────────────────────────────────────────────────
 async function uploadTextToDrive(credentials, folderId, text, filename) {
   const buffer = Buffer.from(text, 'utf-8');
   return uploadFileToDrive(credentials, folderId, buffer, filename, 'text/plain');
 }
+
+async function uploadPdfToDrive(credentials, folderId, pdfBuffer, filename) {
+  return uploadFileToDrive(credentials, folderId, pdfBuffer, filename, 'application/pdf');
+}
+
+// Fetch (or create) delivery settings doc for the current tenant.
+async function fetchDeliverySettings(tenantModels) {
+  const { ReportDeliverySettings } = tenantModels;
+  let s = await ReportDeliverySettings.findOne();
+  if (!s) s = await ReportDeliverySettings.create({});
+  return s;
+}
+
 
 // ─── GET /api/report/templates ──────────────────────────────────────────────────
 export function listTemplates(req, res) {
@@ -441,6 +467,136 @@ export async function editTranscript(req, res) {
   }
 }
 
+// ─── PATCH /api/report/jobs/:jobId/cancel ─────────────────────────────────────
+// Resets a stuck/slow 'generating' job back to 'transcribed' so the user can retry.
+export async function cancelGeneration(req, res) {
+  const { ReportJob } = req.tenantModels;
+  try {
+    const { jobId } = req.params;
+    const job = await ReportJob.findOneAndUpdate(
+      { _id: jobId, status: { $in: ['generating', 'pending', 'transcribing'] } },
+      { $set: { status: 'transcribed', generatingStartedAt: null } },
+      { new: true },
+    );
+    if (!job) {
+      const existing = await ReportJob.findById(jobId).select('status');
+      if (!existing) return res.status(404).json({ error: 'Job not found' });
+      return res.json({ status: existing.status, message: 'Nothing to cancel' });
+    }
+    res.json({ status: 'transcribed', message: 'Generation cancelled. Ready to retry.' });
+  } catch (err) {
+    console.error('[Report] cancelGeneration error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── GET /api/report/delivery-settings ────────────────────────────────────────
+// Returns the tenant's report-delivery templates/defaults, creating defaults on first read.
+export async function getReportDeliverySettings(req, res) {
+  try {
+    const { ReportDeliverySettings } = req.tenantModels;
+    let settings = await ReportDeliverySettings.findOne();
+    if (!settings) settings = await ReportDeliverySettings.create({});
+    res.json(settings);
+  } catch (err) {
+    console.error('[Report] getReportDeliverySettings error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// ─── PUT /api/report/delivery-settings ────────────────────────────────────────
+export async function saveReportDeliverySettings(req, res) {
+  try {
+    const { ReportDeliverySettings } = req.tenantModels;
+    const { _id, __v, createdAt, updatedAt, ...body } = req.body;
+    const settings = await ReportDeliverySettings.findOneAndUpdate(
+      {},
+      { $set: body },
+      { new: true, upsert: true, runValidators: true },
+    );
+    res.json(settings);
+  } catch (err) {
+    console.error('[Report] saveReportDeliverySettings error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+}
+
+// ─── POST /api/report/jobs/:jobId/save-to-drive ───────────────────────────────
+// Saves an already-generated report to the patient's Connect Cloud folder.
+// Honours pdf.enabled (uploads PDF instead of plain text).
+export async function saveReportToDrive(req, res) {
+  const { Patient, ReportJob } = req.tenantModels;
+  const credentials = req.tenantConfig;
+
+  try {
+    const { jobId } = req.params;
+    const job = await ReportJob.findById(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    const reportText = (req.body.report_text || job.reportText || '').trim();
+    if (!reportText) return res.status(422).json({ error: 'No report text to save.' });
+
+    const patient = await Patient.findById(job.patientId);
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+    const template     = getTemplateById(job.templateId);
+    const templateName = template?.name || 'Clinical Report';
+    const patientName  = `${patient.first_name} ${patient.last_name || ''}`.trim();
+    const doctorName   = req.user?.name || 'Attending Doctor';
+
+    const ds = await fetchDeliverySettings(req.tenantModels);
+    const pdfEnabled = ds.pdf?.enabled ?? false;
+
+    if (!patient.drive_folders?.root) {
+      patient.drive_folders = await createPatientDriveFolders(credentials, patient.patientId, patientName);
+      await patient.save();
+    }
+    const clinicalNotesFolderId = patient.drive_folders.clinical_notes;
+    if (!clinicalNotesFolderId) return res.status(400).json({ error: 'Clinical Notes folder not available.' });
+
+    const dateFolderName = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+    const dateFolderId   = await createSubfolder(credentials, clinicalNotesFolderId, dateFolderName);
+    const dateStr        = new Date().toISOString().slice(0, 10);
+
+    let uploaded;
+    if (pdfEnabled) {
+      const pdfMeta = {
+        templateName, patientName, doctorName,
+        clinicName:    ds.pdf?.clinicName    || '',
+        clinicTagline: ds.pdf?.clinicTagline || '',
+        clinicAddress: ds.pdf?.clinicAddress || '',
+        clinicPhone:   ds.pdf?.clinicPhone   || '',
+        clinicEmail:   ds.pdf?.clinicEmail   || '',
+      };
+      const pdfBuffer  = await generateReportPdf(reportText, pdfMeta);
+      const filename   = `${templateName}_${patientName}_${dateStr}.pdf`;
+      uploaded = await uploadPdfToDrive(credentials, dateFolderId, pdfBuffer, filename);
+    } else {
+      const filename = `${templateName}_${patientName}_${dateStr}.txt`;
+      uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
+    }
+    if (!uploaded) return res.status(502).json({ error: 'Drive upload failed.' });
+
+    patient.files.push({
+      file_name:     uploaded.name,
+      category:      'Clinical Notes',
+      drive_file_id: uploaded.id,
+      web_view_link: uploaded.webViewLink,
+      mime_type:     pdfEnabled ? 'application/pdf' : 'text/plain',
+    });
+    await patient.save();
+
+    const driveLinks = { ...(job.driveLinks || {}), [job.templateId]: uploaded.webViewLink };
+    await ReportJob.findByIdAndUpdate(jobId, { driveLinks });
+
+    res.json({ status: 'saved', templateId: job.templateId, webViewLink: uploaded.webViewLink });
+  } catch (err) {
+    console.error('[Report] saveReportToDrive error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+}
+
+
 // ─── POST /api/report/generate ─────────────────────────────────────────────────
 // Accepts { jobId, template_id OR template_ids, detail_level, save_report, autofill }
 // OR legacy { patient_id, template_id, transcript_text, ... } for backwards compat.
@@ -455,10 +611,33 @@ export async function generateReport(req, res) {
 
     // ── New job-queue path ──
     if (jobId) {
-      const job = await ReportJob.findById(jobId);
-      if (!job) return res.status(404).json({ error: 'Job not found' });
-      if (job.status !== 'transcribed') {
-        return res.status(400).json({ error: `Job is not ready for generation (status: ${job.status})` });
+      // Atomic claim — only one request may flip the job into 'generating'.
+      // Claimable when: transcript is ready ('transcribed'), regenerating ('done'),
+      // OR a previous 'generating' attempt was orphaned (crash/restart/abort) and
+      // is now stale. A live 'generating' (claimed < STALE_MS ago) is NOT claimable,
+      // so concurrent/double-submits lose the race and get a clean 409.
+      const STALE_MS = 5 * 60 * 1000;
+      const staleBefore = new Date(Date.now() - STALE_MS);
+      const job = await ReportJob.findOneAndUpdate(
+        {
+          _id: jobId,
+          $or: [
+            { status: { $in: ['transcribed', 'done'] } },
+            { status: 'generating', generatingStartedAt: { $lt: staleBefore } },
+            { status: 'generating', generatingStartedAt: null },
+          ],
+        },
+        { $set: { status: 'generating', generatingStartedAt: new Date() } },
+        { new: false }, // return the pre-claim doc so transcript/templateId are available
+      );
+
+      if (!job) {
+        const existing = await ReportJob.findById(jobId).select('status');
+        if (!existing) return res.status(404).json({ error: 'Job not found' });
+        if (existing.status === 'generating') {
+          return res.status(409).json({ error: 'Generation is already in progress for this report.' });
+        }
+        return res.status(400).json({ error: `Job is not ready for generation (status: ${existing.status})` });
       }
 
       // Allow transcript override (edit-and-regenerate)
@@ -491,7 +670,7 @@ export async function generateReport(req, res) {
       const doctorName  = req.user?.name || 'Attending Doctor';
       const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 
-      await ReportJob.findByIdAndUpdate(jobId, { status: 'generating' });
+      // Status was already set to 'generating' by the atomic claim above.
 
       // Set up SSE
       res.setHeader('Content-Type', 'text/event-stream');
@@ -523,6 +702,9 @@ export async function generateReport(req, res) {
       const drive_links = {};
       const fileRecords = [];
 
+      const ds = await fetchDeliverySettings(req.tenantModels);
+      const pdfEnabled = ds.pdf?.enabled ?? false;
+
       const [autofillResult, driveResult] = await Promise.allSettled([
         runAutofill ? parseAutofillWithLLM(credentials.nvidiaApiKey, transcript) : Promise.resolve(null),
         (async () => {
@@ -537,12 +719,24 @@ export async function generateReport(req, res) {
           const dateFolderId   = await createSubfolder(credentials, clinicalNotesFolderId, dateFolderName);
           const dateStr  = new Date().toISOString().slice(0, 10);
 
-          // Upload each report to Drive
           for (const template of templates) {
             const reportText = reports[template.id];
             if (!reportText) continue;
-            const filename = `${template.name}_${patientName}_${dateStr}.txt`;
-            const uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, filename);
+            let uploaded;
+            if (pdfEnabled) {
+              const pdfMeta = {
+                templateName: template.name, patientName, doctorName,
+                clinicName:    ds.pdf?.clinicName    || '',
+                clinicTagline: ds.pdf?.clinicTagline || '',
+                clinicAddress: ds.pdf?.clinicAddress || '',
+                clinicPhone:   ds.pdf?.clinicPhone   || '',
+                clinicEmail:   ds.pdf?.clinicEmail   || '',
+              };
+              const pdfBuffer = await generateReportPdf(reportText, pdfMeta);
+              uploaded = await uploadPdfToDrive(credentials, dateFolderId, pdfBuffer, `${template.name}_${patientName}_${dateStr}.pdf`);
+            } else {
+              uploaded = await uploadTextToDrive(credentials, dateFolderId, reportText, `${template.name}_${patientName}_${dateStr}.txt`);
+            }
             if (uploaded) {
               drive_links[template.id] = uploaded.webViewLink;
               fileRecords.push({
@@ -550,9 +744,10 @@ export async function generateReport(req, res) {
                 category:      'Clinical Notes',
                 drive_file_id: uploaded.id,
                 web_view_link: uploaded.webViewLink,
-                mime_type:     'text/plain',
+                mime_type:     pdfEnabled ? 'application/pdf' : 'text/plain',
               });
             }
+
           }
         })(),
       ]);
@@ -567,9 +762,6 @@ export async function generateReport(req, res) {
         status: 'done', reportText: reports[templateIds[0]], driveLinks: drive_links,
         autofillData: autofill_v2, transcript,
       });
-
-      // AI report is emailed via the appointmentCompleted automation
-      // (include.aiReport) — there is no standalone AI-report email trigger.
 
       // Send final metadata event
       res.write(`data: ${JSON.stringify({

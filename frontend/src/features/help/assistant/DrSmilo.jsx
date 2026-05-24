@@ -37,6 +37,16 @@ export default function DrSmilo() {
     }
   }, [smilo.inputMode]);
 
+  // Allow other parts of the app to deep-link into Dr. Smilo
+  useEffect(() => {
+    function onOpenNode(e) {
+      setHasOpened(true);
+      smilo.openToNode(e.detail.nodeId);
+    }
+    window.addEventListener('smilo:open-node', onOpenNode);
+    return () => window.removeEventListener('smilo:open-node', onOpenNode);
+  }, [smilo.openToNode]);
+
   function handleOpen() {
     setHasOpened(true);
     smilo.open(location.pathname);
@@ -111,7 +121,7 @@ export default function DrSmilo() {
           position:   'fixed',
           right:      fabPos.right,
           bottom:     fabPos.bottom,
-          zIndex:     50,
+          zIndex:     500,
           touchAction: 'none',
           cursor:     'grab',
           userSelect: 'none',
@@ -130,7 +140,7 @@ export default function DrSmilo() {
         >
           <SmiloAvatar state={smilo.isOpen ? 'idle' : (hasOpened ? 'happy' : 'idle')} size={28} />
           {!smilo.isOpen && (
-            <span className="text-sm font-semibold text-[#137fec] pr-1">Ask Dr. Smilo</span>
+            <span className="hidden sm:inline text-sm font-semibold text-[#137fec] pr-1">Ask Dr. Smilo</span>
           )}
           {smilo.isOpen && (
             <span className="material-symbols-outlined text-[18px]">close</span>
@@ -146,7 +156,7 @@ export default function DrSmilo() {
           bottom:   panelBottom,
           width:    panelWidth,
           height:   panelHeight,
-          zIndex:   60,
+          zIndex:   501,
         }}
         className={`transition-all duration-300 ease-in-out ${
           smilo.isOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'

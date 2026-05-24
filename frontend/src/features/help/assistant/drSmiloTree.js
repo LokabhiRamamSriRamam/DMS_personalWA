@@ -10,7 +10,9 @@ export const NODES = {
       { id: 'go-inventory', label: 'Inventory & stock',               emoji: '📦', next: 'inventory' },
       { id: 'go-lab',       label: 'Lab orders',                      emoji: '🧪', next: 'lab' },
       { id: 'go-whatsapp',  label: 'WhatsApp & messages',             emoji: '💬', next: 'whatsapp' },
+      { id: 'go-email',     label: 'Email & document sharing',        emoji: '📧', next: 'email' },
       { id: 'go-reports',   label: 'Reports & analytics',             emoji: '📊', next: 'reports' },
+      { id: 'go-ai-report',  label: 'AI clinical report 🤖',             emoji: '🤖', next: 'ai-report' },
       { id: 'go-broken',    label: "Something's not working",         emoji: '🔧', next: 'broken' },
       { id: 'free',         label: 'Something else...',               emoji: '🔍', freeText: true },
     ],
@@ -62,7 +64,95 @@ export const NODES = {
       { id: 'c-prescription', label: 'Add a prescription',        slug: '03-clinical-charting', hint: 'Open the visit → Prescription section → add drug name, dosage, frequency and duration.' },
       { id: 'c-notes',        label: 'Write clinical notes',      slug: '03-clinical-charting', hint: 'Clinical notes are permanent once saved — write accurately. Add a dated correction note to fix errors.' },
       { id: 'c-xray',         label: 'Attach X-rays or documents', slug: '03-clinical-charting', hint: 'Open the visit → Attachments → upload the file directly to that visit record.' },
+      { id: 'c-ai-report',    label: 'Generate an AI clinical report 🤖', next: 'ai-report' },
       { id: 'back',           label: '← Back',                   back: true },
+    ],
+  },
+
+  'ai-report': {
+    smilo: "The AI Report feature turns your voice dictation into a polished clinical document in seconds. What would you like to know?",
+    avatarState: 'happy',
+    options: [
+      { id: 'air-how',        label: 'Walk me through the full process', next: 'ai-report-step1' },
+      { id: 'air-templates',  label: 'What templates are available?',    next: 'ai-report-templates' },
+      { id: 'air-deliver',    label: 'How do I send it to the patient?', next: 'ai-report-deliver' },
+      { id: 'air-fix',        label: "Something went wrong / it's stuck", next: 'ai-report-trouble' },
+      { id: 'air-guide',      label: 'Show me the full help guide',      slug: '10-ai-report-generation' },
+      { id: 'back',           label: '← Back',                          back: true },
+    ],
+  },
+
+  'ai-report-step1': {
+    smilo: "Here's the complete process — Step 1 of 4.\n\n📋 **Choose a template** — open the AI Report from the patient's treatment page (bottom-right button). Pick the document type from the dropdown (Patient Letter, SOAP Note, H&P Note, etc.) and set the Detail Level: Brief, Standard, or Detailed.",
+    avatarState: 'idle',
+    options: [
+      { id: 'step2', label: 'Next: Record the consultation →', next: 'ai-report-step2' },
+      { id: 'air-templates', label: 'What do the templates mean?', next: 'ai-report-templates' },
+      { id: 'back', label: '← Back', back: true },
+    ],
+  },
+
+  'ai-report-step2': {
+    smilo: "Step 2 of 4.\n\n🎙️ **Dictate the consultation** — click the blue microphone and speak naturally. Cover the complaint, history, exam findings, diagnosis, treatment done today, plan, medications, and follow-up.\n\nUse **Pause** to take a break without losing audio. Click the mic again to **Stop** when done.",
+    avatarState: 'idle',
+    options: [
+      { id: 'step3', label: 'Next: Review the transcript →', next: 'ai-report-step3' },
+      { id: 'tip-mic', label: 'Tips for a better recording', hint: "Speak clearly and at normal pace. Dictate tooth numbers using FDI notation (e.g. 'tooth 36'). Spell out drug names if they're unusual. You can also type the transcript directly — use the text box below the mic.", next: 'ai-report-step2' },
+      { id: 'back', label: '← Back', back: true },
+    ],
+  },
+
+  'ai-report-step3': {
+    smilo: "Step 3 of 4.\n\n✏️ **Review the transcript** — Molaris AI converts your voice to text (takes 20–60 seconds). Read through it and click Edit to fix any errors — tooth numbers, drug names, and doctor names are the most common mistakes. Your corrections are used for generation.",
+    avatarState: 'idle',
+    options: [
+      { id: 'step4', label: 'Next: Generate & deliver →', next: 'ai-report-step4' },
+      { id: 'back', label: '← Back', back: true },
+    ],
+  },
+
+  'ai-report-step4': {
+    smilo: "Step 4 of 4.\n\n🚀 **Generate, review, and send** — click Generate. The document streams in real time. Once done, you can click the text to edit it directly.\n\nThen tick your delivery channels — **Connect Cloud**, **Email**, or **WhatsApp** — and click **Approve & Send**. That's it! ✅",
+    avatarState: 'happy',
+    options: [
+      { id: 'air-deliver',  label: 'Tell me more about sending to the patient', next: 'ai-report-deliver' },
+      { id: 'air-guide',    label: 'See the full help guide',                   slug: '10-ai-report-generation' },
+      { id: 'back',         label: '← Back',                                    back: true },
+    ],
+  },
+
+  'ai-report-templates': {
+    smilo: "There are 7 templates — all under the Clinical category:\n\n🗒️ **Patient Letter** — warm, plain-language summary the patient takes home\n📋 **Dentistry Note** — full clinical record (complaint, exam, diagnosis, plan)\n🔬 **Comprehensive Dental Exam** — detailed exam with consent, procedures, instrument tracking\n📊 **SOAP Note** — Subjective / Objective / Assessment / Plan\n📊 **SOAP Note (Issues Centric)** — same as SOAP but organized per problem\n🏥 **H&P Note** — History & Physical with Impression and Management Plan\n🏥 **H&P Note (Issues Centric)** — H&P organized per individual issue\n\nWhich one do you want to know more about?",
+    avatarState: 'thinking',
+    options: [
+      { id: 'tpl-letter',   label: 'Patient Letter',               hint: 'Written in empathetic, patient-friendly language. Covers every topic discussed, with Next Steps at the end. Best for sending to patients after any visit.' },
+      { id: 'tpl-dent',     label: 'Dentistry Note',               hint: 'A comprehensive clinical record — chief complaint, history, extra-oral/intra-oral findings, radiographs, diagnoses, prognosis, and treatment plan. Ideal for internal record-keeping.' },
+      { id: 'tpl-exam',     label: 'Comprehensive Dental Exam',    hint: 'The most detailed template — includes practitioner details, consent, procedures conducted, instrument tracking, medications, and unusual events. Designed for thorough medico-legal documentation.' },
+      { id: 'tpl-soap',     label: 'SOAP / H&P Notes',             hint: 'SOAP (Subjective/Objective/Assessment/Plan) and H&P (History & Physical) are standard clinical formats. The "Issues Centric" variants organize the Assessment & Plan section by individual problem — useful for multi-issue visits.' },
+      { id: 'back',         label: '← Back',                       back: true },
+    ],
+  },
+
+  'ai-report-deliver': {
+    smilo: "After the report is generated, tick the channels you want under **Approve & Send**:\n\n☁️ **Connect Cloud** — saves a text file in the patient's clinical notes folder\n📧 **Email** — attaches the report and sends to the patient's email address\n💬 **WhatsApp** — sends the document directly via the clinic WhatsApp\n\nAll three can be sent together in one click. You can also use the **Send via Email** or **Send via WhatsApp** buttons at the bottom of the Treatment page to send documents (AI Report, Smart Report, Invoice) any time.",
+    avatarState: 'idle',
+    options: [
+      { id: 'air-settings', label: 'Where do I configure document sharing?', hint: "Go to Settings → Share with Patient. You'll find settings for Invoice, Prescription, Smart Report, and AI Report. For automated emails, go to Settings → Email → Automation." },
+      { id: 'air-guide',    label: 'Full help guide',                        slug: '10-ai-report-generation' },
+      { id: 'back',         label: '← Back',                                 back: true },
+    ],
+  },
+
+  'ai-report-trouble': {
+    smilo: "Sorry to hear something went wrong. What's happening?",
+    avatarState: 'concerned',
+    options: [
+      { id: 'tr-stuck',   label: 'Spinner is stuck / nothing is generating', hint: "The AI may be cold-starting — wait up to 3–4 minutes. If still nothing, click Cancel (top-right of the generating panel) to abort and try again. The transcript is preserved." },
+      { id: 'tr-wrong',   label: 'The transcript has wrong words',           hint: "Edit the transcript before you click Generate — click Edit in the Review step and fix tooth numbers, drug names, or any mishearing. Correcting there gives much better output." },
+      { id: 'tr-empty',   label: 'The report came back empty',               hint: "This happens when the transcript is too short or unclear. Edit the transcript to add more context, then click Regenerate (shown in the report header)." },
+      { id: 'tr-send',    label: 'Email or WhatsApp failed to send',         hint: "The report is safe — it's not lost. Check the patient's email address or phone number, then click Approve & Send again. Only the failed channel retries." },
+      { id: 'air-guide',  label: 'Full troubleshooting guide',               slug: '10-ai-report-generation' },
+      { id: 'back',       label: '← Back',                                   back: true },
     ],
   },
 
@@ -129,11 +219,25 @@ export const NODES = {
     smilo: "I see you're on Appointments — what can I help with?",
     avatarState: 'idle',
     options: [
-      { id: 'ca-book',       label: 'Book a new appointment',    slug: '02-book-appointment' },
-      { id: 'ca-reschedule', label: 'Reschedule an appointment', slug: '02-book-appointment', hint: 'Open the appointment → Reschedule → pick a new slot.' },
-      { id: 'ca-cancel',     label: 'Cancel an appointment',     slug: '02-book-appointment', hint: "Open the appointment → Cancel and add a reason." },
-      { id: 'ca-noshow',     label: 'Mark a no-show',            slug: '02-book-appointment', hint: "Change the status to 'No Show' on the appointment." },
-      { id: 'other',         label: 'Something else',            next: 'root' },
+      { id: 'ca-book',       label: 'Book a new appointment',          slug: '02-book-appointment' },
+      { id: 'ca-reschedule', label: 'Reschedule an appointment',       slug: '02-book-appointment', hint: 'Open the appointment → Reschedule → pick a new slot.' },
+      { id: 'ca-cancel',     label: 'Cancel an appointment',           slug: '02-book-appointment', hint: "Open the appointment → Cancel and add a reason." },
+      { id: 'ca-noshow',     label: 'Mark a no-show',                  slug: '02-book-appointment', hint: "Change the status to 'No Show' on the appointment." },
+      { id: 'ca-ai-report',  label: 'Generate an AI clinical report 🤖', next: 'ai-report' },
+      { id: 'other',         label: 'Something else',                  next: 'root' },
+    ],
+  },
+
+  'ctx-treatment': {
+    smilo: "I see you're on a patient's treatment page. What do you need help with?",
+    avatarState: 'idle',
+    options: [
+      { id: 'ct-ai-report',    label: 'Generate an AI clinical report 🤖', next: 'ai-report' },
+      { id: 'ct-treatment',    label: "Record today's treatment",           slug: '03-clinical-charting' },
+      { id: 'ct-notes',        label: 'Write clinical notes',               slug: '03-clinical-charting', hint: 'Clinical notes are permanent once saved — write accurately. Add a dated correction note to fix errors.' },
+      { id: 'ct-prescription', label: 'Add a prescription',                 slug: '03-clinical-charting', hint: 'Open the visit → Prescription section → add drug name, dosage, frequency, and duration.' },
+      { id: 'ct-send',         label: 'Send documents to patient',          hint: "Scroll to the bottom bar of the Treatment page. 'Send via Email' sends PDFs (Smart Report, Invoice, AI Report) by email. 'Send via WhatsApp' sends the same documents as WhatsApp files — enter the number with country code, e.g. 919876543210." },
+      { id: 'other',           label: 'Something else',                     next: 'root' },
     ],
   },
 
@@ -178,6 +282,41 @@ export const NODES = {
       { id: 'cl-status',  label: 'Update an order status',  slug: '06-lab-orders' },
       { id: 'cl-receive', label: 'Mark work as received',   slug: '06-lab-orders' },
       { id: 'other',      label: 'Something else',          next: 'root' },
+    ],
+  },
+
+  email: {
+    smilo: "Email & document sharing — what do you need?",
+    avatarState: 'thinking',
+    options: [
+      { id: 'e-connect',    label: 'Connect Gmail / SMTP',               hint: "Go to Settings → Email → Connection. Choose Gmail or Custom SMTP, enter credentials, and click Save. Use Gmail App Password — not your regular password. Test with the Send Test button." },
+      { id: 'e-automation', label: 'Set up automatic emails',            next: 'email-automation' },
+      { id: 'e-send',       label: 'Send documents from treatment page', hint: "Open the patient's Treatment page → scroll to the bottom bar → click 'Send via Email' (email + PDF attachments) or 'Send via WhatsApp' (direct document delivery). Both buttons let you choose which documents to include." },
+      { id: 'e-share',      label: 'Configure document sharing settings', hint: "Go to Settings → Share with Patient. Four sections: Invoice, Prescription, Smart Report, and AI Report — configure formatting and delivery options for each." },
+      { id: 'e-fail',       label: 'Email is not sending / error',       hint: "Check: (1) Email enabled in Settings → Email → Connection, (2) SMTP credentials are correct, (3) Gmail users must use an App Password. Run 'Send Test' to see the exact error." },
+      { id: 'back',         label: '← Back',                            back: true },
+    ],
+  },
+
+  'email-automation': {
+    smilo: "Email automation sends emails to patients automatically — no clicking needed. Here's how to set it up:\n\n1️⃣ Connect Gmail (Settings → Email → Connection)\n2️⃣ Turn on **Enable Email Delivery**\n3️⃣ Go to **Automation** tab → turn on **Automation Master Switch**\n4️⃣ Enable the events you want: **Appointment Booked** and/or **Appointment Completed**\n5️⃣ Click **Choose from templates** under each event to pre-fill the subject and body, then edit to your liking\n6️⃣ Click **Save Automation Settings**",
+    avatarState: 'idle',
+    options: [
+      { id: 'ea-vars',      label: 'What variables can I use in the email?', hint: "In Appointment Booked: {{first_name}}, {{name}}, {{doctor}}, {{date}}, {{time}}, {{clinic}}. In Appointment Completed: {{first_name}}, {{name}}, {{doctor}}, {{date}}, {{treatments}}, {{clinic}}. Type them exactly as shown." },
+      { id: 'ea-conflict',  label: "Automation is on but I can't send manually", hint: "When Appointment Completed automation is active, the 'Send via Email' button on the Treatment page is intentionally disabled to avoid duplicate emails. Turn the automation off in Settings → Email → Automation to re-enable manual sending." },
+      { id: 'ea-whatsapp',  label: 'Can I send documents via WhatsApp instead?', hint: "Yes — use 'Send via WhatsApp' on the Treatment page. It is independent of the email automation. Select Smart Report, Invoice, and/or AI Report, enter the patient's number with country code (e.g. 919876543210), and tap Send." },
+      { id: 'back',         label: '← Back',                                    back: true },
+    ],
+  },
+
+  'ctx-settings': {
+    smilo: "I see you're in Settings — what are you configuring?",
+    avatarState: 'idle',
+    options: [
+      { id: 'cs-email',     label: 'Email & automation',        next: 'email' },
+      { id: 'cs-share',     label: 'Share with Patient (documents)', hint: "Settings → Share with Patient. Configure Invoice, Prescription, Smart Report, and AI Report delivery options." },
+      { id: 'cs-whatsapp',  label: 'WhatsApp connection',       slug: '07-whatsapp-automation', hint: 'Settings → WhatsApp. Enter your WaSender credentials and connect the clinic number.' },
+      { id: 'other',        label: 'Something else',            next: 'root' },
     ],
   },
 
