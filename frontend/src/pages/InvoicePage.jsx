@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Plus, X, Printer, Mail, Share2, Loader2, CreditCard, Receipt } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Plus, X, Printer, Mail, Share2, Loader2, CreditCard, Receipt, Search, Filter } from 'lucide-react';
 import API from '../services/api';
 import NewInvoiceModal from '../modals/NewInvoiceModal.jsx';
 
@@ -396,6 +396,10 @@ const InvoicesPage = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewInvoiceId, setViewInvoiceId] = useState(null);
   const [payInvoice, setPayInvoice] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -407,6 +411,35 @@ const InvoicesPage = () => {
 
   useEffect(() => { fetchInvoices(); }, []);
 
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      const searchLower = searchQuery.toLowerCase().trim();
+      const matchesSearch = !searchLower ||
+        inv.invoice_id.toLowerCase().includes(searchLower) ||
+        inv.patient_name.toLowerCase().includes(searchLower) ||
+        (inv.patient_phone && inv.patient_phone.includes(searchLower));
+
+      const invDate = new Date(inv.date || inv.createdAt);
+      let matchesDateFrom = true;
+      let matchesDateTo = true;
+
+      // If only dateFrom is provided, use it as a single date filter
+      if (dateFrom && !dateTo) {
+        const fromDate = new Date(dateFrom);
+        const toDate = new Date(dateFrom);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDateFrom = invDate >= fromDate && invDate <= toDate;
+      } else {
+        if (dateFrom) matchesDateFrom = invDate >= new Date(dateFrom);
+        if (dateTo) matchesDateTo = invDate <= new Date(new Date(dateTo).setHours(23, 59, 59, 999));
+      }
+
+      const matchesStatus = !statusFilter || inv.status === statusFilter;
+
+      return matchesSearch && matchesDateFrom && matchesDateTo && matchesStatus;
+    });
+  }, [invoices, searchQuery, dateFrom, dateTo, statusFilter]);
+
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400" /></div>;
 
   const statusStyles = {
@@ -416,71 +449,160 @@ const InvoicesPage = () => {
     Draft: 'bg-slate-100 text-slate-600',
   };
 
+  const hasActiveFilters = searchQuery || dateFrom || dateTo || statusFilter;
+
   return (
     <div className="flex flex-col h-full overflow-hidden relative">
       <header className="pb-6 bg-white border-b border-slate-200 flex-shrink-0">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
           <div><h1 className="text-2xl font-bold text-slate-900 tracking-tight">Invoices</h1><p className="text-slate-500 mt-1">Manage billing</p></div>
           <button onClick={() => setShowCreateModal(true)} className="flex items-center gap-2 px-4 py-2 bg-[#137fec] text-white rounded-lg hover:bg-blue-600 shadow-lg text-sm font-bold">
             <Plus size={20} /> New Invoice
           </button>
         </div>
+
+        {/* Search and Filters - Single Line */}
+        <div className="flex flex-col lg:flex-row gap-2 items-start lg:items-center">
+          {/* Search Bar - Takes most space */}
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search invoice ID, name, phone..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] text-sm"
+            />
+          </div>
+
+          {/* Right side filters container */}
+          <div className="flex flex-col lg:flex-row gap-2 items-start lg:items-center w-full lg:w-auto">
+            {/* Date From */}
+            <div className="w-full lg:w-auto">
+              <label className="text-xs font-semibold text-slate-600 block mb-0.5">From</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full lg:w-40 px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] text-sm"
+              />
+            </div>
+
+            {/* Date To */}
+            <div className="w-full lg:w-auto">
+              <label className="text-xs font-semibold text-slate-600 block mb-0.5">To</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full lg:w-40 px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] text-sm"
+              />
+            </div>
+
+            {/* Status Filter */}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full lg:w-44 px-3 py-1.5 border border-slate-300 rounded-lg focus:outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] text-sm bg-white"
+            >
+              <option value="">All Statuses</option>
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+              <option value="Overdue">Overdue</option>
+              <option value="Draft">Draft</option>
+            </select>
+
+            {/* Clear Filters Button */}
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setDateFrom('');
+                  setDateTo('');
+                  setStatusFilter('');
+                }}
+                className="w-full lg:w-auto px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded-lg hover:bg-blue-50 whitespace-nowrap"
+              >
+                Clear
+              </button>
+            )}
+
+            {/* Results Count */}
+            {hasActiveFilters && (
+              <span className="text-xs text-slate-600 font-medium whitespace-nowrap">
+                {filteredInvoices.length}/{invoices.length}
+              </span>
+            )}
+          </div>
+        </div>
       </header>
 
       <div className="flex-1 overflow-auto relative z-0 mt-6">
-        <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold">
-              <tr>
-                <th className="px-6 py-4">ID</th>
-                <th className="px-6 py-4">Patient</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4 text-right">Total</th>
-                <th className="px-6 py-4 text-right">Pending</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {invoices.map(inv => (
-                <tr key={inv._id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => setViewInvoiceId(inv._id)}
-                      className="font-semibold text-[#137fec] hover:underline focus:outline-none"
-                    >
-                      {inv.invoice_id}
-                    </button>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-bold text-slate-800">{inv.patient_name}</div>
-                    <div className="text-xs text-slate-500">{inv.patient_phone}</div>
-                  </td>
-                  <td className="px-6 py-4 text-slate-500">{new Date(inv.date || inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                  <td className="px-6 py-4 text-right font-medium text-slate-900">₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
-                  <td className={`px-6 py-4 text-right font-bold ${inv.pending_amount > 0 ? 'text-red-500' : 'text-slate-300'}`}>
-                    {inv.pending_amount > 0 ? `₹${Number(inv.pending_amount).toLocaleString('en-IN')}` : '—'}
-                  </td>
-                  <td className="px-6 py-4 text-center">
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusStyles[inv.status] || 'bg-slate-100 text-slate-600'}`}>
-                      {inv.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {inv.pending_amount > 0 && (
-                      <button
-                        onClick={() => setPayInvoice(inv)}
-                        className="text-white bg-[#137fec] hover:bg-blue-600 flex items-center gap-1 font-medium text-xs rounded px-2 py-1 ml-auto"
-                      >
-                        <CreditCard size={14} /> Add Payment
-                      </button>
-                    )}
-                  </td>
+        {filteredInvoices.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Filter size={32} className="mx-auto text-slate-300 mb-2" />
+              <p className="text-slate-500 text-sm font-medium">No invoices found</p>
+              <p className="text-slate-400 text-xs mt-1">
+                {hasActiveFilters ? 'Try adjusting your filters' : 'Create your first invoice'}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase text-xs font-semibold">
+                <tr>
+                  <th className="px-6 py-4">ID</th>
+                  <th className="px-6 py-4">Patient</th>
+                  <th className="px-6 py-4">Date</th>
+                  <th className="px-6 py-4 text-right">Total</th>
+                  <th className="px-6 py-4 text-right">Pending</th>
+                  <th className="px-6 py-4 text-center">Status</th>
+                  <th className="px-6 py-4 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredInvoices.map(inv => (
+                  <tr key={inv._id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => setViewInvoiceId(inv._id)}
+                        className="font-semibold text-[#137fec] hover:underline focus:outline-none"
+                      >
+                        {inv.invoice_id}
+                      </button>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-slate-800">{inv.patient_name}</div>
+                      <div className="text-xs text-slate-500">{inv.patient_phone}</div>
+                    </td>
+                    <td className="px-6 py-4 text-slate-500">{new Date(inv.date || inv.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="px-6 py-4 text-right font-medium text-slate-900">₹{Number(inv.total_amount).toLocaleString('en-IN')}</td>
+                    <td className={`px-6 py-4 text-right font-bold ${inv.pending_amount > 0 ? 'text-red-500' : 'text-slate-300'}`}>
+                      {inv.pending_amount > 0 ? `₹${Number(inv.pending_amount).toLocaleString('en-IN')}` : '—'}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusStyles[inv.status] || 'bg-slate-100 text-slate-600'}`}>
+                        {inv.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {inv.pending_amount > 0 && (
+                        <button
+                          onClick={() => setPayInvoice(inv)}
+                          className="text-white bg-[#137fec] hover:bg-blue-600 flex items-center gap-1 font-medium text-xs rounded px-2 py-1 ml-auto"
+                        >
+                          <CreditCard size={14} /> Add Payment
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <ViewInvoiceModal invoiceId={viewInvoiceId} onClose={() => setViewInvoiceId(null)} />

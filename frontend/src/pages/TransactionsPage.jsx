@@ -129,9 +129,17 @@ const TransactionsPage = () => {
     return true;
   });
 
-  const totalAmount = filteredTransactions.reduce((acc, curr) => 
+  const totalAmount = filteredTransactions.reduce((acc, curr) =>
     curr.type === 'Income' ? acc + curr.amount : acc - curr.amount
   , 0);
+
+  const cashAmount = filteredTransactions
+    .filter(txn => txn.method === 'Cash')
+    .reduce((acc, curr) => curr.type === 'Income' ? acc + curr.amount : acc - curr.amount, 0);
+
+  const bankAmount = filteredTransactions
+    .filter(txn => txn.method === 'UPI' || txn.method === 'Bank Transfer')
+    .reduce((acc, curr) => curr.type === 'Income' ? acc + curr.amount : acc - curr.amount, 0);
 
   // --- HANDLERS ---
   
@@ -299,14 +307,14 @@ const TransactionsPage = () => {
               <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600"><FileText size={28} /></div>
               <div>
                 <p className="text-slate-500 text-sm font-medium">Cash</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹6,500</h3>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹{cashAmount.toLocaleString()}</h3>
               </div>
             </div>
             <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
               <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl text-orange-600"><Building2 size={28} /></div>
               <div>
                 <p className="text-slate-500 text-sm font-medium">Bank</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹0</h3>
+                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹{bankAmount.toLocaleString()}</h3>
               </div>
             </div>
           </div>
