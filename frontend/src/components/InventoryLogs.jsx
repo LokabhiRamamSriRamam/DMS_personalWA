@@ -152,7 +152,7 @@ export const AddLogModal = ({ isOpen, onClose, onSave }) => {
 };
 
 // --- MAIN LOGS COMPONENT ---
-const InventoryLogs = ({ medicineEnabled = true, consumableEnabled = true }) => {
+const InventoryLogs = ({ medicineEnabled = true, consumableEnabled = true, searchQuery = '', logTypeFilter = '', logCategoryFilter = '' }) => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -176,10 +176,15 @@ const InventoryLogs = ({ medicineEnabled = true, consumableEnabled = true }) => 
   // Rows whose item_id is missing/null are kept (cannot determine type).
   const visibleLogs = logs.filter(log => {
     const itemType = log.item_id?.type;
-    if (!itemType) return true;
-    if (itemType === 'Pharmacy') return medicineEnabled;
-    if (itemType === 'Consumable' || itemType === 'Asset') return consumableEnabled;
-    return true;
+    const categoryEnabled = !itemType ||
+                          (itemType === 'Pharmacy' ? medicineEnabled : true) ||
+                          ((itemType === 'Consumable' || itemType === 'Asset') ? consumableEnabled : true);
+    const matchesSearch = log.item_id?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          log.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          log.notes?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesLogType = !logTypeFilter || log.type === logTypeFilter;
+    const matchesCategory = !logCategoryFilter || itemType === logCategoryFilter;
+    return categoryEnabled && matchesSearch && matchesLogType && matchesCategory;
   });
 
   // Expose refresh function to parent via ref if needed, 

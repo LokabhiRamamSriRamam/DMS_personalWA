@@ -385,7 +385,7 @@ export const AddItemModal = ({ isOpen, onClose, editItem, onSave }) => {
 };
 
 // --- MAIN COMPONENT ---
-const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true }) => {
+const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true, searchQuery = '', brandFilter = '' }) => {
   const [items, setItems] = useState({ pharmacy: [], consumables: [] });
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen]           = useState(false);
@@ -394,7 +394,20 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
   const [isBulkConOpen, setIsBulkConOpen]       = useState(false);
   const [contextMenu, setContextMenu]           = useState(null);
   const [expandedSections, setExpandedSections] = useState({ pharmacy: false, consumable: false });
+  const [localCategoryPharmacyFilter, setLocalCategoryPharmacyFilter] = useState('');
+  const [localCategoryConsumableFilter, setLocalCategoryConsumableFilter] = useState('');
   const contextMenuRef = useRef(null);
+
+  const filterItems = (items, localCategoryFilter) => {
+    return items.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            (item.manufacturer && item.manufacturer.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                            (item.category && item.category.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesBrandFilter = !brandFilter || item.manufacturer === brandFilter;
+      const matchesCategoryFilter = !localCategoryFilter || item.category === localCategoryFilter;
+      return matchesSearch && matchesBrandFilter && matchesCategoryFilter;
+    });
+  };
 
   const toggleSection = (type) => setExpandedSections(prev => ({ ...prev, [type]: !prev[type] }));
 
@@ -437,22 +450,46 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
     setContextMenu(null);
   };
 
+  // Get unique categories for each type
+  const pharmacyCategories = [...new Set(items.pharmacy.map(i => i.category).filter(Boolean))].sort();
+  const consumableCategories = [...new Set(items.consumables.map(i => i.category).filter(Boolean))].sort();
+
   const SECTIONS = [
-    medicineEnabled  && { type: 'pharmacy',   t: 'Pharmacy Items',    i: Pill,    d: items.pharmacy,   c: 'bg-blue-50/50' },
-    consumableEnabled && { type: 'consumable', t: 'Consumable Items',  i: Syringe, d: items.consumables, c: 'bg-teal-50/50' },
+    medicineEnabled  && { type: 'pharmacy',   t: 'Pharmacy Items',    i: Pill,    d: filterItems(items.pharmacy, localCategoryPharmacyFilter),   c: 'bg-blue-50/50', cats: pharmacyCategories },
+    consumableEnabled && { type: 'consumable', t: 'Consumable Items',  i: Syringe, d: filterItems(items.consumables, localCategoryConsumableFilter), c: 'bg-teal-50/50', cats: consumableCategories },
   ].filter(Boolean);
 
   if (loading) return <div className="h-full flex items-center justify-center"><Loader2 className="animate-spin text-slate-400"/></div>;
 
   // ── Shared section header ────────────────────────────────────────────────
-  const SectionHead = ({ sec }) => (
+  const SectionHead = ({ sec, isMobile }) => (
     <div className={`flex items-center justify-between p-3 border-b border-slate-200 ${sec.c}`}>
-      <button onClick={() => toggleSection(sec.type)} className="flex items-center gap-2 flex-1 text-left">
-        <div className="p-1.5 bg-white/60 rounded-lg shadow-sm"><sec.i size={16} className="text-slate-700" /></div>
-        <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${expandedSections[sec.type] ? '' : '-rotate-90'}`} />
-      </button>
+      {isMobile ? (
+        <button onClick={() => toggleSection(sec.type)} className="flex items-center gap-2 flex-1 text-left">
+          <div className="p-1.5 bg-white/60 rounded-lg shadow-sm"><sec.i size={16} className="text-slate-700" /></div>
+          <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
+          <ChevronDown size={14} className={`text-slate-400 transition-transform ${expandedSections[sec.type] ? '' : '-rotate-90'}`} />
+        </button>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-white/60 rounded-lg shadow-sm"><sec.i size={16} className="text-slate-700" /></div>
+          <h3 className="font-bold text-slate-800 text-sm">{sec.t}</h3>
+        </div>
+      )}
       <div className="flex items-center gap-2">
+        {!isMobile && sec.cats && sec.cats.length > 0 && (
+          <select
+            value={sec.type === 'pharmacy' ? localCategoryPharmacyFilter : localCategoryConsumableFilter}
+            onChange={(e) => sec.type === 'pharmacy' ? setLocalCategoryPharmacyFilter(e.target.value) : setLocalCategoryConsumableFilter(e.target.value)}
+            className="px-2 py-1 border border-slate-300 rounded text-xs outline-none focus:border-[#137fec] focus:ring-1 focus:ring-[#137fec] bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <option value="">All Categories</option>
+            {sec.cats.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
+          </select>
+        )}
         {sec.type === 'pharmacy' && (
           <button onClick={() => setIsBulkMedOpen(true)} className="flex items-center gap-1.5 px-2.5 py-1 bg-[#137fec] hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold shadow-sm transition-colors">
             <Upload size={12} /><span className="hidden xs:inline">Bulk Upload</span>
@@ -474,7 +511,7 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
       <div className="sm:hidden flex flex-col gap-4">
         {SECTIONS.map((sec, idx) => (
           <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <SectionHead sec={sec} />
+            <SectionHead sec={sec} isMobile={true} />
             {expandedSections[sec.type] && (
               <div className="divide-y divide-slate-100">
                 {sec.d.length === 0
@@ -516,44 +553,42 @@ const InventoryItems = ({ SectionHeader, medicineEnabled = true, consumableEnabl
       <div className={`hidden sm:grid grid-cols-1 ${SECTIONS.length > 1 ? 'lg:grid-cols-2' : ''} gap-6 flex-1 min-h-0`} onClick={() => setContextMenu(null)}>
         {SECTIONS.map((sec, idx) => (
           <div key={idx} className="flex flex-col bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden h-full">
-            <SectionHead sec={sec} />
-            {expandedSections[sec.type] && (
-              <div className="overflow-auto flex-1">
-                <table className="w-full text-left border-collapse">
-                  <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
-                    <tr>
-                      <th className="p-3">Name & Company</th>
-                      <th className="p-3">Category</th>
-                      {sec.type === 'consumable' && <th className="p-3 text-center text-teal-600">Unit</th>}
-                      <th className="p-3 text-right text-blue-600">Cost</th>
-                      {sec.type === 'pharmacy' && <th className="p-3 text-right text-green-600">SP</th>}
-                      <th className="p-3 text-right">Stock / Min</th>
+            <SectionHead sec={sec} isMobile={false} />
+            <div className="overflow-auto flex-1">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 sticky top-0 z-10 text-[11px] font-bold text-slate-500 uppercase">
+                  <tr>
+                    <th className="p-3">Name & Company</th>
+                    <th className="p-3">Category</th>
+                    {sec.type === 'consumable' && <th className="p-3 text-center text-teal-600">Unit</th>}
+                    <th className="p-3 text-right text-blue-600">Cost</th>
+                    {sec.type === 'pharmacy' && <th className="p-3 text-right text-green-600">SP</th>}
+                    <th className="p-3 text-right">Stock / Min</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {sec.d.map(item => (
+                    <tr key={item._id} onContextMenu={(e) => handleContextMenu(e, item)} className="hover:bg-slate-50 cursor-context-menu transition-colors select-none">
+                      <td className="p-3">
+                        <div className="font-bold text-slate-700">{item.name}</div>
+                        <div className="text-xs text-slate-500">{item.manufacturer}</div>
+                      </td>
+                      <td className="p-3"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{item.category}</span></td>
+                      {sec.type === 'consumable' && <td className="p-3 text-center"><span className="bg-teal-100 px-2 py-1 rounded text-xs border border-teal-200 text-teal-700 font-medium">{item.consumption_unit ? `${item.consumption_unit}` : '-'}</span></td>}
+                      <td className="p-3 text-right font-medium text-slate-600">₹{item.cost_price || 0}</td>
+                      {sec.type === 'pharmacy' && <td className="p-3 text-right font-medium text-green-700">₹{item.selling_price || 0}</td>}
+                      <td className="p-3 text-right">
+                        <div className="flex flex-col items-end">
+                          <span className={`font-bold text-md ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>{item.stock_on_hand}</span>
+                          <span className="text-[10px] text-slate-400">Min: {item.min_stock_level}</span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-sm">
-                    {sec.d.map(item => (
-                      <tr key={item._id} onContextMenu={(e) => handleContextMenu(e, item)} className="hover:bg-slate-50 cursor-context-menu transition-colors select-none">
-                        <td className="p-3">
-                          <div className="font-bold text-slate-700">{item.name}</div>
-                          <div className="text-xs text-slate-500">{item.manufacturer}</div>
-                        </td>
-                        <td className="p-3"><span className="bg-slate-100 px-2 py-1 rounded text-xs border border-slate-200">{item.category}</span></td>
-                        {sec.type === 'consumable' && <td className="p-3 text-center"><span className="bg-teal-100 px-2 py-1 rounded text-xs border border-teal-200 text-teal-700 font-medium">{item.consumption_unit ? `${item.consumption_unit}` : '-'}</span></td>}
-                        <td className="p-3 text-right font-medium text-slate-600">₹{item.cost_price || 0}</td>
-                        {sec.type === 'pharmacy' && <td className="p-3 text-right font-medium text-green-700">₹{item.selling_price || 0}</td>}
-                        <td className="p-3 text-right">
-                          <div className="flex flex-col items-end">
-                            <span className={`font-bold text-md ${item.stock_on_hand <= item.min_stock_level ? 'text-red-600' : 'text-slate-800'}`}>{item.stock_on_hand}</span>
-                            <span className="text-[10px] text-slate-400">Min: {item.min_stock_level}</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {sec.d.length === 0 && <tr><td colSpan="6" className="p-4 text-center text-slate-400 text-xs">No items found.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                  ))}
+                  {sec.d.length === 0 && <tr><td colSpan="6" className="p-4 text-center text-slate-400 text-xs">No items found.</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         ))}
 

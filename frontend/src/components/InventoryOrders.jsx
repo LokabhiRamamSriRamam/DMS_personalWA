@@ -311,15 +311,29 @@ export const CreateOrderModal = ({ isOpen, onClose, onSave, editOrder }) => {
 };
 
 // --- MAIN COMPONENT ---
-const InventoryOrders = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true }) => {
+const InventoryOrders = ({ SectionHeader, medicineEnabled = true, consumableEnabled = true, searchQuery = '', orderStatusFilter = '', orderVendorFilter = '', dateFromFilter = '', dateToFilter = '' }) => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filter orders by category. "General" orders are always shown.
   const visibleOrders = orders.filter(o => {
-    if (o.category === 'Pharmacy') return medicineEnabled;
-    if (o.category === 'Consumable') return consumableEnabled;
-    return true;
+    const matchesCategory = !((o.category === 'Pharmacy' && !medicineEnabled) || (o.category === 'Consumable' && !consumableEnabled));
+    const matchesSearch = o.vendor.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          o.items?.some(i => i.item_name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = !orderStatusFilter || o.status === orderStatusFilter;
+    const matchesVendor = !orderVendorFilter || o.vendor === orderVendorFilter;
+    const orderDate = new Date(o.order_date);
+    let matchesDate = true;
+    if (dateFromFilter) {
+      const fromDate = new Date(dateFromFilter);
+      matchesDate = orderDate >= fromDate;
+    }
+    if (dateToFilter && matchesDate) {
+      const toDate = new Date(dateToFilter);
+      toDate.setHours(23, 59, 59, 999);
+      matchesDate = orderDate <= toDate;
+    }
+    return matchesCategory && matchesSearch && matchesStatus && matchesVendor && matchesDate;
   });
   
   // Modal & Context Menu State

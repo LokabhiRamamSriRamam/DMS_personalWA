@@ -267,7 +267,7 @@ export const BulkUploadVendorsModal = ({ isOpen, onClose, onUpload }) => {
 };
 
 // --- MAIN COMPONENT ---
-const InventoryVendors = () => {
+const InventoryVendors = ({ searchQuery = '', vendorTypeFilter = '' }) => {
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -296,6 +296,16 @@ const InventoryVendors = () => {
   useEffect(() => {
     fetchVendors();
   }, []);
+
+  // Filter vendors
+  const filteredVendors = vendors.filter(v => {
+    const matchesSearch = v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          v.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          v.phone?.includes(searchQuery) ||
+                          v.email?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesType = !vendorTypeFilter || v.type === vendorTypeFilter;
+    return matchesSearch && matchesType;
+  });
 
   // Context Menu Handlers
   useEffect(() => {
@@ -360,9 +370,9 @@ const InventoryVendors = () => {
           <HeaderActions />
         </div>
         <div className="divide-y divide-slate-100">
-          {vendors.length === 0
+          {filteredVendors.length === 0
             ? <p className="p-4 text-center text-xs text-slate-400">No vendors found. Add one to get started.</p>
-            : vendors.map(v => (
+            : filteredVendors.map(v => (
               <div key={v._id} className="p-3 flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-0.5">
@@ -404,7 +414,7 @@ const InventoryVendors = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {vendors.map(v => (
+                {filteredVendors.map(v => (
                   <tr key={v._id} className="hover:bg-slate-50 text-sm cursor-context-menu select-none transition-colors" onContextMenu={(e) => handleContextMenu(e, v)}>
                     <td className="p-4 font-bold text-slate-800">{v.name}</td>
                     <td className="p-4"><TypeBadge type={v.type} /></td>
@@ -423,7 +433,7 @@ const InventoryVendors = () => {
                     </td>
                   </tr>
                 ))}
-                {vendors.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-400">No vendors found. Add one to get started.</td></tr>}
+                {filteredVendors.length === 0 && <tr><td colSpan="5" className="p-8 text-center text-slate-400">No vendors found. Add one to get started.</td></tr>}
               </tbody>
             </table>
           </div>

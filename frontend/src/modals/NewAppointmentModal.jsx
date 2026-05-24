@@ -417,7 +417,7 @@ const NewAppointmentModal = ({ isOpen, onClose, onSave, appointmentToEdit, defau
                       {doctors.map(d => {
                         const isBusy = busyDoctors.has(d._id);
                         return (
-                          <option key={d._id} value={d._id} disabled={isBusy}>
+                          <option key={d._id} value={d._id}>
                             {d.name} ({d.specialization || 'Gen'}){isBusy ? ' — Busy' : ''}
                           </option>
                         );

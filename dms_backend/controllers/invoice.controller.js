@@ -13,7 +13,7 @@ async function fireInvoiceFlow(tenantModels, invoice) {
       invoiceId:  invoice.invoice_id,
       amount:     invoice.total_amount,
     };
-    await triggerFlow(tenantModels, config.sessionApiKey, 'invoice_created', invoice.patient_phone, templateData);
+    await triggerFlow(tenantModels, config.sessionApiKey, 'invoice_created', invoice.patient_phone, templateData, { idempotencyKey: `invoice:${invoice.invoice_id}` });
   } catch (err) {
     console.error('[invoice] fireInvoiceFlow error', err.message);
   }

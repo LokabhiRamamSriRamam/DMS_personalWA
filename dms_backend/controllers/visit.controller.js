@@ -17,8 +17,10 @@ async function fireTreatmentFlows(tenantModels, visit, treatment) {
       treatment:     treatment.treatment_name,
       date:          new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
     };
-    await triggerFlow(tenantModels, config.sessionApiKey, 'treatment_completed', phone, templateData, { treatmentName: treatment.treatment_name });
-    await triggerFlow(tenantModels, config.sessionApiKey, 'post_treatment_care', phone, templateData, { treatmentName: treatment.treatment_name });
+    const visitId = String(visit._id);
+    const treatmentId = String(treatment._id);
+    await triggerFlow(tenantModels, config.sessionApiKey, 'treatment_completed', phone, templateData, { treatmentName: treatment.treatment_name, idempotencyKey: `treatmentCompleted:${visitId}:${treatmentId}` });
+    await triggerFlow(tenantModels, config.sessionApiKey, 'post_treatment_care', phone, templateData, { treatmentName: treatment.treatment_name, idempotencyKey: `postCare:${visitId}:${treatmentId}` });
   } catch (err) {
     console.error('[visit] fireTreatmentFlows error', err.message);
   }
