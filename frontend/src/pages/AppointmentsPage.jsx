@@ -671,32 +671,35 @@ const AppointmentsPage = () => {
                     </div>
                   );
 
+                  const docColWidth = typeof window !== 'undefined' && window.innerWidth < 768 ? 100 : 140;
+                  const minWidth = 56 + doctors.length * docColWidth;
+
                   return (
-                    <div className="hidden md:block bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
 
                       {/* Sticky header: time gutter + one cell per doctor */}
                       <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
-                        <div className="w-14 shrink-0 border-r border-slate-200" />
+                        <div className="w-10 sm:w-14 shrink-0 border-r border-slate-200" />
                         {doctors.map((doc, i) => (
-                          <div key={doc._id} className={`flex-1 min-w-[140px] px-3 py-2.5 text-center ${i > 0 ? 'border-l border-slate-200' : ''}`}>
-                            <p className="text-xs font-bold text-slate-800 truncate">{doc.name}</p>
-                            <p className="text-[10px] text-slate-400 truncate">{doc.specialization || 'Dentist'}</p>
+                          <div key={doc._id} className={`flex-1 min-w-[100px] sm:min-w-[140px] px-1.5 sm:px-3 py-2 sm:py-2.5 text-center ${i > 0 ? 'border-l border-slate-200' : ''}`}>
+                            <p className="text-[10px] sm:text-xs font-bold text-slate-800 truncate">{doc.name}</p>
+                            <p className="text-[8px] sm:text-[10px] text-slate-400 truncate">{doc.specialization || 'Dentist'}</p>
                           </div>
                         ))}
                       </div>
 
                       {/* Scrollable body */}
-                      <div className="overflow-x-auto overflow-y-auto max-h-[640px]" ref={calendarRef}>
-                        <div className="flex" style={{ minWidth: `${56 + doctors.length * 140}px` }}>
+                      <div className="overflow-x-auto overflow-y-auto max-h-[400px] sm:max-h-[640px]" ref={calendarRef}>
+                        <div className="flex" style={{ minWidth: `${minWidth}px` }}>
 
                           {/* Hour gutter */}
-                          <div className="w-14 shrink-0 border-r border-slate-100 bg-slate-50/70 select-none relative" style={{ height: `${TOTAL_HEIGHT}px` }}>
+                          <div className="w-10 sm:w-14 shrink-0 border-r border-slate-100 bg-slate-50/70 select-none relative" style={{ height: `${TOTAL_HEIGHT}px` }}>
                             {Array.from({ length: END_HOUR - START_HOUR }, (_, i) => {
                               const h = START_HOUR + i;
                               const label = h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
                               return (
-                                <div key={h} style={{ position: 'absolute', top: `${i * HOUR_HEIGHT}px`, width: '100%' }} className="pr-2 flex items-start justify-end pt-1">
-                                  <span className="text-[10px] font-medium text-slate-400 leading-none">{label}</span>
+                                <div key={h} style={{ position: 'absolute', top: `${i * HOUR_HEIGHT}px`, width: '100%' }} className="pr-0.5 sm:pr-2 flex items-start justify-end pt-1">
+                                  <span className="text-[8px] sm:text-[10px] font-medium text-slate-400 leading-none">{label}</span>
                                 </div>
                               );
                             })}
@@ -710,7 +713,7 @@ const AppointmentsPage = () => {
                             return (
                               <div
                                 key={doc._id}
-                                className={`flex-1 min-w-[140px] relative ${colIdx > 0 ? 'border-l border-slate-200' : ''}`}
+                                className={`flex-1 min-w-[100px] sm:min-w-[140px] relative ${colIdx > 0 ? 'border-l border-slate-200' : ''}`}
                                 style={{ height: `${TOTAL_HEIGHT}px`, background: '#f8fafc' }}
                               >
                                 {/* Blue shift bands (on-shift hours) */}
@@ -747,13 +750,13 @@ const AppointmentsPage = () => {
                                   return (
                                     <div
                                       key={apt.id}
-                                      style={{ position: 'absolute', top: `${pos.top}px`, height: `${pos.height}px`, left: '4px', right: '4px', zIndex: 10 }}
-                                      className={`rounded-md border-l-4 px-2 py-1 cursor-pointer overflow-hidden shadow-sm hover:shadow-md transition-shadow ${c.border} ${c.bg}`}
+                                      style={{ position: 'absolute', top: `${pos.top}px`, height: `${pos.height}px`, left: '2px', right: '2px', zIndex: 10 }}
+                                      className={`rounded-md border-l-4 px-1.5 sm:px-2 py-0.5 sm:py-1 cursor-pointer overflow-hidden shadow-sm hover:shadow-md transition-shadow ${c.border} ${c.bg}`}
                                       onClick={() => setActiveDropdown(activeDropdown === apt.id ? null : apt.id)}
                                     >
-                                      <p className={`text-[10px] font-bold leading-none ${c.text}`}>{apt.time}</p>
-                                      <p className="text-[11px] font-semibold text-slate-800 truncate mt-0.5 leading-tight">{apt.patient}</p>
-                                      {pos.height >= 44 && <p className={`text-[10px] truncate ${c.sub}`}>{apt.treatment}</p>}
+                                      <p className={`text-[9px] sm:text-[10px] font-bold leading-none ${c.text}`}>{apt.time}</p>
+                                      <p className="text-[10px] sm:text-[11px] font-semibold text-slate-800 truncate mt-0.5 leading-tight">{apt.patient}</p>
+                                      {pos.height >= 44 && <p className={`text-[8px] sm:text-[10px] truncate ${c.sub}`}>{apt.treatment}</p>}
                                       {activeDropdown === apt.id && <AptDropdown apt={apt} />}
                                     </div>
                                   );
