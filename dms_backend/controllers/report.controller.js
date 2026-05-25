@@ -10,6 +10,48 @@ import { generateReportPdf } from '../services/reportPdf.service.js';
 const upload = multer({ storage: multer.memoryStorage() });
 export const uploadMiddleware = upload.single('file');
 
+// ─── Structured error classification ──────────────────────────────────────────
+// Returns { source, code, userMessage, detail } — stored as JSON in ReportJob.errorMessage
+// and sent in SSE error events so the frontend can show a clean label + debug detail.
+function classifyError(err, source) {
+  const raw = err?.message || String(err);
+
+  if (source === 'sarvam') {
+    if (/401|403|Unauthorized|Forbidden|api.subscription.key/i.test(raw))
+      return { source, code: 'auth', userMessage: 'Transcription failed — invalid Sarvam API key.', detail: raw };
+    if (/429|rate.limit|quota/i.test(raw))
+      return { source, code: 'rate_limit', userMessage: 'Transcription failed — Sarvam rate limit reached. Try again shortly.', detail: raw };
+    if (/timed out|timeout|10 min/i.test(raw))
+      return { source, code: 'timeout', userMessage: 'Transcription timed out — the audio may be too long.', detail: raw };
+    if (/empty|no transcript/i.test(raw))
+      return { source, code: 'empty', userMessage: 'Transcription returned no text. Check audio quality and try again.', detail: raw };
+    if (/5\d\d|server error/i.test(raw))
+      return { source, code: 'server', userMessage: 'Sarvam service is temporarily unavailable. Try again later.', detail: raw };
+    return { source, code: 'unknown', userMessage: 'Transcription service error. Please try again.', detail: raw };
+  }
+
+  if (source === 'nvidia') {
+    if (/401|403|Unauthorized|Forbidden|Bearer/i.test(raw))
+      return { source, code: 'auth', userMessage: 'Report generation failed — invalid NVIDIA API key.', detail: raw };
+    if (/429|rate.limit|quota/i.test(raw))
+      return { source, code: 'rate_limit', userMessage: 'Report generation failed — NVIDIA rate limit reached. Try again shortly.', detail: raw };
+    if (/timed out|timeout|210/i.test(raw))
+      return { source, code: 'timeout', userMessage: 'Report generation timed out. Try again or use a shorter recording.', detail: raw };
+    if (/not configured/i.test(raw))
+      return { source, code: 'config', userMessage: 'NVIDIA API key is not configured. Add it in Settings → API Keys.', detail: raw };
+    if (/5\d\d|server error|upstream/i.test(raw))
+      return { source, code: 'server', userMessage: 'AI service is temporarily unavailable. Try again later.', detail: raw };
+    return { source, code: 'unknown', userMessage: 'AI report generation failed. Please try again.', detail: raw };
+  }
+
+  return { source: 'unknown', code: 'unknown', userMessage: raw, detail: raw };
+}
+
+// Serialize a classified error for storage / SSE transport.
+function serializeError(classified) {
+  return JSON.stringify(classified);
+}
+
 // ─── In-memory audio buffer store (keyed by jobId, TTL ~1h) ───────────────────
 // We can't persist audio to MongoDB (too large). Buffer lives in memory between
 // POST /transcribe (stores it) and the async Sarvam polling (reads it).
@@ -404,9 +446,10 @@ export async function transcribeAudio(req, res) {
 
         await ReportJob.findByIdAndUpdate(job._id, { status: 'transcribed', transcript });
       } catch (err) {
-        console.error('[Report] Sarvam error:', err.message);
+        const classified = classifyError(err, 'sarvam');
+        console.error('[Report] Sarvam error:', classified.code, err.message);
         audioBuffers.delete(String(job._id));
-        await ReportJob.findByIdAndUpdate(job._id, { status: 'failed', errorMessage: err.message });
+        await ReportJob.findByIdAndUpdate(job._id, { status: 'failed', errorMessage: serializeError(classified) });
       }
     })();
 
@@ -693,8 +736,10 @@ export async function generateReport(req, res) {
           reports[template.id] = reportText;
           res.write(`data: ${JSON.stringify({ completed: template.id })}\n\n`);
         } catch (err) {
-          res.write(`data: ${JSON.stringify({ error: `Failed to generate ${template.name}: ${err.message}` })}\n\n`);
-          await ReportJob.findByIdAndUpdate(jobId, { status: 'failed', errorMessage: err.message });
+          const classified = classifyError(err, 'nvidia');
+          console.error('[Report] NVIDIA error:', classified.code, err.message);
+          await ReportJob.findByIdAndUpdate(jobId, { status: 'failed', errorMessage: serializeError(classified) });
+          res.write(`data: ${JSON.stringify({ error: serializeError(classified) })}\n\n`);
           res.end();
           return;
         }
@@ -830,7 +875,9 @@ export async function generateReport(req, res) {
         reports[template.id] = reportText;
         res.write(`data: ${JSON.stringify({ completed: template.id })}\n\n`);
       } catch (err) {
-        res.write(`data: ${JSON.stringify({ error: `Failed to generate ${template.name}: ${err.message}` })}\n\n`);
+        const classified = classifyError(err, 'nvidia');
+        console.error('[Report] NVIDIA error (legacy):', classified.code, err.message);
+        res.write(`data: ${JSON.stringify({ error: serializeError(classified) })}\n\n`);
         res.end();
         return;
       }
@@ -884,11 +931,12 @@ export async function generateReport(req, res) {
     res.end();
 
   } catch (err) {
-    console.error('[Report] Error:', err.message);
+    const classified = classifyError(err, 'nvidia');
+    console.error('[Report] Error:', classified.code, err.message);
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message });
+      res.status(500).json({ error: serializeError(classified) });
     } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+      res.write(`data: ${JSON.stringify({ error: serializeError(classified) })}\n\n`);
       res.end();
     }
   }

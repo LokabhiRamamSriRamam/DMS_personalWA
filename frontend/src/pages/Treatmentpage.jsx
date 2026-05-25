@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Printer, FileText, Monitor, Phone,
@@ -1049,9 +1049,48 @@ function Section({ number, title, description, defaultOpen = false, children }) 
   );
 }
 
+const DRAG_THRESHOLD = 6; // px of movement before treating pointer-down as a drag
+
 // eslint-disable-next-line react/prop-types
 function MobileActionBar({ onConclude, onPrescription, onInvoice, patientId, patient }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]   = useState(false);
+  const [pos,  setPos]    = useState({ right: 16, bottom: 16 }); // distance from viewport edges
+  const dragState = useRef(null); // { startX, startY, startRight, startBottom, moved }
+
+  const onPointerDown = useCallback((e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragState.current = {
+      startX:      e.clientX,
+      startY:      e.clientY,
+      startRight:  pos.right,
+      startBottom: pos.bottom,
+      moved:       false,
+    };
+  }, [pos]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!dragState.current) return;
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
+    if (!dragState.current.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    dragState.current.moved = true;
+    const FAB = 56;
+    setPos({
+      right:  Math.max(8, Math.min(window.innerWidth  - FAB - 8, dragState.current.startRight  - dx)),
+      bottom: Math.max(8, Math.min(window.innerHeight - FAB - 8, dragState.current.startBottom - dy)),
+    });
+  }, []);
+
+  const onPointerUp = useCallback((e) => {
+    if (!dragState.current) return;
+    const wasDrag = dragState.current.moved;
+    dragState.current = null;
+    if (!wasDrag) setOpen(o => !o);
+  }, []);
+
+  // Action-sheet anchor: keep it above the FAB regardless of drag position
+  const sheetBottom = pos.bottom + 56 + 8; // FAB height + gap
 
   return (
     <div className="sm:hidden">
@@ -1060,9 +1099,15 @@ function MobileActionBar({ onConclude, onPrescription, onInvoice, patientId, pat
         <div className="fixed inset-0 z-[95] bg-black/40" onClick={() => setOpen(false)} />
       )}
 
-      {/* Action sheet — slides up from bottom */}
+      {/* Action sheet — floats above FAB */}
       {open && (
-        <div className="fixed bottom-20 left-4 right-4 z-[96] flex flex-col gap-2">
+        <div
+          className="fixed z-[96] flex flex-col gap-2 w-64"
+          style={{
+            right:  Math.max(8, Math.min(pos.right, window.innerWidth - 256 - 8)),
+            bottom: sheetBottom,
+          }}
+        >
           <button
             onClick={() => { onConclude(); setOpen(false); }}
             className="w-full flex items-center gap-2 px-4 py-3 bg-white border-2 border-red-300 text-red-600 font-semibold rounded-xl shadow-lg text-sm"
@@ -1090,13 +1135,24 @@ function MobileActionBar({ onConclude, onPrescription, onInvoice, patientId, pat
         </div>
       )}
 
-      {/* Fixed toggle button — pinned to bottom centre */}
-      <button
-        onClick={() => setOpen(o => !o)}
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[97] w-14 h-14 rounded-full bg-[#137fec] text-white shadow-xl shadow-blue-400/40 flex items-center justify-center active:scale-95 transition-transform"
+      {/* Draggable FAB */}
+      <div
+        style={{
+          position:    'fixed',
+          right:       pos.right,
+          bottom:      pos.bottom,
+          zIndex:      97,
+          touchAction: 'none',
+          cursor:      'grab',
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
       >
-        {open ? <X size={22} /> : <Plus size={22} />}
-      </button>
+        <div className={`w-14 h-14 rounded-full bg-[#137fec] text-white shadow-xl shadow-blue-400/40 flex items-center justify-center transition-transform ${open ? 'scale-95' : 'active:scale-95'}`}>
+          {open ? <X size={22} /> : <Plus size={22} />}
+        </div>
+      </div>
     </div>
   );
 }

@@ -28,6 +28,65 @@ export function reportDeliveryVars(patient, user, selectedTemplate) {
   };
 }
 
+// Parse a backend error — may be a JSON-serialized classified error or a plain string.
+function parseError(raw) {
+  if (!raw) return null;
+  try {
+    const obj = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (obj && obj.source && obj.userMessage) return obj;
+  } catch { /* not JSON */ }
+  return { source: 'unknown', code: 'unknown', userMessage: raw, detail: raw };
+}
+
+const SOURCE_LABEL = { sarvam: 'Connect Transcribe', nvidia: 'Molaris.ai', unknown: 'Error' };
+const CODE_COLOR   = {
+  auth:       'bg-amber-50 border-amber-200 text-amber-800',
+  rate_limit: 'bg-orange-50 border-orange-200 text-orange-800',
+  timeout:    'bg-blue-50  border-blue-200  text-blue-800',
+  config:     'bg-amber-50 border-amber-200 text-amber-800',
+  server:     'bg-red-50   border-red-200   text-red-700',
+  empty:      'bg-yellow-50 border-yellow-200 text-yellow-800',
+  unknown:    'bg-red-50   border-red-200   text-red-700',
+};
+
+function ErrorBadge({ error }) {
+  const [expanded, setExpanded] = useState(false);
+  const parsed = parseError(error);
+  if (!parsed) return null;
+  const colors = CODE_COLOR[parsed.code] || CODE_COLOR.unknown;
+  const sourceLabel = SOURCE_LABEL[parsed.source] || 'Error';
+  const showDetail  = parsed.detail && parsed.detail !== parsed.userMessage;
+
+  return (
+    <div className={`border rounded-lg px-4 py-3 text-sm ${colors}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2 min-w-0">
+          <XCircle size={15} className="mt-0.5 flex-shrink-0" />
+          <span>{parsed.userMessage}</span>
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-black/10 uppercase tracking-wide">
+            {sourceLabel}
+          </span>
+          {showDetail && (
+            <button
+              onClick={() => setExpanded(v => !v)}
+              className="text-[10px] underline opacity-60 hover:opacity-100"
+            >
+              {expanded ? 'hide' : 'details'}
+            </button>
+          )}
+        </div>
+      </div>
+      {expanded && showDetail && (
+        <pre className="mt-2 text-[10px] opacity-70 whitespace-pre-wrap break-all font-mono border-t border-current/20 pt-2">
+          {parsed.detail}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function ReportDisplay({ text }) {
   if (!text) return <p className="text-slate-400 italic">Not generated.</p>;
   return (
@@ -1440,11 +1499,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
             </>
           )}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
+          {error && <ErrorBadge error={error} />}
         </div>
 
         {/* Footer */}
