@@ -193,8 +193,11 @@ export default function BookingPage() {
 
   function validateForm() {
     const e = {};
-    if (!form.phone.trim()) e.phone = 'WhatsApp number is required';
-    else if (!/\d{10}/.test(form.phone.replace(/\D/g,''))) e.phone = 'Enter a valid 10-digit number';
+    if (!form.name.trim()) e.name = 'Full name is required';
+    const digits = form.phone.replace(/\D/g, '');
+    if (!digits) e.phone = 'WhatsApp number is required';
+    else if (digits.length !== 10) e.phone = `Enter exactly 10 digits (${digits.length} entered)`;
+    else if (!/^[6-9]/.test(digits)) e.phone = 'Enter a valid Indian mobile number (must start with 6–9)';
     setFormErrors(e);
     return !Object.keys(e).length;
   }
@@ -204,7 +207,12 @@ export default function BookingPage() {
     setSubmitting(true);
     try {
       const ds = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
-      const res = await axios.post(pub(tenantId, ''), { doctorId: doctor._id, date: ds, time, patient: form });
+      const res = await axios.post(pub(tenantId, ''), {
+        doctorId: doctor._id,
+        date: ds,
+        time,
+        patient: { ...form, phone: `91${form.phone.replace(/\D/g, '')}` },
+      });
       setBookingRef(res.data.appointmentId);
       setStep(4);
     } catch (err) {
@@ -406,7 +414,7 @@ export default function BookingPage() {
           <div>
             <Back onClick={() => setStep(1)} />
             <h2 className="text-xl font-bold text-slate-900 mb-1">Your Details</h2>
-            <p className="text-sm text-slate-500 mb-6">WhatsApp number is required — rest is optional</p>
+            <p className="text-sm text-slate-500 mb-6">Name and WhatsApp number are required</p>
 
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
 
@@ -420,8 +428,12 @@ export default function BookingPage() {
                     type="tel"
                     inputMode="numeric"
                     value={form.phone}
-                    onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                    onChange={e => {
+                      setForm(f => ({ ...f, phone: e.target.value }));
+                      if (formErrors.phone) setFormErrors(fe => ({ ...fe, phone: '' }));
+                    }}
                     placeholder="98765 43210"
+                    maxLength={13}
                     className="flex-1 px-3 py-2.5 text-sm outline-none bg-white text-slate-800 placeholder:text-slate-300"
                   />
                 </div>
@@ -429,14 +441,22 @@ export default function BookingPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">Full Name</label>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Full Name <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={form.name}
-                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  onChange={e => {
+                    setForm(f => ({ ...f, name: e.target.value }));
+                    if (formErrors.name) setFormErrors(fe => ({ ...fe, name: '' }));
+                  }}
                   placeholder="e.g. Priya Sharma"
-                  className="w-full border border-slate-200 focus:border-[#137fec] rounded-xl px-4 py-2.5 text-sm outline-none transition-colors text-slate-800 placeholder:text-slate-300"
+                  className={`w-full border rounded-xl px-4 py-2.5 text-sm outline-none transition-colors text-slate-800 placeholder:text-slate-300 ${
+                    formErrors.name ? 'border-red-400' : 'border-slate-200 focus:border-[#137fec]'
+                  }`}
                 />
+                {formErrors.name && <p className="text-xs text-red-500 mt-1">{formErrors.name}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-4">

@@ -1,4 +1,7 @@
-import { triggerFlow } from '../services/chatbot.service.js';
+import { triggerFlow }            from '../services/chatbot.service.js';
+import { io }                      from '../index.js';
+import { triggerAppointmentBooked } from './email.controller.js';
+import { scheduleReminder }         from './appointment.controller.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -162,8 +165,8 @@ export async function submitBooking(req, res) {
     const { BookingSettings, Doctor, Patient, Appointment, WaSenderConfig } = req.tenantModels;
     const { doctorId, date: dateStr, time, patient: patientData = {} } = req.body;
 
-    if (!doctorId || !dateStr || !time || !patientData.phone) {
-      return res.status(400).json({ message: 'doctorId, date, time and patient phone are required' });
+    if (!doctorId || !dateStr || !time || !patientData.phone || !patientData.name?.trim()) {
+      return res.status(400).json({ message: 'doctorId, date, time, patient name and phone are required' });
     }
 
     const settings = await BookingSettings.findOne().lean();
@@ -226,6 +229,22 @@ export async function submitBooking(req, res) {
       source: 'online',
       notes:  patientData.chiefComplaint || '',
     });
+
+    // Notify clinic staff in real time
+    io.to(`tenant:${req.tenantId}`).emit('booking:new', {
+      appointmentId:   appt._id.toString(),
+      patientName:     `${patient.first_name} ${patient.last_name}`.trim(),
+      date:            start_time.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }),
+      time:            start_time.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }),
+      doctorName:      doctor.name,
+      appointmentDate: dateStr, // YYYY-MM-DD — for frontend navigation
+    });
+
+    // Email automation (same as dashboard-created appointments)
+    triggerAppointmentBooked({ tenantModels: req.tenantModels, appointment: appt }).catch(() => {});
+
+    // Schedule appointment reminder (same as dashboard-created appointments)
+    scheduleReminder(req.tenantModels, appt);
 
     // Fire WaSender appointment_received flow
     const config = await WaSenderConfig?.findOne({ isActive: true });

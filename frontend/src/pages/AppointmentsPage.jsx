@@ -453,10 +453,10 @@ const AppointmentsPage = () => {
                     /* Mobile bottom sheet — avoids iOS Safari fixed-in-overflow-hidden touch bug */
                     <div className="md:hidden">
                       <div
-                        className="fixed inset-0 z-[59] bg-black/40"
+                        className="fixed inset-0 z-[209] bg-black/40"
                         onClick={() => setActiveDropdown(null)}
                       />
-                      <div className="fixed bottom-0 left-0 right-0 z-[60] bg-white rounded-t-2xl shadow-2xl overflow-hidden">
+                      <div className="fixed bottom-0 left-0 right-0 z-[210] bg-white rounded-t-2xl shadow-2xl overflow-hidden">
                         {/* Handle + patient name header */}
                         <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-slate-100">
                           <div>

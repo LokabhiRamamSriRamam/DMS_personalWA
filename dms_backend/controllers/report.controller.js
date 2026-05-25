@@ -185,7 +185,7 @@ Generate the document now following the structure and detail level above. Return
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'minimaxai/minimax-m2.7',
+      model: 'bytedance/seed-oss-36b-instruct',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
@@ -244,7 +244,7 @@ Generate the document now following the structure and detail level above. Return
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'minimaxai/minimax-m2.7',
+        model: 'bytedance/seed-oss-36b-instruct',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userPrompt   },
@@ -316,7 +316,7 @@ Return JSON:
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'minimaxai/minimax-m2.7',
+      model: 'bytedance/seed-oss-36b-instruct',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
