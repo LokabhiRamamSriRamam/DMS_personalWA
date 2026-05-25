@@ -1861,12 +1861,12 @@ function PatientDocumentsTab() {
   }, []);
 
   const sections = [
-    { id: 'invoice',      label: '🧾 Invoice' },
-    { id: 'prescription', label: '💊 Prescription' },
-    { id: 'smart_report', label: '📋 Smart Report' },
-    { id: 'ai_report',    label: '✨ AI Report' },
-    { id: 'send_email',   label: '📧 Send Email' },
-    { id: 'send_whatsapp', label: '💬 Send WhatsApp' },
+    { id: 'invoice',       label: 'Invoice' },
+    { id: 'prescription',  label: 'Prescription' },
+    { id: 'smart_report',  label: 'Smart Report' },
+    { id: 'ai_report',     label: 'AI Report' },
+    { id: 'send_email',    label: 'Send Email' },
+    { id: 'send_whatsapp', label: 'Send WhatsApp' },
   ];
 
   return (

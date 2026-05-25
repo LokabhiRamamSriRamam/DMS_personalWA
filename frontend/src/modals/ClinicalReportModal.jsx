@@ -415,8 +415,13 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         results.whatsapp = { status: 'fail', message: 'Patient phone is required.' };
       } else {
         try {
-          const text = waForm.text + (cloudLink ? `\n\n${cloudLink}` : '');
-          await API.post('/wasender/send', { to: waForm.to.trim(), type: 'text', text });
+          await API.post('/email/send-whatsapp-documents', {
+            patient_id: patientId,
+            phone:      waForm.to.trim(),
+            include:    ['ai_report'],
+            job_id:     jobId,
+            message:    waForm.text || undefined,
+          });
           results.whatsapp = { status: 'ok', message: `Sent on WhatsApp to ${waForm.to.trim()}` };
         } catch (err) {
           results.whatsapp = { status: 'fail', message: err.response?.data?.message || err.response?.data?.error || err.message };
@@ -1461,7 +1466,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                       <MessageSquare size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-700">WhatsApp to patient</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Sends a text message{driveLinks[templateId] ? ' with the Cloud link' : ''}. Review below.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sends the AI report as a PDF document. Review message below.</p>
                       </div>
                     </label>
                     {deliver.whatsapp && (

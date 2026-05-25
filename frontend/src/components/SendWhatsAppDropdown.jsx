@@ -5,15 +5,23 @@ import {
   X, Loader2, CheckCircle, XCircle, Settings, AlertCircle,
 } from 'lucide-react';
 import API from '../services/api';
+import { useAuth } from '../Context/AuthContext.jsx';
+
+function applyVars(str, vars) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/\{\{(\w+)\}\}/g, (_, k) => (vars[k] ?? ''));
+}
 
 export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) {
-  const [open, setOpen]             = useState(false);
-  const [loadState, setLoadState]   = useState('idle');
-  const [waStatus, setWaStatus]     = useState(null);   // { connected, patientPhone, latestInvoice, latestAiReport }
-  const [selected, setSelected]     = useState({ smart_report: true, invoice: false, ai_report: false });
-  const [phoneTo, setPhoneTo]       = useState('');
-  const [sending, setSending]       = useState(false);
-  const [result, setResult]         = useState(null);
+  const { user } = useAuth();
+  const [open, setOpen]           = useState(false);
+  const [loadState, setLoadState] = useState('idle');
+  const [waStatus, setWaStatus]   = useState(null);
+  const [selected, setSelected]   = useState({ smart_report: true, invoice: false, ai_report: false });
+  const [phoneTo, setPhoneTo]     = useState('');
+  const [customMessage, setCustomMessage] = useState('');
+  const [sending, setSending]     = useState(false);
+  const [result, setResult]       = useState(null);
 
   const panelRef = useRef(null);
   const navigate = useNavigate();
@@ -37,13 +45,19 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
     setResult(null);
     if (loadState !== 'idle') return;
     setLoadState('loading');
+
     try {
-      const [sessionRes, statusRes] = await Promise.all([
-        API.get('/wasender/session/status').catch(() => ({ data: {} })),
-        API.get(`/email/patient-status/${patientId}`).catch(() => ({ data: {} })),
+      const [sessionRes, statusRes, dsRes] = await Promise.allSettled([
+        API.get('/wasender/session/status'),
+        API.get(`/email/patient-status/${patientId}`),
+        API.get('/report/delivery-settings'),
       ]);
-      const connected = sessionRes.data?.status === 'connected' || sessionRes.data?.sessionStatus === 'connected';
-      const emailStatus = statusRes.data || {};
+
+      const connected   = sessionRes.status === 'fulfilled'
+        && (sessionRes.value.data?.status === 'connected' || sessionRes.value.data?.sessionStatus === 'connected');
+      const emailStatus = statusRes.status === 'fulfilled' ? statusRes.value.data : {};
+      const ds          = dsRes.status     === 'fulfilled' ? dsRes.value.data     : null;
+
       setWaStatus({
         connected,
         patientPhone:   patient?.contact?.mobile || patient?.contact?.phone || '',
@@ -56,6 +70,26 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
         invoice:      !!emailStatus.latestInvoice,
         ai_report:    !!emailStatus.latestAiReport,
       });
+
+      // Pre-fill message from Settings → Send WhatsApp, placeholders substituted
+      if (ds?.whatsapp?.text) {
+        const patientFullName = patient
+          ? `${patient.first_name} ${patient.last_name || ''}`.trim()
+          : '';
+        const vars = {
+          patientName:  patientFullName,
+          firstName:    patient?.first_name || patientFullName,
+          doctorName:   user?.name || '',
+          clinicName:   user?.clinicName || user?.tenantName || '',
+          date:         new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+          templateName: 'Visit Summary',
+          name:         patientFullName,
+          first_name:   patient?.first_name || '',
+          doctor:       user?.name || '',
+          clinic:       user?.clinicName || user?.tenantName || '',
+        };
+        setCustomMessage(applyVars(ds.whatsapp.text, vars));
+      }
     } catch {
       setWaStatus({ connected: false });
     } finally {
@@ -63,9 +97,7 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
     }
   }
 
-  function toggle(key) {
-    setSelected(s => ({ ...s, [key]: !s[key] }));
-  }
+  function toggle(key) { setSelected(s => ({ ...s, [key]: !s[key] })); }
 
   async function handleSend() {
     const include = Object.keys(selected).filter(k => selected[k]);
@@ -75,8 +107,9 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
     try {
       const res = await API.post('/email/send-whatsapp-documents', {
         patient_id: patientId,
-        phone: phoneTo.trim(),
+        phone:      phoneTo.trim(),
         include,
+        message:    customMessage.trim() || undefined,
       });
       const count = res.data.sent?.length || 0;
       setResult({ ok: true, message: `Sent ${count} document${count !== 1 ? 's' : ''} to ${phoneTo.trim()}` });
@@ -87,8 +120,8 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
     }
   }
 
-  const anySelected    = Object.values(selected).some(Boolean);
-  const missingPhone   = loadState === 'ready' && waStatus?.connected && !phoneTo.trim();
+  const anySelected  = Object.values(selected).some(Boolean);
+  const missingPhone = loadState === 'ready' && waStatus?.connected && !phoneTo.trim();
 
   return (
     <div className={`relative ${fullWidth ? 'w-full' : ''}`} ref={panelRef}>
@@ -102,11 +135,10 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-2 right-0 w-96 bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
-          {/* Header */}
+        <div className="absolute bottom-full mb-2 right-0 w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <p className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-              <MessageSquare size={14} className="text-green-600" /> Send Documents via WhatsApp
+              <MessageSquare size={14} className="text-green-600" /> Send via WhatsApp
             </p>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
               <X size={15} />
@@ -128,7 +160,7 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
                   onClick={() => { setOpen(false); navigate('/settings'); }}
                   className="mt-1 text-xs text-green-600 underline flex items-center gap-1 hover:text-green-800"
                 >
-                  <Settings size={11} /> Go to Settings → WhatsApp
+                  <Settings size={11} /> Go to Settings
                 </button>
               </div>
             )}
@@ -144,7 +176,7 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
                   </div>
                 )}
 
-                {/* What to include */}
+                {/* Documents */}
                 <div className="flex items-center justify-between mb-1">
                   <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Send Documents</p>
                 </div>
@@ -181,6 +213,28 @@ export default function SendWhatsAppDropdown({ patientId, patient, fullWidth }) 
                   }
                   available={!!waStatus.latestAiReport}
                 />
+
+                {/* Message — pre-filled from Settings → Send WhatsApp */}
+                <div className="pt-1 border-t border-slate-100 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Message</p>
+                    <button
+                      onClick={() => { setOpen(false); navigate('/settings#send_whatsapp'); }}
+                      className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-0.5"
+                      title="Edit template in Settings"
+                    >
+                      <Settings size={11} /> Edit template
+                    </button>
+                  </div>
+                  <textarea
+                    value={customMessage}
+                    onChange={e => setCustomMessage(e.target.value)}
+                    rows={4}
+                    placeholder="Message sent before the documents…"
+                    className="w-full px-2.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-green-400 outline-none bg-slate-50 resize-none font-mono"
+                  />
+                  <p className="text-[10px] text-slate-400">Sent as a text message before the document attachments.</p>
+                </div>
 
                 {/* Phone number */}
                 <div className="pt-1">

@@ -753,7 +753,11 @@ export async function sendTreatmentSummary(req, res) {
   }
 
   try {
-    const settings = await EmailSettings.findOne({}).lean();
+    const [settings, ds] = await Promise.all([
+      EmailSettings.findOne({}).lean(),
+      loadDeliverySettings(req.tenantModels),
+    ]);
+
     if (!settings?.enabled) {
       return res.status(400).json({ error: 'Email delivery is not enabled. Configure SMTP in Settings → Email.' });
     }
@@ -804,44 +808,64 @@ export async function sendTreatmentSummary(req, res) {
       return res.status(400).json({ error: 'No content found for the selected items. Generate a visit, invoice, or AI report first.' });
     }
 
-    // Variable data available to the chosen/edited template
+    // All placeholder aliases — supports both Settings template vars ({{patientName}} etc.)
+    // and the legacy automation vars ({{name}}, {{first_name}} etc.)
     const templateData = {
-      name:        patientName,
-      first_name:  patient.first_name,
-      doctor:      doctorName,
-      date:        today,
-      treatments:  treatmentNames.join(', ') || 'your recent treatment',
-      clinic:      settings.fromName || 'your clinic',
+      // delivery-settings naming (Settings → Send Email template)
+      patientName,
+      firstName:    patient.first_name,
+      doctorName,
+      clinicName:   settings.fromName || 'your clinic',
+      date:         today,
+      templateName: 'Visit Summary',
+      treatments:   treatmentNames.join(', ') || 'your recent treatment',
+      // legacy aliases
+      name:         patientName,
+      first_name:   patient.first_name,
+      doctor:       doctorName,
+      clinic:       settings.fromName || 'your clinic',
     };
 
+    // Default subject/body comes from Settings → Send Email; fall back to built-in if unconfigured
     const rawSubject = (customSubject && customSubject.trim())
       ? customSubject
-      : `Your visit summary — ${today}`;
+      : (ds?.email?.subject?.trim() || `Your visit summary — ${today}`);
     const rawBody = (customBody && customBody.trim())
       ? customBody
-      : `Dear {{first_name}},\n\nThank you for visiting us. Please find your documents attached.\n\nWarm regards,\n{{doctor}}\n{{clinic}}`;
+      : (ds?.email?.body?.trim()    || `Dear {{firstName}},\n\nThank you for visiting us. Please find your documents attached.\n\nWarm regards,\n{{doctorName}}\n{{clinicName}}`);
 
     const subject = replacePlaceholders(rawSubject, templateData);
     const body    = replacePlaceholders(rawBody,    templateData);
 
-    const invCfg = await loadInvoiceSettings(req.tenantModels).catch(() => ({}));
-    const attachmentNote = attachments.length
-      ? `${attachments.length} document${attachments.length !== 1 ? 's' : ''} attached: ${attachments.map(a => a.filename).join(', ')}`
-      : '';
-    const html = buildRichHtml(body, {
-      clinicName:     invCfg.clinic?.name  || settings.fromName || '',
-      clinicPhone:    invCfg.clinic?.phone  || '',
-      clinicEmail:    invCfg.clinic?.email  || '',
-      attachmentInfo: attachmentNote,
-    });
+    // Respect htmlEmail toggle from Settings → Send Email
+    const useHtml = ds?.htmlEmail?.enabled ?? true;
+
+    let emailPayload;
+    if (useHtml) {
+      const invCfg = await loadInvoiceSettings(req.tenantModels).catch(() => ({}));
+      const attachmentNote = attachments.length
+        ? `${attachments.length} document${attachments.length !== 1 ? 's' : ''} attached`
+        : '';
+      emailPayload = {
+        html: buildRichHtml(body, {
+          clinicName:    invCfg.clinic?.name  || settings.fromName || '',
+          clinicTagline: ds?.pdf?.clinicTagline || '',
+          clinicPhone:   invCfg.clinic?.phone  || '',
+          clinicEmail:   invCfg.clinic?.email  || '',
+          attachmentInfo: attachmentNote,
+        }),
+        text: body,
+      };
+    } else {
+      emailPayload = { text: body };
+    }
 
     const result = await sendEmail({
       tenantModels: req.tenantModels,
       settings,
       to,
       subject,
-      html,
-      text: body,
+      ...emailPayload,
       attachments,
       patientId: patient_id,
       event: 'appointmentCompleted',
@@ -994,7 +1018,7 @@ export async function triggerAppointmentBooked({ tenantModels, appointment }) {
 
 export async function sendWhatsAppDocuments(req, res) {
   const { Patient, Visit, Invoice, ReportJob, WaSenderConfig } = req.tenantModels;
-  const { patient_id, phone, include = [] } = req.body;
+  const { patient_id, phone, include = [], message: customMessage, job_id } = req.body;
 
   if (!patient_id || !phone || !Array.isArray(include) || !include.length) {
     return res.status(400).json({ error: 'patient_id, phone, and include[] are required' });
@@ -1016,6 +1040,29 @@ export async function sendWhatsAppDocuments(req, res) {
 
     // Normalise phone: ensure it starts with country code, no +
     const to = phone.replace(/^\+/, '').replace(/\D/g, '');
+
+    // Resolve message text: custom (from frontend) > delivery settings > nothing
+    let messageText = customMessage?.trim() || '';
+    if (!messageText) {
+      const ds = await loadDeliverySettings(req.tenantModels);
+      if (ds?.whatsapp?.text?.trim()) {
+        const { replacePlaceholders: rp } = await import('../services/email.service.js');
+        messageText = rp(ds.whatsapp.text, {
+          patientName, firstName: patient.first_name, doctorName, clinicName: config.fromName || '',
+          date: today, templateName: 'Visit Summary',
+          name: patientName, first_name: patient.first_name, doctor: doctorName, clinic: config.fromName || '',
+        });
+      }
+    }
+
+    // Send greeting/context message before documents
+    if (messageText) {
+      try {
+        await waSendMessage(config.sessionApiKey, { to, type: 'text', text: messageText });
+      } catch (e) {
+        console.warn('[WhatsApp] text message failed (non-fatal):', e.message);
+      }
+    }
 
     const sent = [];
     const failed = [];
@@ -1058,7 +1105,9 @@ export async function sendWhatsAppDocuments(req, res) {
     if (include.includes('ai_report')) {
       try {
         const job = ReportJob
-          ? await ReportJob.findOne({ patientId: patient_id, status: 'done' }).sort({ createdAt: -1 }).lean()
+          ? (job_id
+              ? await ReportJob.findById(job_id).lean()
+              : await ReportJob.findOne({ patientId: patient_id, status: 'done' }).sort({ createdAt: -1 }).lean())
           : null;
         if (job?.reportText) {
           const ds = await loadDeliverySettings(req.tenantModels);
