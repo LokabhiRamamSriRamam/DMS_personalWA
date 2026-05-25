@@ -40,7 +40,7 @@ export async function resolveTenant(req, res, next) {
       refreshToken:         tenant.googleRefreshToken,
       driveFolderId:        tenant.googleDriveFolderId,
       sarvamApiKey:         tenant.sarvamApiKey,
-      nvidiaApiKey:         tenant.nvidiaApiKey,
+      openrouterApiKey:     tenant.nvidiaApiKey,
       cloudinaryCloudName:  tenant.cloudinaryCloudName,
       cloudinaryApiKey:     tenant.cloudinaryApiKey,
       cloudinaryApiSecret:  tenant.cloudinaryApiSecret,

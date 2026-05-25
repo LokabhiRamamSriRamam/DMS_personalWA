@@ -502,7 +502,7 @@ const TransactionsPage = () => {
         </div>
 
         {/* Export FAB + menu */}
-        <div className="fixed bottom-8 right-8 z-30 md:absolute">
+        <div className="fixed bottom-24 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-4 z-30 items-end md:absolute md:bottom-8 md:right-8">
           {showExportMenu && (
             <>
               <div
@@ -529,15 +529,14 @@ const TransactionsPage = () => {
               </div>
             </>
           )}
-          <div className="relative z-10 flex justify-end">
+          <div className="group flex items-center justify-end">
             <button
               onClick={() => setShowExportMenu(v => !v)}
               disabled={exportBusy}
-              className="flex items-center justify-center gap-2 bg-[#137fec] hover:bg-blue-700 text-white h-12 px-5 rounded-full transition-all duration-300 shadow-lg whitespace-nowrap disabled:opacity-70"
+              className="flex items-center gap-2 px-4 py-3 bg-[#137fec] hover:bg-blue-700 text-white rounded-full transition-all duration-300 shadow-lg whitespace-nowrap"
             >
-              <Download size={20} className="flex-shrink-0" />
-              <span className="font-medium text-sm">{exportBusy ? 'Exporting…' : 'Export'}</span>
-              <ChevronDown size={16} className={`transition-transform ${showExportMenu ? 'rotate-180' : ''}`} />
+              <Download size={18} className="flex-shrink-0" />
+              <span className="text-sm font-medium">Export CSV</span>
             </button>
           </div>
         </div>
