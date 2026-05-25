@@ -35,7 +35,7 @@ async function buildApptTemplateData(tenantModels, appt) {
   } catch { return {}; }
 }
 
-async function scheduleReminder(tenantModels, appt) {
+export async function scheduleReminder(tenantModels, appt) {
   try {
     const { ChatbotFlow, ScheduledMessage, WaSenderConfig } = tenantModels;
     const config = await WaSenderConfig?.findOne({ isActive: true });

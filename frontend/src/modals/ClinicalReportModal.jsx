@@ -222,9 +222,15 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   // Fetch templates once on first open
   useEffect(() => {
     if (isOpen && templates.length === 0) {
+      console.log('[ClinicalReportModal] Fetching templates');
       API.get('/report/templates')
-        .then(r => setTemplates(r.data))
-        .catch(() => {});
+        .then(r => {
+          console.log('[ClinicalReportModal] Templates loaded:', r.data.length, 'templates');
+          setTemplates(r.data);
+        })
+        .catch(err => {
+          console.error('[ClinicalReportModal] Failed to load templates:', err.message);
+        });
     }
   }, [isOpen]);
 
@@ -315,6 +321,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   // ── Prefill the delivery forms once the report is ready ─────────────────────────
   useEffect(() => {
     if (stage !== 'done') return;
+    console.log('[deliverySetup] Report ready, fetching delivery settings');
+
     const patientName  = patient ? `${patient.first_name} ${patient.last_name || ''}`.trim() : '';
     const patientEmail = patient?.contact?.email  || '';
     const patientPhone = patient?.contact?.mobile || '';
@@ -329,6 +337,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
     // substitute placeholders for this patient/doctor/report.
     API.get('/report/delivery-settings')
       .then(res => {
+        console.log('[deliverySetup] Delivery settings loaded:', res.data);
         const s = res.data || {};
         setEmailForm(f => ({
           ...f,
@@ -345,7 +354,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
           whatsapp: s.defaults?.whatsapp ?? false,
         });
       })
-      .catch(() => {
+      .catch(err => {
+        console.error('[deliverySetup] Failed to load delivery settings:', err.message);
         // Fallback if settings can't load — sensible substituted defaults.
         setEmailForm(f => ({ ...f,
           subject: applyVars('Your visit summary — {{date}}', vars),
@@ -371,30 +381,39 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   }
 
   async function handleApproveAndSend() {
+    console.log('[handleApproveAndSend] Starting delivery. Channels:', deliver);
     setDelivering(true);
     const results = {};
     let cloudLink = driveLinks[templateId] || '';
 
     if (deliver.cloud) {
+      console.log('[handleApproveAndSend] Saving to cloud. CloudLink exists:', !!cloudLink);
       try {
         if (cloudLink) {
+          console.log('[handleApproveAndSend] Report already saved to cloud:', cloudLink);
           results.cloud = { status: 'ok', message: 'Already saved to Connect Cloud' };
         } else {
+          console.log('[handleApproveAndSend] Posting to /report/jobs/' + jobId + '/save-to-drive');
           const { data } = await API.post(`/report/jobs/${jobId}/save-to-drive`, { report_text: reportText });
+          console.log('[handleApproveAndSend] Cloud save response:', data);
           cloudLink = data.webViewLink;
           setDriveLinks(d => ({ ...d, [data.templateId || templateId]: data.webViewLink }));
           results.cloud = { status: 'ok', message: 'Saved to Connect Cloud' };
         }
       } catch (err) {
+        console.error('[handleApproveAndSend] Cloud save failed:', err.response?.data || err.message);
         results.cloud = { status: 'fail', message: err.response?.data?.error || err.message };
       }
     }
 
     if (deliver.email) {
+      console.log('[handleApproveAndSend] Sending email to:', emailForm.to);
       if (!emailForm.to.trim()) {
+        console.warn('[handleApproveAndSend] Email recipient empty');
         results.email = { status: 'fail', message: 'Patient email is required.' };
       } else {
         try {
+          console.log('[handleApproveAndSend] Posting to /email/send-report');
           await API.post('/email/send-report', {
             patient_id:    patientId,
             to:            emailForm.to.trim(),
@@ -403,27 +422,40 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
             report_text:   reportText,
             template_name: selectedTemplate?.name || 'Clinical Report',
           });
+          console.log('[handleApproveAndSend] Email sent successfully');
           results.email = { status: 'ok', message: `Emailed to ${emailForm.to.trim()}` };
         } catch (err) {
+          console.error('[handleApproveAndSend] Email send failed:', err.response?.data || err.message);
           results.email = { status: 'fail', message: err.response?.data?.error || err.message };
         }
       }
     }
 
     if (deliver.whatsapp) {
+      console.log('[handleApproveAndSend] Sending WhatsApp to:', waForm.to);
       if (!waForm.to.trim()) {
+        console.warn('[handleApproveAndSend] WhatsApp recipient empty');
         results.whatsapp = { status: 'fail', message: 'Patient phone is required.' };
       } else {
         try {
-          const text = waForm.text + (cloudLink ? `\n\n${cloudLink}` : '');
-          await API.post('/wasender/send', { to: waForm.to.trim(), type: 'text', text });
+          console.log('[handleApproveAndSend] Posting to /email/send-whatsapp-documents');
+          await API.post('/email/send-whatsapp-documents', {
+            patient_id: patientId,
+            phone:      waForm.to.trim(),
+            include:    ['ai_report'],
+            job_id:     jobId,
+            message:    waForm.text || undefined,
+          });
+          console.log('[handleApproveAndSend] WhatsApp sent successfully');
           results.whatsapp = { status: 'ok', message: `Sent on WhatsApp to ${waForm.to.trim()}` };
         } catch (err) {
+          console.error('[handleApproveAndSend] WhatsApp send failed:', err.response?.data || err.message);
           results.whatsapp = { status: 'fail', message: err.response?.data?.message || err.response?.data?.error || err.message };
         }
       }
     }
 
+    console.log('[handleApproveAndSend] Delivery complete. Results:', results);
     setDeliverResults(results);
     setDelivering(false);
   }
@@ -582,7 +614,14 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
 
     const token = localStorage.getItem('dms_token');
     const baseURL = API.defaults.baseURL || 'http://localhost:5000/api';
-    const response = await fetch(`${baseURL}/report/generate`, {
+    const generateUrl = `${baseURL}/report/generate`;
+
+    console.log('[generateStream] Starting report generation');
+    console.log('[generateStream] URL:', generateUrl);
+    console.log('[generateStream] Payload:', payload);
+    console.log('[generateStream] Token present:', !!token);
+
+    const response = await fetch(generateUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -592,8 +631,13 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
       signal,
     });
 
+    console.log('[generateStream] Response status:', response.status);
+    console.log('[generateStream] Response ok:', response.ok);
+    console.log('[generateStream] Content-Type:', response.headers.get('content-type'));
+
     if (!response.ok) {
       const errData = await response.json().catch(() => ({}));
+      console.error('[generateStream] HTTP Error:', response.status, errData);
       throw new Error(errData.error || `HTTP ${response.status}`);
     }
 
@@ -601,29 +645,46 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
     const decoder = new TextDecoder();
     let buffer  = '';
     let finalData = null;
+    let totalTokens = 0;
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // keep incomplete line
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
-        try {
-          const parsed = JSON.parse(trimmed.slice(6));
-          if (parsed.error) throw new Error(parsed.error);
-          if (parsed.token) {
-            setStreamingText(prev => prev + parsed.token);
-          }
-          if (parsed.done) {
-            finalData = parsed;
-          }
-        } catch (parseErr) {
-          if (parseErr.message && !parseErr.message.startsWith('Unexpected')) throw parseErr;
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          console.log('[generateStream] Stream ended. Total tokens:', totalTokens);
+          break;
         }
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          try {
+            const parsed = JSON.parse(trimmed.slice(6));
+            console.log('[generateStream] Received data:', parsed);
+
+            if (parsed.error) {
+              console.error('[generateStream] Error in stream:', parsed.error);
+              throw new Error(parsed.error);
+            }
+            if (parsed.token) {
+              totalTokens++;
+              setStreamingText(prev => prev + parsed.token);
+            }
+            if (parsed.done) {
+              console.log('[generateStream] Completion data received:', parsed);
+              finalData = parsed;
+            }
+          } catch (parseErr) {
+            console.error('[generateStream] Parse error:', parseErr.message, 'Line:', trimmed);
+            if (parseErr.message && !parseErr.message.startsWith('Unexpected')) throw parseErr;
+          }
+        }
+      } catch (readErr) {
+        console.error('[generateStream] Read error:', readErr);
+        throw readErr;
       }
     }
     return finalData;
@@ -631,10 +692,14 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
 
   async function processRecording() {
     if (cancelledRef.current) return;
-    if (audioChunksRef.current.length === 0) return;
+    if (audioChunksRef.current.length === 0) {
+      console.warn('[processRecording] No audio chunks');
+      return;
+    }
     const chunks = [...audioChunksRef.current];
     audioChunksRef.current = [];
 
+    console.log('[processRecording] Starting transcription. Audio chunks:', chunks.length);
     setStage('transcribing');
     setError('');
 
@@ -642,52 +707,69 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
       const actualMime = mediaRecorderRef.current?.mimeType || 'audio/webm';
       const ext  = actualMime.startsWith('audio/mp4') ? 'mp4' : actualMime.startsWith('audio/ogg') ? 'ogg' : 'webm';
       const blob = new Blob(chunks, { type: actualMime });
+      console.log('[processRecording] Audio blob size:', blob.size, 'MIME:', actualMime);
+
       const fd   = buildFormData();
       fd.append('file', blob, `dictation.${ext}`);
 
       // POST /transcribe — returns jobId immediately
+      console.log('[processRecording] Posting to /report/transcribe');
       const { data: transcribeData } = await API.post('/report/transcribe', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
       const newJobId = transcribeData.jobId;
+      console.log('[processRecording] Transcribe response:', transcribeData);
       setJobId(newJobId);
       setCachedTranscript(!!transcribeData.cachedTranscript);
 
       if (transcribeData.status === 'transcribed') {
         // Direct (text input / cached) — skip polling
+        console.log('[processRecording] Transcript cached/direct. Running generation immediately');
         await runGeneration(newJobId, null);
         return;
       }
 
       // Poll for transcription completion
+      console.log('[processRecording] Starting polling for transcription completion');
       await new Promise((resolve, reject) => {
+        let pollCount = 0;
         jobPollRef.current = setInterval(async () => {
           try {
+            pollCount++;
+            console.log('[processRecording] Poll #' + pollCount + ' for jobId:', newJobId);
             const { data: jobData } = await API.get(`/report/jobs/${newJobId}`);
+            console.log('[processRecording] Poll response status:', jobData.status);
+
             if (jobData.status === 'transcribed') {
               clearInterval(jobPollRef.current); jobPollRef.current = null;
+              console.log('[processRecording] Transcription complete after ' + pollCount + ' polls');
               resolve(jobData);
             } else if (jobData.status === 'failed') {
               clearInterval(jobPollRef.current); jobPollRef.current = null;
+              console.error('[processRecording] Transcription failed:', jobData.errorMessage);
               reject(new Error(jobData.errorMessage || 'Transcription failed'));
             }
             // else still pending/transcribing — keep polling
           } catch (pollErr) {
             clearInterval(jobPollRef.current); jobPollRef.current = null;
+            console.error('[processRecording] Poll error:', pollErr);
             reject(pollErr);
           }
         }, 5000);
       });
 
       const { data: jobData } = await API.get(`/report/jobs/${newJobId}`);
+      console.log('[processRecording] Final job data:', jobData);
       setTranscript(jobData.transcript);
       setEditedTranscript(jobData.transcript);
 
       // Show transcript for review before generating
       setStage('editing');
+      console.log('[processRecording] Ready for review');
 
     } catch (err) {
+      console.error('[processRecording] Error:', err.response?.data || err.message);
       setError(err.response?.data?.error || err.message || 'Unknown error');
       setStage('idle');
       setMinimized(false);
@@ -697,16 +779,31 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   async function runGeneration(jId, transcriptOverride) {
     // Synchronous lock — a second call (double-click, retry, StrictMode re-invoke)
     // is ignored immediately, before any async state update can let it through.
-    if (isGeneratingRef.current) return;
+    if (isGeneratingRef.current) {
+      console.warn('[runGeneration] Generation already in progress, ignoring duplicate call');
+      return;
+    }
     isGeneratingRef.current = true;
+    console.log('[runGeneration] Starting generation. jobId:', jId, 'transcriptOverride:', !!transcriptOverride);
 
     const jIdToUse  = jId || jobId;
     const controller = new AbortController();
     // Abort any prior in-flight stream before starting a new one.
-    if (generateAbortRef.current) generateAbortRef.current.abort();
+    if (generateAbortRef.current) {
+      console.log('[runGeneration] Aborting previous generation');
+      generateAbortRef.current.abort();
+    }
     generateAbortRef.current = controller;
 
     try {
+      console.log('[runGeneration] Calling consumeGenerateStream with:', {
+        jobId: jIdToUse,
+        template_id: selectedTemplate?.id,
+        detail_level: detailLevel,
+        save_report: saveReport,
+        autofill: autofillEnabled,
+      });
+
       const finalData = await consumeGenerateStream({
         jobId:        jIdToUse,
         template_id:  selectedTemplate?.id,
@@ -716,13 +813,19 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         ...(transcriptOverride != null ? { transcript: transcriptOverride } : {}),
       }, controller.signal);
 
+      console.log('[runGeneration] Generation complete. Final data:', finalData);
+
       const reportsMap = finalData?.reports || {};
       const resolvedTemplateId = selectedTemplate?.id || Object.keys(reportsMap)[0] || '';
       const generatedText = (reportsMap[resolvedTemplateId] || Object.values(reportsMap)[0] || streamingText || '').trim();
 
+      console.log('[runGeneration] Generated text length:', generatedText.length);
+      console.log('[runGeneration] Resolved template ID:', resolvedTemplateId);
+
       // Guard: an empty result is a failure, not a "done" — keep the user on the
       // review step with an actionable message instead of a blank report.
       if (!generatedText) {
+        console.warn('[runGeneration] Empty generated text. Reports map:', reportsMap);
         setError('The AI returned an empty report. Try again, or edit the transcript and regenerate.');
         setStreamingText('');
         setStage('editing');
@@ -740,10 +843,19 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
       setStage('done');
       setMinimized(false);
 
-      if (autofillEnabled && finalData?.autofill_v2) await applyAutofill(finalData.autofill_v2);
+      console.log('[runGeneration] Report generation successful');
+
+      if (autofillEnabled && finalData?.autofill_v2) {
+        console.log('[runGeneration] Applying autofill data');
+        await applyAutofill(finalData.autofill_v2);
+      }
       onSuccess?.();
     } catch (err) {
-      if (err.name === 'AbortError') return; // superseded/cancelled — not an error to show
+      if (err.name === 'AbortError') {
+        console.log('[runGeneration] Generation was cancelled');
+        return; // superseded/cancelled — not an error to show
+      }
+      console.error('[runGeneration] Error:', err.message, err);
       setError(err.message || 'Generation failed');
       setStage('editing');
       setMinimized(false);
@@ -754,20 +866,28 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   }
 
   async function processTextInput() {
-    if (!textInput.trim()) return;
+    if (!textInput.trim()) {
+      console.warn('[processTextInput] Empty text input');
+      return;
+    }
+    console.log('[processTextInput] Processing text input, length:', textInput.length);
     setStage('transcribing');
     setError('');
     try {
       const fd = buildFormData({ transcript_text: textInput.trim() });
+      console.log('[processTextInput] Posting to /report/transcribe with text');
       const { data: transcribeData } = await API.post('/report/transcribe', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      console.log('[processTextInput] Response:', transcribeData);
       const newJobId = transcribeData.jobId;
       setJobId(newJobId);
       setTranscript(textInput.trim());
       setEditedTranscript(textInput.trim());
       setStage('editing');
+      console.log('[processTextInput] Ready for review');
     } catch (err) {
+      console.error('[processTextInput] Error:', err.response?.data || err.message);
       setError(err.response?.data?.error || err.message || 'Unknown error');
       setStage('idle');
     }
@@ -1461,7 +1581,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                       <MessageSquare size={16} className="text-slate-400 mt-0.5 flex-shrink-0" />
                       <div className="flex-1">
                         <p className="text-sm font-medium text-slate-700">WhatsApp to patient</p>
-                        <p className="text-xs text-slate-400 mt-0.5">Sends a text message{driveLinks[templateId] ? ' with the Cloud link' : ''}. Review below.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Sends the AI report as a PDF document. Review message below.</p>
                       </div>
                     </label>
                     {deliver.whatsapp && (

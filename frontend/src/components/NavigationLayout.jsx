@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { io as socketIO } from 'socket.io-client';
 import DrSmilo from '../features/help/assistant/DrSmilo.jsx';
 import { useAuth } from '../Context/AuthContext.jsx';
 import { useUser } from '../Context/UserContext.jsx';
@@ -108,6 +109,28 @@ const NavigationLayout = ({ children }) => {
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [showSupportPopover, setShowSupportPopover] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [bookingToasts, setBookingToasts] = useState([]);
+  const socketRef = useRef(null);
+
+  // Real-time online booking notifications
+  useEffect(() => {
+    const tenantId = authUser?.tenantId;
+    if (!tenantId) return;
+
+    const socket = socketIO('http://localhost:5000', {
+      query: { tenantId },
+      transports: ['websocket'],
+    });
+    socketRef.current = socket;
+
+    socket.on('booking:new', (data) => {
+      const id = Date.now();
+      setBookingToasts(prev => [...prev, { ...data, id }]);
+      setTimeout(() => setBookingToasts(prev => prev.filter(t => t.id !== id)), 12000);
+    });
+
+    return () => { socket.disconnect(); socketRef.current = null; };
+  }, [authUser?.tenantId]);
 
   function handleCopySupport() {
     navigator.clipboard.writeText('support@connectgenai.in');
@@ -389,6 +412,55 @@ const NavigationLayout = ({ children }) => {
 
       {/* Dr. Smilo — floating help assistant */}
       <DrSmilo />
+
+      {/* Online booking toast notifications */}
+      {bookingToasts.length > 0 && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[300] flex flex-col gap-2 w-[360px] max-w-[calc(100vw-24px)]">
+          {bookingToasts.map(toast => (
+            <div
+              key={toast.id}
+              className="bg-white rounded-2xl shadow-2xl border border-slate-200 border-l-4 border-l-green-500 p-4 animate-in slide-in-from-top-2 fade-in duration-300"
+            >
+              <div className="flex items-start gap-3">
+                <div className="size-9 rounded-full bg-green-100 flex items-center justify-center flex-shrink-0">
+                  <span className="material-symbols-outlined text-green-600 text-[20px]">calendar_add_on</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-green-700 uppercase tracking-wider">New Online Booking</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5 truncate">{toast.patientName}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{toast.date} at {toast.time}</p>
+                  {toast.doctorName && (
+                    <p className="text-xs text-slate-400">Dr. {toast.doctorName}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setBookingToasts(prev => prev.filter(t => t.id !== toast.id))}
+                  className="text-slate-400 hover:text-slate-600 flex-shrink-0 -mt-0.5"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={() => {
+                    navigate('/');
+                    setBookingToasts(prev => prev.filter(t => t.id !== toast.id));
+                  }}
+                  className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg transition-colors"
+                >
+                  View Appointments
+                </button>
+                <button
+                  onClick={() => setBookingToasts(prev => prev.filter(t => t.id !== toast.id))}
+                  className="px-3 py-1.5 border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
