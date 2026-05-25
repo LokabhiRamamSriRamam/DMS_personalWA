@@ -9,10 +9,12 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
+    email: '',
     gender: '',
     bloodGroup: '',
     dob: '',
-    location: '',
+    address: '',
+    city: '',
     reference: '',
     history: '', // Comma separated string
     notes: ''
@@ -53,7 +55,9 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
         blood_group: formData.bloodGroup,
         contact: {
           mobile: fullMobile,
-          city: formData.location
+          email: formData.email,
+          address: formData.address,
+          city: formData.city
         },
         reference_source: formData.reference,
         general_notes: formData.notes,
@@ -69,8 +73,8 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
       
       // Reset & Close
       setFormData({
-        name: '', mobile: '', gender: '', bloodGroup: '', dob: '',
-        location: '', reference: '', history: '', notes: ''
+        name: '', mobile: '', email: '', gender: '', bloodGroup: '', dob: '',
+        address: '', city: '', reference: '', history: '', notes: ''
       });
       onClose();
 
@@ -84,7 +88,7 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
 
   return (
     // Overlay
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={onClose}>
+    <div className="fixed inset-0 z-[500] flex justify-end bg-slate-900/20 backdrop-blur-sm transition-opacity" onClick={onClose}>
       
       {/* Modal / Slide-over Container */}
       <div 
@@ -205,27 +209,53 @@ const AddPatientModal = ({ isOpen, onClose, onSave }) => {
               />
             </div>
 
-            {/* Row 3: Location & Reference */}
+            {/* Row 3: Email */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
+              <input
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                type="email"
+                placeholder="Enter email address"
+                className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Row 4: Address */}
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Address</label>
+              <input
+                name="address"
+                value={formData.address}
+                onChange={handleChange}
+                type="text"
+                placeholder="Enter street address"
+                className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
+              />
+            </div>
+
+            {/* Row 5: City & Reference Source */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 xl:gap-6">
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Patient Location</label>
-                <input 
-                  name="location"
-                  value={formData.location}
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">City</label>
+                <input
+                  name="city"
+                  value={formData.city}
                   onChange={handleChange}
-                  type="text" 
-                  placeholder="Enter location" 
+                  type="text"
+                  placeholder="Enter city"
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Reference Source</label>
-                <input 
+                <input
                   name="reference"
                   value={formData.reference}
                   onChange={handleChange}
-                  type="text" 
-                  placeholder="Who referred them?" 
+                  type="text"
+                  placeholder="Who referred them?"
                   className="w-full px-4 py-2.5 bg-[#F7F2F2] dark:bg-slate-800 border-none rounded-lg text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-[#137fec] focus:outline-none transition-all"
                 />
               </div>
