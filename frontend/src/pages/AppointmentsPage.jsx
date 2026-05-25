@@ -451,19 +451,20 @@ const AppointmentsPage = () => {
                   if (!apt) return null;
                   return (
                     /* Mobile dropdown — fixed top-right */
-                    <div ref={dropdownRef} className="md:hidden fixed right-3 top-24 w-64 max-h-96 bg-white border border-slate-200 rounded-xl shadow-2xl z-[60] overflow-y-auto text-left">
+                    <div ref={dropdownRef} className="md:hidden fixed right-3 top-24 w-64 max-h-96 bg-white border border-slate-200 rounded-xl shadow-2xl z-[60] overflow-y-auto text-left pointer-events-auto" onTouchStart={(e) => e.stopPropagation()}>
                       {apt.status === 'Pending' && (
                         <div className="sticky top-0 bg-amber-50 p-1.5 border-b border-amber-100 z-10 space-y-1">
                           <div className="flex gap-1.5">
-                            <button onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-2 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg">Confirm</button>
-                            <button onClick={() => handleStatusChange(apt.id, 'Cancelled')} className="flex-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg">Decline</button>
+                            <button onTouchEnd={(e) => { e.preventDefault(); handleStatusChange(apt.id, 'Confirmed'); }} onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-2 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg">Confirm</button>
+                            <button onTouchEnd={(e) => { e.preventDefault(); handleStatusChange(apt.id, 'Cancelled'); }} onClick={() => handleStatusChange(apt.id, 'Cancelled')} className="flex-1 px-2 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg">Decline</button>
                           </div>
-                          <button onClick={() => handleEdit(apt)} className="w-full px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">Reschedule</button>
+                          <button onTouchEnd={(e) => { e.preventDefault(); handleEdit(apt); }} onClick={() => handleEdit(apt)} className="w-full px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg">Reschedule</button>
                         </div>
                       )}
                       {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                         <div className="sticky top-0 bg-white p-1.5 border-b border-slate-100 z-10">
                           <button
+                            onTouchEnd={(e) => { e.preventDefault(); handleStartVisit(apt); }}
                             onClick={() => handleStartVisit(apt)}
                             className={`w-full text-left px-3 py-2.5 text-sm font-bold text-white rounded-lg flex items-center gap-2 transition-colors shadow-sm ${apt.status === 'In Progress' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-[#137fec] hover:bg-blue-600'}`}
                           >
@@ -474,15 +475,15 @@ const AppointmentsPage = () => {
                       )}
                       <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider">Change Status</div>
                       {ALL_STATUSES.filter(s => s !== apt.status && s !== 'In Progress').map(status => (
-                        <button key={status} onClick={() => handleStatusChange(apt.id, status)} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2 whitespace-nowrap">
+                        <button key={status} onTouchEnd={(e) => { e.preventDefault(); handleStatusChange(apt.id, status); }} onClick={() => handleStatusChange(apt.id, status)} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 flex items-center gap-2 whitespace-nowrap active:bg-slate-100">
                           <div className={`size-1.5 rounded-full flex-shrink-0 ${getDotColor(getStatusColor(status))}`} />
                           <span>{status}</span>
                         </button>
                       ))}
                       <div className="sticky bottom-0 bg-white border-t border-slate-100 p-1">
-                        <button onClick={() => handleViewProfile(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Users size={14} className="text-[#137fec]" /> Patient Profile</button>
-                        <button onClick={() => handleEditPatient(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><User size={14} className="text-[#137fec]" /> Edit Patient Details</button>
-                        <button onClick={() => handleEdit(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Edit size={14} className="text-[#137fec]" /> Edit Appointment</button>
+                        <button onTouchEnd={(e) => { e.preventDefault(); handleViewProfile(apt); }} onClick={() => handleViewProfile(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Users size={14} className="text-[#137fec]" /> Patient Profile</button>
+                        <button onTouchEnd={(e) => { e.preventDefault(); handleEditPatient(apt); }} onClick={() => handleEditPatient(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><User size={14} className="text-[#137fec]" /> Edit Patient Details</button>
+                        <button onTouchEnd={(e) => { e.preventDefault(); handleEdit(apt); }} onClick={() => handleEdit(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Edit size={14} className="text-[#137fec]" /> Edit Appointment</button>
                       </div>
                     </div>
                   );
