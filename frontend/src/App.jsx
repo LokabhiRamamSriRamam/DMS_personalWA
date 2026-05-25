@@ -36,10 +36,14 @@ function ProtectedRoute() {
   const { isAuthenticated } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return (
-    <NavigationLayout>
-      <Outlet />
+    <>
+      <NavigationLayout>
+        <Outlet />
+      </NavigationLayout>
+      {/* Rendered outside NavigationLayout so its fixed inset-0 is never clipped
+          by the overflow-hidden ancestor on mobile (iOS Safari fixed-in-overflow bug) */}
       <GlobalTreatmentOverlay />
-    </NavigationLayout>
+    </>
   );
 }
 
