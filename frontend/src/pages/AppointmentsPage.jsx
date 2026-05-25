@@ -117,6 +117,7 @@ const AppointmentsPage = () => {
   const [viewMode, setViewMode] = useState('table'); // 'table' | 'calendar'
   const [currentTimeTop, setCurrentTimeTop] = useState(null);
   const calendarRef = useRef(null);
+  const [selectedDoctorId, setSelectedDoctorId] = useState(null); // For mobile timeline view
 
   const [activeDropdown, setActiveDropdown] = useState(null);
   const dropdownRef = useRef(null);
@@ -165,6 +166,10 @@ const AppointmentsPage = () => {
 
       const doctorsMap = doctorsRes.data.slice(0, 10);
       setDoctors(doctorsMap);
+      // Set first doctor as selected for mobile timeline view
+      if (doctorsMap.length > 0 && !selectedDoctorId) {
+        setSelectedDoctorId(doctorsMap[0]._id);
+      }
       setDashStats(statsRes.data);
 
       const mappedAppts = appointmentsRes.data.map(apt => {
@@ -671,16 +676,39 @@ const AppointmentsPage = () => {
                     </div>
                   );
 
-                  const docColWidth = typeof window !== 'undefined' && window.innerWidth < 768 ? 100 : 140;
-                  const minWidth = 56 + doctors.length * docColWidth;
+                  const isMobileTimeline = typeof window !== 'undefined' && window.innerWidth < 768;
+                  const docColWidth = isMobileTimeline ? 100 : 140;
+                  const minWidth = 56 + (isMobileTimeline ? 1 : doctors.length) * docColWidth;
+
+                  // Get doctors to display (all on desktop, selected one on mobile)
+                  const displayDoctors = isMobileTimeline
+                    ? doctors.filter(d => d._id === selectedDoctorId)
+                    : doctors;
 
                   return (
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                      {/* Mobile doctor selector */}
+                      {isMobileTimeline && (
+                        <div className="md:hidden px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+                          <label className="text-xs font-semibold text-slate-600 whitespace-nowrap">Doctor:</label>
+                          <select
+                            value={selectedDoctorId || ''}
+                            onChange={(e) => setSelectedDoctorId(e.target.value)}
+                            className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#137fec] focus:border-transparent outline-none"
+                          >
+                            {doctors.map(doc => (
+                              <option key={doc._id} value={doc._id}>
+                                {doc.name} - {doc.specialization || 'Dentist'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                       {/* Sticky header: time gutter + one cell per doctor */}
                       <div className="flex border-b border-slate-200 bg-slate-50 sticky top-0 z-30">
                         <div className="w-10 sm:w-14 shrink-0 border-r border-slate-200" />
-                        {doctors.map((doc, i) => (
+                        {displayDoctors.map((doc, i) => (
                           <div key={doc._id} className={`flex-1 min-w-[100px] sm:min-w-[140px] px-1.5 sm:px-3 py-2 sm:py-2.5 text-center ${i > 0 ? 'border-l border-slate-200' : ''}`}>
                             <p className="text-[10px] sm:text-xs font-bold text-slate-800 truncate">{doc.name}</p>
                             <p className="text-[8px] sm:text-[10px] text-slate-400 truncate">{doc.specialization || 'Dentist'}</p>
@@ -706,7 +734,7 @@ const AppointmentsPage = () => {
                           </div>
 
                           {/* One column per doctor */}
-                          {doctors.map((doc, colIdx) => {
+                          {displayDoctors.map((doc, colIdx) => {
                             const shiftBands = getShiftBands(doc);
                             const colApts = appointments.filter(a => a.doctorId === doc._id);
 
