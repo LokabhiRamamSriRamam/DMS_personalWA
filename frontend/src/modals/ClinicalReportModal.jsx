@@ -38,7 +38,7 @@ function parseError(raw) {
   return { source: 'unknown', code: 'unknown', userMessage: raw, detail: raw };
 }
 
-const SOURCE_LABEL = { sarvam: 'Connect Transcribe', nvidia: 'Molaris.ai', unknown: 'Error' };
+const SOURCE_LABEL = { sarvam: 'Connect Transcribe', openrouter: 'OpenRouter', unknown: 'Error' };
 const CODE_COLOR   = {
   auth:       'bg-amber-50 border-amber-200 text-amber-800',
   rate_limit: 'bg-orange-50 border-orange-200 text-orange-800',
@@ -1309,7 +1309,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
               <Loader2 size={52} className="text-[#137fec] animate-spin" />
               <div className="text-center">
                 <p className="text-slate-700 font-semibold text-base">Transcribing audio…</p>
-                <p className="text-slate-400 text-sm mt-1">Molaris AI is processing your dictation. This may take a minute.</p>
+                <p className="text-slate-400 text-sm mt-1">Connect Transcribe is processing your dictation. This may take a minute.</p>
               </div>
             </div>
           )}
