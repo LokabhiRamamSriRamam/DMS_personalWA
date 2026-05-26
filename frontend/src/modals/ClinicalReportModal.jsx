@@ -1046,7 +1046,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         </div>
 
         {/* Body */}
-        <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 120px)' }}>
 
           {/* ── IDLE / RECORDING / PAUSED ── */}
           {(stage === 'idle' || stage === 'recording' || stage === 'paused') && (
@@ -1336,8 +1336,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                   <textarea
                     value={editedTranscript}
                     onChange={e => setEditedTranscript(e.target.value)}
-                    rows={6}
-                    className="w-full text-sm border border-green-200 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-green-300 bg-white"
+                    rows={5}
+                    className="w-full text-sm border border-green-200 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-green-300 bg-white max-h-[200px]"
                     placeholder="Edit the transcript if needed, then click Generate…"
                   />
                 ) : (
@@ -1496,8 +1496,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                     autoFocus
                     value={reportText}
                     onChange={e => setReportText(e.target.value)}
-                    rows={8}
-                    className="w-full text-sm text-slate-700 leading-relaxed font-mono bg-white rounded-lg p-4 border border-[#137fec]/40 focus:outline-none focus:ring-2 focus:ring-[#137fec] resize-y max-h-[280px]"
+                    rows={6}
+                    className="w-full text-sm text-slate-700 leading-relaxed font-mono bg-white rounded-lg p-4 border border-[#137fec]/40 focus:outline-none focus:ring-2 focus:ring-[#137fec] resize-y max-h-[250px]"
                     placeholder="Edit the patient letter…"
                   />
                 ) : (
@@ -1562,8 +1562,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-500 block mb-1">Message</label>
-                          <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} rows={2}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none sm:rows-3" />
+                          <textarea value={emailForm.body} onChange={e => setEmailForm(f => ({ ...f, body: e.target.value }))} rows={3}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-y sm:rows-4 max-h-[150px]" />
                         </div>
                         <p className="text-xs text-slate-400">
                           Attachment: {selectedTemplate?.name || 'Report'}_{(patient?.first_name || 'patient')}_{new Date().toISOString().slice(0,10)}.pdf
@@ -1594,8 +1594,8 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
                         </div>
                         <div>
                           <label className="text-xs font-semibold text-slate-500 block mb-1">Message</label>
-                          <textarea value={waForm.text} onChange={e => setWaForm(f => ({ ...f, text: e.target.value }))} rows={2}
-                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-none sm:rows-3" />
+                          <textarea value={waForm.text} onChange={e => setWaForm(f => ({ ...f, text: e.target.value }))} rows={3}
+                            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#137fec] outline-none resize-y sm:rows-4 max-h-[150px]" />
                         </div>
                       </div>
                     )}

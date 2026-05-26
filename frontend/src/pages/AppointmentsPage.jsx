@@ -602,7 +602,7 @@ const AppointmentsPage = () => {
                                         {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                                           <div className="sticky top-0 bg-white p-1 border-b border-slate-100 z-10">
                                             <button
-                                              onClick={() => handleStartVisit(apt)}
+                                              onClick={(e) => { e.stopPropagation(); handleStartVisit(apt); }}
                                               className={`w-full text-left px-3 py-2.5 text-sm font-bold text-white rounded-md flex items-center gap-2 transition-colors shadow-sm ${apt.status === 'In Progress' ? 'bg-orange-500 hover:bg-orange-600' : 'bg-[#137fec] hover:bg-blue-600'}`}
                                             >
                                               <PlayCircle size={16} fill="currentColor" className="opacity-80" />
@@ -612,14 +612,14 @@ const AppointmentsPage = () => {
                                         )}
                                         <div className="px-3 py-2 bg-slate-50 border-b border-slate-100 text-[10px] font-bold uppercase text-slate-400 tracking-wider">Change Status</div>
                                         {ALL_STATUSES.filter(s => s !== apt.status && s !== 'In Progress').map(status => (
-                                          <button key={status} onClick={() => handleStatusChange(apt.id, status)} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 whitespace-nowrap">
+                                          <button key={status} onClick={(e) => { e.stopPropagation(); handleStatusChange(apt.id, status); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 hover:text-slate-900 flex items-center gap-2 whitespace-nowrap">
                                             <div className={`size-1.5 rounded-full flex-shrink-0 ${getDotColor(getStatusColor(status))}`} /><span>{status}</span>
                                           </button>
                                         ))}
                                         <div className="sticky bottom-0 bg-white border-t border-slate-100 p-1">
-                                          <button onClick={() => handleViewProfile(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Users size={14} className="text-[#137fec]" /> Patient Profile</button>
-                                          <button onClick={() => handleEditPatient(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><User size={14} className="text-[#137fec]" /> Edit Patient Details</button>
-                                          <button onClick={() => handleEdit(apt)} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Edit size={14} className="text-[#137fec]" /> Edit Appointment</button>
+                                          <button onClick={(e) => { e.stopPropagation(); handleViewProfile(apt); }} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Users size={14} className="text-[#137fec]" /> Patient Profile</button>
+                                          <button onClick={(e) => { e.stopPropagation(); handleEditPatient(apt); }} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><User size={14} className="text-[#137fec]" /> Edit Patient Details</button>
+                                          <button onClick={(e) => { e.stopPropagation(); handleEdit(apt); }} className="w-full text-left px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 rounded-md flex items-center gap-2"><Edit size={14} className="text-[#137fec]" /> Edit Appointment</button>
                                         </div>
                                       </div>
                                     )}
