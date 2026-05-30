@@ -455,11 +455,21 @@ export default function InboxPanel() {
     (contactCache.current[c.phone]?.name || '').toLowerCase().includes(search.toLowerCase())
   );
 
+  // Mobile: track which pane is visible ('list' | 'thread' | 'profile')
+  const [mobilePane, setMobilePane] = useState('list');
+
+  function selectConversation(phone) {
+    setSelectedPhone(phone);
+    setMobilePane('thread');
+  }
+
   return (
     <div className="h-full flex rounded-2xl border border-slate-200 bg-white overflow-hidden" style={{ minHeight: '500px' }}>
 
       {/* ── Left: conversation list ── */}
-      <div className="w-72 flex-shrink-0 border-r border-slate-100 flex flex-col">
+      <div className={`flex-shrink-0 border-r border-slate-100 flex flex-col
+        w-full md:w-72
+        ${mobilePane !== 'list' ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-3 border-b border-slate-100">
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
@@ -487,7 +497,7 @@ export default function InboxPanel() {
             return (
               <button
                 key={conv.phone}
-                onClick={() => setSelectedPhone(conv.phone)}
+                onClick={() => selectConversation(conv.phone)}
                 className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors border-b border-slate-50 text-left ${selectedPhone === conv.phone ? 'bg-blue-50' : ''}`}
               >
                 <Avatar name={name} src={cached?.picture} size="md" />
@@ -518,14 +528,23 @@ export default function InboxPanel() {
       {selectedPhone ? (
         <>
           {/* Middle: message thread */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className={`flex-1 flex flex-col min-w-0
+            ${mobilePane !== 'thread' ? 'hidden md:flex' : 'flex'}`}>
             {/* Thread header */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-100 flex-shrink-0">
+              {/* Mobile back button */}
+              <button onClick={() => setMobilePane('list')} className="md:hidden text-slate-400 hover:text-slate-600 p-1 -ml-1">
+                <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              </button>
               <Avatar name={contact?.name || selectedPhone} src={contact?.picture} size="md" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-bold text-slate-800">{contact?.name || selectedPhone}</p>
                 <p className="text-xs text-slate-400">{selectedPhone}</p>
               </div>
+              {/* Mobile: patient info button */}
+              <button onClick={() => setMobilePane('profile')} className="md:hidden text-slate-400 hover:text-slate-600 p-1" title="Patient info">
+                <span className="material-symbols-outlined text-[20px]">person</span>
+              </button>
               <button onClick={() => fetchThread(selectedPhone)} className="text-slate-400 hover:text-slate-600 p-1" title="Refresh">
                 <span className="material-symbols-outlined text-[18px]">refresh</span>
               </button>
@@ -564,12 +583,22 @@ export default function InboxPanel() {
           </div>
 
           {/* Right: full patient profile */}
-          <div className="w-72 flex-shrink-0 overflow-hidden flex flex-col">
+          <div className={`flex-shrink-0 overflow-hidden flex flex-col
+            w-full md:w-72
+            ${mobilePane !== 'profile' ? 'hidden md:flex' : 'flex'}`}>
+            {/* Mobile back-to-thread button */}
+            <div className="md:hidden flex items-center gap-2 px-3 py-2 border-b border-slate-100 bg-white">
+              <button onClick={() => setMobilePane('thread')} className="text-slate-400 hover:text-slate-600 p-1">
+                <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+              </button>
+              <span className="text-sm font-semibold text-slate-700">Patient Info</span>
+            </div>
             <PatientRightPanel contact={contact} patientId={patientId} />
           </div>
         </>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3">
+        <div className={`flex-1 flex-col items-center justify-center text-slate-400 gap-3
+          ${mobilePane === 'list' ? 'hidden md:flex' : 'flex'}`}>
           <span className="material-symbols-outlined text-[48px]">chat_bubble_outline</span>
           <p className="text-sm">Select a conversation</p>
         </div>

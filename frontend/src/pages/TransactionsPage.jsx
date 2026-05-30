@@ -1,16 +1,13 @@
 import { useState, useEffect } from 'react';
 import {
-  Search, Calendar, ChevronDown, Download, FileText,
+  Search, Calendar, Download,
   ArrowUpRight, Wallet, Building2,
   Printer
 } from 'lucide-react';
 import API from '../services/api';
-import { exportSheet } from '../utils/spreadsheet';
 
 const TransactionsPage = () => {
   const [activeTab, setActiveTab] = useState('Statement');
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const [exportBusy, setExportBusy] = useState(false);
 
   // Filter States
   const [dateFilterLabel, setDateFilterLabel] = useState('This Month'); // Controls the button text
@@ -23,6 +20,9 @@ const TransactionsPage = () => {
   // Temporary states for the custom input form
   const [tempStart, setTempStart] = useState('');
   const [tempEnd, setTempEnd] = useState('');
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Data & Loading States
   const [allTransactions, setAllTransactions] = useState([]);
@@ -73,6 +73,9 @@ const TransactionsPage = () => {
   const filteredTransactions = allTransactions.filter(txn => {
     // 1. Tab Filter
     if (activeTab !== 'Statement' && txn.type !== activeTab) return false;
+
+    // 2. Search Filter
+    if (searchQuery.trim() && !txn.party.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
     // 2. Date Filter
     const txnDate = new Date(txn.date);
@@ -207,78 +210,13 @@ const TransactionsPage = () => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Transactions_${activeTab}_${dateFilterLabel.replace(/[\s\-]/g, '_')}.csv`);
+    link.setAttribute('download', `Transactions_${activeTab}_${dateFilterLabel.replace(/[\s-]/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const exportBaseName = () =>
-    `Transactions_${activeTab}_${dateFilterLabel.replace(/[\s\-]/g, '_')}`;
 
-  const exportHeaders = ['No.', 'Date', 'Party', 'Type', 'Category', 'Mode', 'Amount'];
-  const exportRows = () =>
-    filteredTransactions.map((txn, i) => [
-      i + 1, txn.date, txn.party, txn.type, txn.category, txn.method, txn.amount,
-    ]);
-
-  const guardEmpty = () => {
-    if (filteredTransactions.length === 0) {
-      alert('No transactions to export.');
-      return true;
-    }
-    return false;
-  };
-
-  // Excel (.xlsx) — opens directly in Google Sheets / Excel
-  const handleExportExcel = () => {
-    if (guardEmpty()) return;
-    exportSheet(exportBaseName(), exportHeaders, exportRows(), 'xlsx');
-    setShowExportMenu(false);
-  };
-
-  // "Google Sheets" — download .xlsx and open a blank Sheet to import into
-  const handleExportGoogleSheets = () => {
-    if (guardEmpty()) return;
-    exportSheet(exportBaseName(), exportHeaders, exportRows(), 'xlsx');
-    window.open('https://sheets.new', '_blank', 'noopener');
-    setShowExportMenu(false);
-  };
-
-  const handleExportPDF = async () => {
-    if (guardEmpty()) return;
-    setExportBusy(true);
-    try {
-      const rows = filteredTransactions.map(t => ({
-        date: t.date, party: t.party, type: t.type,
-        category: t.category, method: t.method, amount: t.amount,
-      }));
-      const res = await API.post(
-        '/transactions/export/pdf',
-        { rows, title: `Transactions — ${activeTab} (${dateFilterLabel})` },
-        { responseType: 'blob' }
-      );
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${exportBaseName()}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('PDF export failed:', err);
-      alert('Could not generate PDF. Please try again.');
-    } finally {
-      setExportBusy(false);
-      setShowExportMenu(false);
-    }
-  };
-
-  const handleExportCSVMenu = () => {
-    handleExportCSV();
-    setShowExportMenu(false);
-  };
 
   return (
       <div className="flex flex-col min-h-full md:h-full relative">
@@ -286,44 +224,44 @@ const TransactionsPage = () => {
         {/* KPI Cards */}
         <div className="px-4 md:px-8 pt-4 md:pt-6 pb-2">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
-            <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-500"><ArrowUpRight size={28} /></div>
-              <div>
-                <p className="text-slate-500 text-sm font-large">Transactions</p>
+            <div className="p-3 md:p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="p-2 md:p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-red-500 shrink-0"><ArrowUpRight size={22} /></div>
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs font-medium truncate">Transactions</p>
                 <div className="flex items-baseline gap-1">
-                  <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{filteredTransactions.length}</h3>
+                  <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white">{filteredTransactions.length}</h3>
                   <span className="text-xs text-slate-400">Nos</span>
                 </div>
               </div>
             </div>
-            <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600"><Wallet size={28} /></div>
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Net Amount</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹{totalAmount.toLocaleString()}</h3>
+            <div className="p-3 md:p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="p-2 md:p-3 bg-green-50 dark:bg-green-900/20 rounded-xl text-green-600 shrink-0"><Wallet size={22} /></div>
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs font-medium truncate">Net Amount</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white truncate">₹{totalAmount.toLocaleString()}</h3>
               </div>
             </div>
-            <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600"><FileText size={28} /></div>
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Cash</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹{cashAmount.toLocaleString()}</h3>
+            <div className="p-3 md:p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="p-2 md:p-3 bg-purple-50 dark:bg-purple-900/20 rounded-xl text-purple-600 shrink-0"><Wallet size={22} /></div>
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs font-medium truncate">Cash</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white truncate">₹{cashAmount.toLocaleString()}</h3>
               </div>
             </div>
-            <div className="p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
-              <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl text-orange-600"><Building2 size={28} /></div>
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Bank</p>
-                <h3 className="text-2xl font-bold text-slate-900 dark:text-white">₹{bankAmount.toLocaleString()}</h3>
+            <div className="p-3 md:p-4 bg-white dark:bg-card-dark rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-3">
+              <div className="p-2 md:p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl text-orange-600 shrink-0"><Building2 size={22} /></div>
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs font-medium truncate">Bank</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white truncate">₹{bankAmount.toLocaleString()}</h3>
               </div>
             </div>
           </div>
         </div>
 
         {/* Title & Filters */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 md:px-8 pt-4 pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 px-4 md:px-8 pt-4 pb-4 flex-wrap">
             <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
-              <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Transactions</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white">Transactions</h1>
               <div className="bg-slate-100 dark:bg-slate-800 p-1 rounded-lg flex text-sm font-medium w-fit">
                 {['Statement', 'Income', 'Expense'].map((tab) => (
                   <button
@@ -341,8 +279,25 @@ const TransactionsPage = () => {
               </div>
             </div>
 
-            {/* --- DATE FILTER DROPDOWN --- */}
-            <div className="relative w-full sm:w-auto">
+            {/* --- SEARCH + DATE FILTER --- */}
+            <div className="flex items-center gap-2 w-full lg:w-auto">
+              {/* Search Bar */}
+              <div className="flex items-center gap-2 flex-1 lg:w-52 px-3 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-sm">
+                <Search size={16} className="text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  placeholder="Search by party..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 text-sm text-slate-700 dark:text-slate-300 bg-transparent outline-none placeholder:text-slate-400 min-w-0"
+                />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600 shrink-0 text-xs leading-none">✕</button>
+                )}
+              </div>
+
+              {/* --- DATE FILTER DROPDOWN --- */}
+              <div className="relative shrink-0">
               <button 
                 onClick={() => {
                   setShowDateMenu(!showDateMenu);
@@ -351,10 +306,9 @@ const TransactionsPage = () => {
                 className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-sm hover:border-[#137fec] transition-colors w-full sm:w-auto sm:min-w-[180px] justify-between shadow-sm"
               >
                 <span className="flex items-center gap-2 text-nowrap">
-                  <Calendar size={18} className="text-[#137fec]" /> 
+                  <Calendar size={18} className="text-[#137fec]" />
                   {dateFilterLabel.length > 25 ? dateFilterLabel.substring(0, 22) + '...' : dateFilterLabel}
                 </span>
-                <ChevronDown size={16} />
               </button>
 
               {showDateMenu && (
@@ -420,11 +374,12 @@ const TransactionsPage = () => {
                   )}
                 </div>
               )}
-            </div>
+              </div>{/* end date filter */}
+            </div>{/* end search+date wrapper */}
         </div>
 
-        {/* Table Area */}
-        <div className="md:flex-1 md:overflow-auto overflow-x-auto px-6 md:px-8 pb-8">
+        {/* Table Area — desktop */}
+        <div className="hidden md:block md:flex-1 md:overflow-auto overflow-x-auto px-6 md:px-8 pb-8">
           <div className="bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden min-h-[400px]">
             <table className="w-full text-left border-collapse">
               <thead className="bg-[#F7F2F2] dark:bg-slate-800/50 sticky top-0 z-10">
@@ -501,38 +456,65 @@ const TransactionsPage = () => {
           </div>
         </div>
 
-        {/* Export FAB + menu */}
-        <div className="fixed bottom-24 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-4 z-30 items-end md:absolute md:bottom-8 md:right-8">
-          {showExportMenu && (
-            <>
-              <div
-                className="fixed inset-0 z-0"
-                onClick={() => setShowExportMenu(false)}
-              />
-              <div className="relative z-10 mb-3 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-                {[
-                  { label: 'CSV (.csv)', fn: handleExportCSVMenu },
-                  { label: 'Excel (.xlsx)', fn: handleExportExcel },
-                  { label: 'PDF (.pdf)', fn: handleExportPDF },
-                  { label: 'Google Sheets', fn: handleExportGoogleSheets },
-                ].map(opt => (
-                  <button
-                    key={opt.label}
-                    onClick={opt.fn}
-                    disabled={exportBusy}
-                    className="w-full text-left px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                  >
-                    <FileText size={16} className="text-[#137fec]" />
-                    {opt.label}
-                  </button>
-                ))}
+        {/* Card List — mobile only */}
+        <div className="md:hidden px-4 pb-24 flex flex-col gap-3">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#137fec]"></div>
+              <p className="text-slate-500 text-sm">Loading transactions...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <div className="w-14 h-14 bg-red-100 rounded-full flex items-center justify-center text-red-500">
+                <Search size={28} />
               </div>
-            </>
+              <p className="text-red-600 text-sm font-medium">{error}</p>
+              <button onClick={fetchTransactions} className="text-xs text-[#137fec] hover:underline">Retry</button>
+            </div>
+          ) : filteredTransactions.length > 0 ? (
+            filteredTransactions.map((txn, index) => (
+              <div key={index} className="bg-white dark:bg-card-dark border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">{txn.party}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{txn.date}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-base font-bold ${txn.type === 'Income' ? 'text-green-600' : 'text-red-600'}`}>
+                      {txn.type === 'Income' ? '+' : '-'}₹{txn.amount.toLocaleString()}
+                    </p>
+                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full mt-1 ${txn.type === 'Income' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                      {txn.type}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <div className="flex gap-3 text-xs text-slate-500">
+                    <span>{txn.category}</span>
+                    <span className="text-slate-300">•</span>
+                    <span>{txn.method}</span>
+                  </div>
+                  <button className="p-1.5 text-slate-400 hover:text-[#137fec] transition-colors rounded-full hover:bg-blue-50">
+                    <Printer size={16} />
+                  </button>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center gap-3 py-16">
+              <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center text-slate-300">
+                <Search size={28} />
+              </div>
+              <p className="text-slate-500 text-sm font-medium">No Transactions Found</p>
+            </div>
           )}
+        </div>
+
+        {/* Export CSV FAB */}
+        <div className="fixed bottom-24 right-4 sm:bottom-8 sm:right-8 flex flex-col gap-4 z-30 items-end md:absolute md:bottom-8 md:right-8">
           <div className="group flex items-center justify-end">
             <button
-              onClick={() => setShowExportMenu(v => !v)}
-              disabled={exportBusy}
+              onClick={handleExportCSV}
               className="flex items-center gap-2 px-4 py-3 bg-[#137fec] hover:bg-blue-700 text-white rounded-full transition-all duration-300 shadow-lg whitespace-nowrap"
             >
               <Download size={18} className="flex-shrink-0" />

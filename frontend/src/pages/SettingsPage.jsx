@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, X, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Globe, Copy, Link2, BookOpen, MessageSquare, Save, Eye, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Upload, Mail, CheckCircle, XCircle, RefreshCw, Pill, FileSpreadsheet, ExternalLink, Loader2, Calendar, Clock, Copy, Link2, BookOpen, MessageSquare, Save, Eye, ChevronDown } from 'lucide-react';
 import API from '../services/api';
 import { parseSpreadsheet, downloadSampleSheet } from '../utils/spreadsheet';
 import AddClinicalDataModal from '../modals/AddClinicalDataModal';
@@ -302,8 +302,8 @@ function InventoryTab() {
   return (
     <div className="space-y-6">
       {/* Toggles */}
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-1">Inventory Modules</h2>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white mb-1">Inventory Modules</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
           Disable modules you don't track. Disabling Medicine Inventory hides stock tracking and
           invoice charges, but the medicine list below is still used for prescriptions.
@@ -346,10 +346,10 @@ function InventoryTab() {
 
       {/* Medicine List — only visible when Medicine Inventory is OFF */}
       {!inventorySettings.medicineEnabled && (
-        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-6">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
             <div>
-              <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Medicine List</h2>
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white">Medicine List</h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Used for prescriptions in the Treatment page. ({medicines.length} medicines)
               </p>
@@ -616,8 +616,8 @@ function InvoiceSettingsTab({ embedded } = {}) {
         </div>
       </section>
 
-      <div className="flex items-center gap-4 pt-2">
-        <button onClick={save} disabled={saving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+        <button onClick={save} disabled={saving} className="w-full sm:w-auto px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
           {saving ? 'Saving…' : 'Save Invoice Settings'}
         </button>
         {banner && (
@@ -741,8 +741,8 @@ function PrescriptionSettingsTab({ embedded } = {}) {
         </div>
       </section>
 
-      <div className="flex items-center gap-4 pt-2">
-        <button onClick={save} disabled={saving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-2">
+        <button onClick={save} disabled={saving} className="w-full sm:w-auto px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
           {saving ? 'Saving…' : 'Save Prescription Settings'}
         </button>
         {banner && (
@@ -951,9 +951,9 @@ function EmailTab() {
   const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-      <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
-        <Mail size={22} /> Email
+    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-white mb-6 flex items-center gap-2">
+        <Mail size={20} className="sm:hidden" /><Mail size={22} className="hidden sm:block" /> Email
       </h2>
 
       {/* Sub-tabs — scrollable on mobile */}
@@ -1172,7 +1172,7 @@ function EmailTab() {
             </div>
           </div>
 
-          <button onClick={saveSettings} disabled={settingsSaving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          <button onClick={saveSettings} disabled={settingsSaving} className="w-full sm:w-auto px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
             {settingsSaving ? 'Saving...' : 'Save Settings'}
           </button>
 
@@ -1385,7 +1385,7 @@ function EmailTab() {
             })}
           </div>
 
-          <button onClick={saveSettings} disabled={settingsSaving} className="px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
+          <button onClick={saveSettings} disabled={settingsSaving} className="w-full sm:w-auto px-6 py-2.5 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl text-sm transition-colors disabled:opacity-60">
             {settingsSaving ? 'Saving...' : 'Save Automation Settings'}
           </button>
         </div>
@@ -1490,37 +1490,40 @@ function DayRow({ day, dayData = {}, onChange }) {
     onChange(day, 'breaks', updated);
   };
   return (
-    <div className="py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
+    <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-2">
       <div className="flex items-center gap-3 flex-wrap">
-        <label className="flex items-center gap-2 cursor-pointer w-28">
-          <input type="checkbox" checked={!!dayData.isOpen} onChange={e => onChange(day, 'isOpen', e.target.checked)} className="w-4 h-4 rounded accent-[#137fec]" />
-          <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-300">{day}</span>
+        <label className="flex items-center gap-2 cursor-pointer min-w-[110px]">
+          <input type="checkbox" checked={!!dayData.isOpen} onChange={e => onChange(day, 'isOpen', e.target.checked)} className="w-4 h-4 accent-[#137fec]" />
+          <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-200">{day}</span>
         </label>
         {dayData.isOpen ? (
           <>
             <input type="time" value={dayData.start || '09:00'} onChange={e => onChange(day, 'start', e.target.value)}
-              className="px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-800 dark:text-white" />
             <span className="text-slate-400 text-sm">to</span>
             <input type="time" value={dayData.end || '17:00'} onChange={e => onChange(day, 'end', e.target.value)}
-              className="px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300" />
-            <button type="button" onClick={addBreak} className="text-xs text-[#137fec] hover:underline ml-1">+ Add Break</button>
+              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-800 dark:text-white" />
+            <button type="button" onClick={addBreak} className="text-xs text-[#137fec] hover:underline font-medium ml-auto">+ Add Break</button>
           </>
         ) : (
           <span className="text-xs text-slate-400 italic">Closed</span>
         )}
       </div>
-      {dayData.isOpen && breaks.map((brk, i) => (
-        <div key={i} className="flex items-center gap-2 ml-32 mt-1.5 text-xs text-slate-600 dark:text-slate-400">
-          <Clock size={12} className="text-slate-400" />
-          <span>Break:</span>
-          <input type="time" value={brk.start} onChange={e => updateBreak(i, 'start', e.target.value)}
-            className="px-1.5 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-800" />
-          <span>–</span>
-          <input type="time" value={brk.end} onChange={e => updateBreak(i, 'end', e.target.value)}
-            className="px-1.5 py-1 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-800" />
-          <button onClick={() => removeBreak(i)} className="text-red-400 hover:text-red-600 ml-1"><X size={12} /></button>
+      {dayData.isOpen && breaks.length > 0 && (
+        <div className="mt-2 ml-6 space-y-1">
+          {breaks.map((brk, i) => (
+            <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Break:</span>
+              <input type="time" value={brk.start} onChange={e => updateBreak(i, 'start', e.target.value)}
+                className="px-2 py-1 border border-slate-200 dark:border-slate-600 rounded text-xs dark:bg-slate-800 dark:text-white" />
+              <span>–</span>
+              <input type="time" value={brk.end} onChange={e => updateBreak(i, 'end', e.target.value)}
+                className="px-2 py-1 border border-slate-200 dark:border-slate-600 rounded text-xs dark:bg-slate-800 dark:text-white" />
+              <button onClick={() => removeBreak(i)} className="text-red-400 hover:text-red-600 ml-1"><X size={12} /></button>
+            </div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }
@@ -2880,57 +2883,57 @@ const SettingsPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-3 sm:p-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-4xl font-bold text-slate-800 dark:text-white mb-2">Settings</h1>
-          <p className="text-slate-600 dark:text-slate-400">Manage clinic configuration and clinical data</p>
+        <div className="mb-5 sm:mb-8">
+          <h1 className="text-2xl sm:text-4xl font-bold text-slate-800 dark:text-white mb-1 sm:mb-2">Settings</h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400">Manage clinic configuration and clinical data</p>
         </div>
 
         {/* Tabs — horizontally scrollable on mobile */}
-        <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
-          <div className="flex gap-0 min-w-max">
-            {[
-              { id: 'doctors',         label: 'Doctors' },
-              { id: 'treatment',       label: 'Clinical Data' },
-              { id: 'inventory',       label: 'Inventory' },
-              { id: 'email',            label: 'Email' },
-              { id: 'patientDocuments', label: 'Share with Patient' },
-              { id: 'booking',         label: 'Online Booking' },
-              { id: 'doctorSchedules', label: 'Doctor Schedules' },
-            ].map(t => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`flex-shrink-0 px-4 sm:px-6 py-3 font-semibold transition-all whitespace-nowrap ${
-                  activeTab === t.id
-                    ? 'text-[#137fec] border-b-2 border-[#137fec]'
-                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex gap-0 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0">
+          {[
+            { id: 'doctors',         label: 'Doctors' },
+            { id: 'treatment',       label: 'Clinical Data' },
+            { id: 'inventory',       label: 'Inventory' },
+            { id: 'email',           label: 'Email' },
+            { id: 'patientDocuments', label: 'Share with Patient' },
+            { id: 'booking',         label: 'Online Booking' },
+            { id: 'doctorSchedules', label: 'Doctor Schedules' },
+          ].map(t => (
+            <button
+              key={t.id}
+              onClick={() => setActiveTab(t.id)}
+              className={`flex-shrink-0 px-4 sm:px-6 py-3 text-sm sm:text-base font-semibold transition-all whitespace-nowrap ${
+                activeTab === t.id
+                  ? 'text-[#137fec] border-b-2 border-[#137fec]'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Doctors Tab */}
         {activeTab === 'doctors' && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
             <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Doctor Management</h2>
-                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">({doctors.length}/10)</span>
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg sm:text-2xl font-bold text-slate-800 dark:text-white">Doctor Management</h2>
+                <span className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400">({doctors.length}/10)</span>
               </div>
               <button
                 onClick={handleAddDoctor}
                 disabled={doctors.length >= 10}
-                className={`flex items-center gap-2 px-4 py-2.5 font-semibold rounded-xl transition-colors ${
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-semibold rounded-xl transition-colors ${
                   doctors.length >= 10
                     ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                     : 'bg-[#137fec] hover:bg-blue-600 text-white'
                 }`}
                 title={doctors.length >= 10 ? 'Maximum of 10 doctors reached' : 'Add a new doctor'}
               >
-                <Plus size={20} /> Add Doctor
+                <Plus size={18} />
+                <span className="hidden xs:inline">Add Doctor</span>
+                <span className="xs:hidden">Add</span>
               </button>
             </div>
 
@@ -2943,18 +2946,23 @@ const SettingsPage = () => {
             ) : (
               <>
                 {/* Mobile cards */}
-                <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                <div className="sm:hidden space-y-3">
                   {doctors.map(doctor => (
-                    <div key={doctor._id} className="py-3 flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-slate-800 dark:text-white truncate">{doctor.name}</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{doctor.specialization || '—'}</p>
-                        <p className="text-xs text-slate-400 mt-0.5">{doctor.email || '—'} · {doctor.phone || '—'}</p>
-                        <p className="text-xs text-slate-400">{doctor.experience_years} yrs exp</p>
+                    <div key={doctor._id} className="border border-slate-200 dark:border-slate-700 rounded-xl p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 dark:text-white truncate">{doctor.name}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">{doctor.specialization || '—'}</p>
+                        </div>
+                        <div className="flex gap-1 flex-shrink-0">
+                          <button onClick={() => handleEditDoctor(doctor)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
+                          <button onClick={() => handleDeleteDoctor(doctor._id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                        </div>
                       </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <button onClick={() => handleEditDoctor(doctor)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                        <button onClick={() => handleDeleteDoctor(doctor._id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                      <div className="mt-2 space-y-1 text-xs text-slate-500">
+                        <p>{doctor.email || '—'}</p>
+                        <p>{doctor.phone || '—'}</p>
+                        <p>{doctor.experience_years} yrs experience</p>
                       </div>
                     </div>
                   ))}
@@ -3003,15 +3011,15 @@ const SettingsPage = () => {
           const currentItems = treatmentTab === 'findings' ? clinicalFindings : treatmentTab === 'diagnoses' ? diagnoses : suggestedTreatments;
 
           return (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
               {/* Sub-tab bar */}
-              <div className="overflow-x-auto scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
+              <div className="overflow-x-auto scrollbar-none -mx-4 px-4 sm:mx-0 sm:px-0 mb-6 border-b border-slate-200 dark:border-slate-700">
                 <div className="flex gap-0 min-w-max">
                   {['findings', 'diagnoses', 'treatments'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => { setTreatmentTab(tab); setBulkMode(false); setBulkItems([]); }}
-                      className={`flex-shrink-0 px-4 py-2 font-semibold transition-all ${
+                      className={`flex-shrink-0 px-3 sm:px-4 py-2 text-sm font-semibold transition-all whitespace-nowrap ${
                         treatmentTab === tab
                           ? 'text-[#137fec] border-b-2 border-[#137fec]'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-300'
@@ -3024,21 +3032,21 @@ const SettingsPage = () => {
               </div>
 
               {/* Header row */}
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-800 dark:text-white">{tabLabel}</h3>
+              <div className="flex justify-between items-center gap-3 mb-6">
+                <h3 className="text-base sm:text-xl font-bold text-slate-800 dark:text-white min-w-0 truncate">{tabLabel}</h3>
                 {bulkMode ? (
                   <button
                     onClick={() => { setBulkMode(false); setBulkItems([]); }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl font-semibold bg-orange-500 hover:bg-orange-600 text-white transition-colors"
                   >
                     <X size={16} /> Cancel Quick Entry
                   </button>
                 ) : (
                   <button
                     onClick={() => setShowAddChooser(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-[#137fec] hover:bg-blue-600 text-white transition-colors"
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm rounded-xl font-semibold bg-[#137fec] hover:bg-blue-600 text-white shadow-md transition-colors"
                   >
-                    <Plus size={18} /> Add {tabLabel}
+                    <Plus size={16} /> Add {tabLabel}
                   </button>
                 )}
               </div>
@@ -3165,12 +3173,12 @@ const SettingsPage = () => {
               ) : (
                 <>
                   {/* Mobile card stack */}
-                  <div className="sm:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                  <div className="sm:hidden space-y-2">
                     {currentItems.map(item => (
-                      <div key={item._id} className="py-3 flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-slate-800 dark:text-white text-sm">{item.name}</p>
-                          <div className="flex flex-wrap gap-1.5 mt-1">
+                      <div key={item._id} className="flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 dark:text-white text-sm truncate">{item.name}</p>
+                          <div className="flex gap-2 mt-0.5 flex-wrap">
                             {treatmentTab === 'diagnoses' && item.code && (
                               <span className="text-xs font-mono bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-1.5 py-0.5 rounded">{item.code}</span>
                             )}
@@ -3178,12 +3186,12 @@ const SettingsPage = () => {
                               <span className="text-xs font-semibold text-emerald-600">₹{item.cost?.toLocaleString('en-IN') || '0'}</span>
                             )}
                             {item.category && (
-                              <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded">{item.category}</span>
+                              <span className="text-xs bg-slate-100 dark:bg-slate-600 px-1.5 py-0.5 rounded">{item.category}</span>
                             )}
                           </div>
                         </div>
                         <button onClick={() => handleDeleteTreatmentItem(item._id, treatmentTab)}
-                          className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg flex-shrink-0">
+                          className="flex-shrink-0 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-slate-600 rounded-lg transition-colors">
                           <Trash2 size={15} />
                         </button>
                       </div>
@@ -3220,7 +3228,7 @@ const SettingsPage = () => {
                             )}
                             <td className="px-5 py-3.5">
                               {item.category
-                                ? <span className="text-xs bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-full">{item.category}</span>
+                                ? <span className="text-xs bg-slate-100 dark:bg-slate-600 text-slate-600 dark:text-slate-300 px-2 py-1 rounded">{item.category}</span>
                                 : <span className="text-slate-300">—</span>}
                             </td>
                             <td className="px-5 py-3.5 text-center">
@@ -3282,10 +3290,10 @@ const SettingsPage = () => {
             ) : (
               <>
                 {/* Public Booking Link */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Link2 size={22} className="text-[#137fec]" />
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Your Booking Link</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Link2 size={18} className="text-[#137fec]" />
+                    <h3 className="font-bold text-slate-800 dark:text-white text-base">Your Booking Link</h3>
                   </div>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
                     Share this link with patients so they can book appointments online. It is unique to your clinic.
@@ -3336,16 +3344,13 @@ const SettingsPage = () => {
                 </div>
 
                 {/* General Settings */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-6">
-                    <Globe size={22} className="text-[#137fec]" />
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">General</h2>
-                  </div>
-                  <div className="grid grid-cols-1 gap-5">
-                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                  <h3 className="font-bold text-slate-800 dark:text-white text-base mb-4">General</h3>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-slate-800 dark:text-white">Enable Online Booking</p>
-                        <p className="text-xs text-slate-500 mt-0.5">Allow patients to book appointments via the public link</p>
+                        <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Enable Online Booking</p>
+                        <p className="text-xs text-slate-400 mt-0.5">Allow patients to book appointments via the public link</p>
                       </div>
                       <ToggleSwitch
                         enabled={bookingSettings.isBookingEnabled}
@@ -3378,11 +3383,11 @@ const SettingsPage = () => {
                 </div>
 
                 {/* Working Hours */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Clock size={22} className="text-[#137fec]" />
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Clinic Working Hours</h2>
-                    <span className="text-xs text-slate-400 ml-1">(default schedule — override per doctor in Doctor Schedules tab)</span>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Clock size={18} className="text-[#137fec]" />
+                    <h3 className="font-bold text-slate-800 dark:text-white text-base">Clinic Working Hours</h3>
+                    <span className="text-xs text-slate-400 ml-1 hidden sm:inline">(default — override per doctor in Doctor Schedules)</span>
                   </div>
                   {DAYS.map(day => (
                     <DayRow key={day} day={day} dayData={bookingSettings.workingHours?.[day] || {}} onChange={updateWorkingHourField} />
@@ -3390,10 +3395,10 @@ const SettingsPage = () => {
                 </div>
 
                 {/* Blocked Dates */}
-                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Calendar size={22} className="text-[#137fec]" />
-                    <h2 className="text-xl font-bold text-slate-800 dark:text-white">Blocked Dates</h2>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Calendar size={18} className="text-[#137fec]" />
+                    <h3 className="font-bold text-slate-800 dark:text-white text-base">Blocked Dates</h3>
                   </div>
                   <div className="flex gap-3 mb-4 flex-wrap sm:flex-nowrap">
                     <input type="date" value={newBlockedDate} onChange={e => setNewBlockedDate(e.target.value)}
@@ -3429,7 +3434,7 @@ const SettingsPage = () => {
                 {/* Save Button */}
                 <div className="flex justify-end">
                   <button onClick={handleSaveBookingSettings} disabled={bookingSaving}
-                    className="px-8 py-3 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-60">
+                    className="w-full sm:w-auto px-8 py-3 bg-[#137fec] hover:bg-blue-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-60">
                     {bookingSaving ? 'Saving...' : 'Save Booking Settings'}
                   </button>
                 </div>
@@ -3440,29 +3445,32 @@ const SettingsPage = () => {
 
         {/* Doctor Schedules Tab */}
         {activeTab === 'doctorSchedules' && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <Calendar size={22} className="text-[#137fec]" />
-              <h2 className="text-xl font-bold text-slate-800 dark:text-white">Doctor Booking Schedules</h2>
-              <span className="text-xs text-slate-400 ml-1">Configure per-doctor availability for online booking</span>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-4 sm:p-6">
+            <div className="flex flex-wrap items-start gap-2 mb-6">
+              <div>
+                <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Calendar size={18} className="text-[#137fec]" /> Doctor Booking Schedules
+                </h2>
+                <p className="text-xs text-slate-400 mt-0.5">Configure per-doctor availability for online booking</p>
+              </div>
             </div>
             {bookingDoctors.length === 0 ? (
               <p className="text-slate-500 text-center py-8">No doctors added yet. Add doctors in the Doctors tab first.</p>
             ) : (
               <div className="space-y-3">
                 {bookingDoctors.map(doctor => (
-                  <div key={doctor._id} className="flex items-center justify-between px-5 py-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-white">{doctor.name}</p>
+                  <div key={doctor._id} className="flex items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-4 bg-slate-50 dark:bg-slate-700 rounded-xl">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-800 dark:text-white truncate">{doctor.name}</p>
                       <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{doctor.specialization || 'General'}</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${doctor.isBookable ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'}`}>
+                    <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                      <span className={`text-xs px-2 sm:px-2.5 py-1 rounded-full font-semibold whitespace-nowrap ${doctor.isBookable ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600 dark:bg-slate-600 dark:text-slate-300'}`}>
                         {doctor.isBookable ? 'Bookable' : 'Not Bookable'}
                       </span>
                       <button onClick={() => openDoctorSchedule(doctor)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-[#137fec] text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors">
-                        <Edit2 size={14} /> Configure
+                        className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-[#137fec] text-white text-sm font-semibold rounded-xl hover:bg-blue-600 transition-colors">
+                        <Edit2 size={14} /> <span className="hidden xs:inline">Configure</span>
                       </button>
                     </div>
                   </div>
@@ -3569,7 +3577,7 @@ const SettingsPage = () => {
 
             {/* Form */}
             <form onSubmit={handleSubmitDoctor} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
                   type="text"
                   name="name"

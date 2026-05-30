@@ -68,7 +68,7 @@ export default function ReportInventory({ from, to }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Item list */}
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col max-h-[520px]">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden flex flex-col max-h-64 lg:max-h-[520px]">
           <div className="p-4 border-b bg-slate-50 flex-shrink-0">
             <h3 className="font-bold text-slate-800">Select Item</h3>
             <p className="text-xs text-slate-400 mt-0.5">{items.length} items total</p>
@@ -124,18 +124,18 @@ export default function ReportInventory({ from, to }) {
               </div>
 
               {/* KPI cards */}
-              <div className="grid grid-cols-3 gap-4">
-                <div className="bg-white p-4 rounded-xl border shadow-sm">
-                  <p className="text-xs text-slate-500 font-bold uppercase">Current Stock</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{selectedItem.stock_on_hand}</p>
+              <div className="grid grid-cols-3 gap-3 md:gap-4">
+                <div className="bg-white p-3 md:p-4 rounded-xl border shadow-sm">
+                  <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase">Current Stock</p>
+                  <p className="text-xl md:text-2xl font-bold text-slate-800 mt-1">{selectedItem.stock_on_hand}</p>
                 </div>
-                <div className="bg-white p-4 rounded-xl border shadow-sm">
-                  <p className="text-xs text-slate-500 font-bold uppercase">Consumed (Period)</p>
-                  <p className="text-2xl font-bold text-slate-800 mt-1">{totalConsumed}</p>
+                <div className="bg-white p-3 md:p-4 rounded-xl border shadow-sm">
+                  <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase">Consumed (Period)</p>
+                  <p className="text-xl md:text-2xl font-bold text-slate-800 mt-1">{totalConsumed}</p>
                 </div>
-                <div className={`bg-white p-4 rounded-xl border shadow-sm`}>
-                  <p className="text-xs text-slate-500 font-bold uppercase">Status</p>
-                  <p className={`text-lg font-bold mt-1 ${selectedItem.status === 'Good' ? 'text-green-600' : selectedItem.status === 'Low' ? 'text-yellow-600' : 'text-red-600'}`}>
+                <div className="bg-white p-3 md:p-4 rounded-xl border shadow-sm">
+                  <p className="text-[10px] md:text-xs text-slate-500 font-bold uppercase">Status</p>
+                  <p className={`text-base md:text-lg font-bold mt-1 ${selectedItem.status === 'Good' ? 'text-green-600' : selectedItem.status === 'Low' ? 'text-yellow-600' : 'text-red-600'}`}>
                     {selectedItem.status}
                   </p>
                 </div>
@@ -157,7 +157,7 @@ export default function ReportInventory({ from, to }) {
             <BarChart data={consumed} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
               <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-              <YAxis dataKey="name" type="category" width={160} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+              <YAxis dataKey="name" type="category" width={130} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
               <Tooltip />
               <Bar dataKey="total" radius={[0, 4, 4, 0]} barSize={18} name="Units Used">
                 {consumed.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}

@@ -40,7 +40,7 @@ export default function WhatsAppPage() {
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              <span className="material-symbols-outlined text-[16px] sm:text-[18px]">{tab.icon}</span>
+              <span className="material-symbols-outlined text-[20px] sm:text-[22px]">{tab.icon}</span>
               <span className="hidden xs:inline sm:inline">{tab.label}</span>
             </button>
           ))}

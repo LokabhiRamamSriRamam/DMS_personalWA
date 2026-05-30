@@ -51,11 +51,11 @@ function Appointments({ from, to }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {kpis.map(k => (
-          <div key={k.label} className="bg-white p-6 rounded-2xl border shadow-sm">
-            <p className={`text-sm font-medium ${k.color}`}>{k.label}</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">{k.value}</p>
+          <div key={k.label} className="bg-white p-4 md:p-6 rounded-2xl border shadow-sm">
+            <p className={`text-xs md:text-sm font-medium ${k.color}`}>{k.label}</p>
+            <p className="text-2xl md:text-3xl font-bold text-slate-800 mt-1">{k.value}</p>
           </div>
         ))}
       </div>
@@ -73,8 +73,8 @@ function Appointments({ from, to }) {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} width={30} />
                 <Tooltip />
                 <Area type="monotone" dataKey="count" stroke="#137fec" strokeWidth={2.5} fill="url(#aptGrad)" name="Appointments" />
               </AreaChart>
@@ -138,7 +138,7 @@ function PatientsReport({ from, to }) {
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={d.top_treatments}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} angle={-30} textAnchor="end" height={50} interval={0} />
               <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
               <Tooltip />
               <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Count">
@@ -171,7 +171,8 @@ function Recall() {
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Recall Due</h3></div>
         {rows.length > 0 ? (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[380px]">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
               <tr>
                 <th className="p-3 text-left">Patient ID</th>
@@ -193,6 +194,7 @@ function Recall() {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-slate-400 text-sm text-center py-12">All patients have visited within 6 months.</p>
         )}
@@ -210,15 +212,15 @@ function NoShow({ from, to }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
         {[
           { label: 'Total Appointments', value: d.total           || 0 },
           { label: 'No Shows',           value: d.no_show_count   || 0, sub: `${d.no_show_rate || 0}%`,   color: 'text-orange-600' },
           { label: 'Cancellations',      value: d.cancelled_count || 0, sub: `${d.cancelled_rate || 0}%`, color: 'text-red-600'    },
         ].map(k => (
-          <div key={k.label} className="bg-white p-6 rounded-2xl border shadow-sm">
-            <p className="text-slate-500 text-sm">{k.label}</p>
-            <p className="text-3xl font-bold text-slate-800 mt-1">{k.value}</p>
+          <div key={k.label} className="bg-white p-4 md:p-6 rounded-2xl border shadow-sm">
+            <p className="text-slate-500 text-xs md:text-sm">{k.label}</p>
+            <p className="text-2xl md:text-3xl font-bold text-slate-800 mt-1">{k.value}</p>
             {k.sub && <p className={`text-sm font-semibold mt-1 ${k.color}`}>{k.sub} rate</p>}
           </div>
         ))}

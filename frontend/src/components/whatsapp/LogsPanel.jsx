@@ -139,12 +139,12 @@ export default function LogsPanel() {
     <div className="h-full overflow-y-auto flex flex-col gap-5">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h2 className="font-bold text-slate-900 text-lg">Activity Logs & Statistics</h2>
           <p className="text-xs text-slate-500">Showing the rolling last 30 days. Older entries are auto-deleted.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
             <input type="checkbox" checked={autoRefresh} onChange={e => setAutoRefresh(e.target.checked)} className="accent-blue-600" />
             Auto-refresh (30s)
@@ -271,7 +271,7 @@ export default function LogsPanel() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[600px]">
             <thead className="bg-slate-50 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
               <tr>
                 <th className="text-left px-4 py-2.5">Time</th>
