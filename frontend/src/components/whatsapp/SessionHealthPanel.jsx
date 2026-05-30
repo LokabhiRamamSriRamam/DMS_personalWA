@@ -561,13 +561,13 @@ export default function SessionHealthPanel() {
       {/* How it works guide */}
       <HowItWorksGuide />
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
 
         {/* Left: step-by-step setup */}
         <div className="flex-1 flex flex-col gap-5 min-w-0">
 
           {/* Progress tracker */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-slate-200 p-4 flex flex-wrap items-center gap-2">
             <StepRow n="1" title="Save PAT"       active={!hasPat}                   done={hasPat} />
             <div className="flex-1 h-px bg-slate-200" />
             <StepRow n="2" title="Create Session" active={hasPat && !hasSession}      done={hasSession} />
@@ -836,7 +836,7 @@ export default function SessionHealthPanel() {
         </div>
 
         {/* Right: live status + QR */}
-        <div className="w-96 flex-shrink-0 flex flex-col gap-5">
+        <div className="w-full lg:w-96 flex-shrink-0 flex flex-col gap-5">
 
           {/* Status card */}
           <div className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col gap-4">

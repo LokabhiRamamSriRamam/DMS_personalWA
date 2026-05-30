@@ -51,7 +51,7 @@ function Doctors({ from, to }) {
               <BarChart data={chart} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis dataKey="name" type="category" width={90} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="patient_count" fill="#137fec" radius={[0, 4, 4, 0]} barSize={18} name="Patients" />
               </BarChart>
@@ -67,7 +67,7 @@ function Doctors({ from, to }) {
               <BarChart data={chart} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis dataKey="name" type="category" width={90} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="treatment_count" fill="#22c55e" radius={[0, 4, 4, 0]} barSize={18} name="Treatments" />
               </BarChart>
@@ -140,7 +140,7 @@ function Lab({ from, to }) {
               <BarChart data={d.by_vendor} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-                <YAxis dataKey="name" type="category" width={110} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <YAxis dataKey="name" type="category" width={90} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Bar dataKey="count" fill="#137fec" radius={[0, 4, 4, 0]} barSize={18} name="Orders" />
               </BarChart>
@@ -153,7 +153,8 @@ function Lab({ from, to }) {
       <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
         <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Recent Lab Orders</h3></div>
         {d.rows?.length > 0 ? (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[520px]">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
               <tr>
                 <th className="p-3 text-left">Patient</th>
@@ -179,6 +180,7 @@ function Lab({ from, to }) {
               ))}
             </tbody>
           </table>
+          </div>
         ) : (
           <p className="text-slate-400 text-sm text-center py-12">No lab orders in this period.</p>
         )}

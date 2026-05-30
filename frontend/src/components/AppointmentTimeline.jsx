@@ -94,7 +94,7 @@ export default function AppointmentTimeline({ patientId, patient, buttonLabel = 
   // past = done status OR start_time already passed
   const past = appointments
     .filter(a => DONE_STATUSES.includes(a.status) || new Date(a.start_time) < now)
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+    .sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
 
   // upcoming = future + not done, sorted ascending; first one = next (highlighted)
   const upcoming = appointments

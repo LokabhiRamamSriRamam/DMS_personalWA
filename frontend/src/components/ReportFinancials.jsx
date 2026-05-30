@@ -53,15 +53,15 @@ function Revenue({ from, to }) {
   return (
     <div className="space-y-6">
       {/* KPI row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3 md:gap-4">
         {[
           { label: 'Total Billed',   value: fmt(d.total || 0) },
           { label: 'Collected',      value: fmt(d.collected || 0) },
           { label: 'Pending',        value: fmt(d.pending || 0) },
         ].map(k => (
-          <div key={k.label} className="bg-white p-6 rounded-2xl border shadow-sm">
-            <p className="text-slate-500 text-sm">{k.label}</p>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{k.value}</p>
+          <div key={k.label} className="bg-white p-3 md:p-6 rounded-2xl border shadow-sm">
+            <p className="text-slate-500 text-xs md:text-sm">{k.label}</p>
+            <p className="text-lg md:text-2xl font-bold text-slate-800 mt-1">{k.value}</p>
           </div>
         ))}
       </div>
@@ -105,7 +105,8 @@ function Revenue({ from, to }) {
         {d.top_patients?.length > 0 && (
           <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
             <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Top Patients by Revenue</h3></div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[280px]">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
                 <tr><th className="p-3 text-left">Patient</th><th className="p-3 text-right">Total Billed</th></tr>
               </thead>
@@ -118,6 +119,7 @@ function Revenue({ from, to }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -125,7 +127,8 @@ function Revenue({ from, to }) {
         {d.by_doctors?.length > 0 && (
           <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
             <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Revenue by Doctors</h3></div>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[300px]">
               <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
                 <tr><th className="p-3 text-left">Doctor</th><th className="p-3 text-right">Cases</th><th className="p-3 text-right">Total Revenue</th></tr>
               </thead>
@@ -139,6 +142,7 @@ function Revenue({ from, to }) {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>
@@ -209,7 +213,8 @@ function Vendors({ from, to }) {
         <p className="text-xs text-slate-400 mt-0.5">Based on expense transactions linked to vendors</p>
       </div>
       {rows.length > 0 ? (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[320px]">
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
             <tr>
               <th className="p-3 text-left">Vendor</th>
@@ -227,6 +232,7 @@ function Vendors({ from, to }) {
             ))}
           </tbody>
         </table>
+        </div>
       ) : (
         <p className="text-slate-400 text-sm text-center py-16">No vendor transactions in this period.</p>
       )}
@@ -247,7 +253,8 @@ function MedOrders({ from, to }) {
     <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
       <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Purchase Orders</h3></div>
       {rows.length > 0 ? (
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[540px]">
           <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
             <tr>
               <th className="p-3 text-left">Vendor</th>
@@ -273,6 +280,7 @@ function MedOrders({ from, to }) {
             ))}
           </tbody>
         </table>
+        </div>
       ) : (
         <p className="text-slate-400 text-sm text-center py-16">No purchase orders in this period.</p>
       )}
@@ -294,10 +302,10 @@ function TreatmentRevenue({ from, to }) {
         {rows.length > 0 ? (
           <div style={{ height: '500px', overflowY: 'auto' }}>
             <ResponsiveContainer width="100%" height={Math.max(300, rows.length * 36)}>
-              <BarChart data={rows} layout="vertical" margin={{ left: 160 }}>
+              <BarChart data={rows} layout="vertical" margin={{ left: 10, right: 10 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={fmt} />
-                <YAxis dataKey="name" type="category" width={150} axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} tickFormatter={fmt} />
+                <YAxis dataKey="name" type="category" width={120} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
                 <Tooltip formatter={v => [fmt(v), 'Revenue']} />
                 <Bar dataKey="total_cost" fill="#137fec" radius={[0, 4, 4, 0]} barSize={18} name="Revenue">
                   {rows.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
@@ -311,7 +319,8 @@ function TreatmentRevenue({ from, to }) {
       {rows.length > 0 && (
         <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
           <div className="p-4 border-b bg-slate-50"><h3 className="font-bold text-slate-800">Treatment Breakdown</h3></div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[300px]">
             <thead className="bg-slate-50 text-xs text-slate-500 uppercase">
               <tr>
                 <th className="p-3 text-left">Treatment</th>
@@ -329,6 +338,7 @@ function TreatmentRevenue({ from, to }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

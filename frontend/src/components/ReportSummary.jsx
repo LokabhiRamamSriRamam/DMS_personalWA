@@ -48,12 +48,12 @@ export default function ReportSummary({ from, to }) {
           const Icon = cfg.icon;
           const val = data?.[cfg.key] ?? 0;
           return (
-            <div key={cfg.key} className="bg-white p-6 rounded-2xl border shadow-sm">
+            <div key={cfg.key} className="bg-white p-4 md:p-6 rounded-2xl border shadow-sm">
               <div className={`size-10 rounded-xl ${cfg.bg} flex items-center justify-center mb-3`}>
                 <Icon size={20} className={cfg.color} />
               </div>
               <p className="text-slate-500 text-sm font-medium">{cfg.label}</p>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{cfg.format(val)}</p>
+              <p className="text-xl md:text-2xl font-bold text-slate-800 mt-1">{cfg.format(val)}</p>
             </div>
           );
         })}
@@ -72,8 +72,8 @@ export default function ReportSummary({ from, to }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12 }} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12 }} tickFormatter={v => `₹${v >= 1000 ? (v/1000).toFixed(0)+'K' : v}`} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} tickFormatter={v => `₹${v >= 1000 ? (v/1000).toFixed(0)+'K' : v}`} width={50} />
               <Tooltip formatter={v => [`₹${v.toLocaleString()}`, 'Revenue']} />
               <Area type="monotone" dataKey="amount" stroke="#137fec" strokeWidth={2.5} fill="url(#revGrad)" />
             </AreaChart>
