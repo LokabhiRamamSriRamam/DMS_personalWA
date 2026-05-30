@@ -1000,7 +1000,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
   // ── FULL MODAL ──────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[300] flex items-stretch sm:items-center justify-center bg-black/50 backdrop-blur-sm sm:p-4">
-      <div className="bg-white w-full sm:max-w-3xl shadow-2xl overflow-y-auto overscroll-contain h-[100dvh] sm:max-h-[92vh] sm:rounded-2xl">
+      <div className="bg-white w-full sm:max-w-3xl shadow-2xl overflow-hidden h-[100dvh] sm:max-h-[92vh] sm:rounded-2xl flex flex-col">
 
         {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-slate-100">
@@ -1046,7 +1046,7 @@ export default function ClinicalReportModal({ isOpen, onClose, patientId, appoin
         </div>
 
         {/* Body */}
-        <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5 overflow-y-auto" style={{ maxHeight: 'calc(100dvh - 120px)' }}>
+        <div className="px-4 sm:px-6 py-4 sm:py-5 flex flex-col gap-4 sm:gap-5 overflow-y-scroll flex-1 min-h-0">
 
           {/* ── IDLE / RECORDING / PAUSED ── */}
           {(stage === 'idle' || stage === 'recording' || stage === 'paused') && (
