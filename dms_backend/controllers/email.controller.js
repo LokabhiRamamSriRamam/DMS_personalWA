@@ -409,8 +409,12 @@ export async function updateSettings(req, res) {
     }
 
     if (events) {
-      settings.events = { ...settings.events, ...events };
-      settings.markModified('events');
+      for (const [eventKey, eventVal] of Object.entries(events)) {
+        if (!eventVal || typeof eventVal !== 'object') continue;
+        for (const [field, value] of Object.entries(eventVal)) {
+          settings.set(`events.${eventKey}.${field}`, value);
+        }
+      }
     }
 
     await settings.save();

@@ -1759,7 +1759,7 @@ function SmartReportDocPreview({ clinicInfo }) {
 }
 
 // AI Report: keep the email-preview phone mockup since this tab configures email/WhatsApp templates
-function AIReportEmailPreview({ clinicInfo }) {
+function AIReportEmailPreview({ clinicInfo, richHtml }) {
   const clinic  = clinicInfo?.name    || 'Your Clinic';
   const tagline = clinicInfo?.tagline || '';
   const phone   = clinicInfo?.phone   || '';
@@ -1770,7 +1770,7 @@ function AIReportEmailPreview({ clinicInfo }) {
   return (
     <div className="space-y-2">
       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
-        <Eye size={12} /> Patient email view
+        <Eye size={12} /> Patient email view ({richHtml ? 'rich HTML' : 'plain text'})
       </p>
 
       {/* Phone shell */}
@@ -1795,28 +1795,45 @@ function AIReportEmailPreview({ clinicInfo }) {
               <p className="text-[10px] font-bold text-slate-800 truncate">Your Clinical Report is Ready</p>
             </div>
 
-            <div className="overflow-hidden" style={{ maxHeight: 280 }}>
-              <div style={{ background: 'linear-gradient(135deg,#1d6fe8 0%,#137fec 100%)' }} className="px-3 py-2.5">
-                <p className="text-white font-bold text-[10px]">{clinic}</p>
-                {tagline && <p className="text-blue-100 text-[8px] mt-0.5">{tagline}</p>}
-              </div>
-              <div className="bg-white px-3 py-2.5 space-y-1">
-                {['Dear Rahul,', '', 'Your AI clinical report prepared by Dr. Giri is ready.', '', 'The full report is attached as a PDF.', '', `Warm regards,`, clinic].map((l, i) =>
-                  l ? <p key={i} className="text-[9px] text-slate-600 leading-relaxed">{l}</p>
-                    : <div key={i} className="h-1" />
-                )}
-              </div>
-              <div className="bg-white px-3 pb-2.5">
-                <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
-                  <span className="text-[10px]">✨</span>
-                  <p className="text-[8px] text-slate-600 font-medium truncate">AIReport_Rahul_2026-05-15.pdf</p>
+            {richHtml ? (
+              <div className="overflow-hidden" style={{ maxHeight: 280 }}>
+                <div style={{ background: 'linear-gradient(135deg,#1d6fe8 0%,#137fec 100%)' }} className="px-3 py-2.5">
+                  <p className="text-white font-bold text-[10px]">{clinic}</p>
+                  {tagline && <p className="text-blue-100 text-[8px] mt-0.5">{tagline}</p>}
+                </div>
+                <div className="bg-white px-3 py-2.5 space-y-1">
+                  {['Dear Rahul,', '', 'Your AI clinical report prepared by Dr. Giri is ready.', '', 'The full report is attached as a PDF.', '', 'Warm regards,', clinic].map((l, i) =>
+                    l ? <p key={i} className="text-[9px] text-slate-600 leading-relaxed">{l}</p>
+                      : <div key={i} className="h-1" />
+                  )}
+                </div>
+                <div className="bg-white px-3 pb-2.5">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 flex items-center gap-1.5">
+                    <span className="text-[10px]">✨</span>
+                    <p className="text-[8px] text-slate-600 font-medium truncate">AIReport_Rahul_2026-05-15.pdf</p>
+                  </div>
+                </div>
+                <div className="bg-slate-50 border-t border-slate-100 px-3 py-1.5">
+                  <p className="text-[8px] text-slate-400 text-center truncate">{footer}</p>
+                  <p className="text-[7px] text-slate-300 text-center mt-0.5">Molaris Dental DMS</p>
                 </div>
               </div>
-              <div className="bg-slate-50 border-t border-slate-100 px-3 py-1.5">
-                <p className="text-[8px] text-slate-400 text-center truncate">{footer}</p>
-                <p className="text-[7px] text-slate-300 text-center mt-0.5">Molaris Dental DMS</p>
+            ) : (
+              <div className="bg-white px-3 py-3 overflow-hidden" style={{ maxHeight: 280 }}>
+                <p className="font-mono text-[8.5px] text-slate-600 whitespace-pre-wrap leading-relaxed">{[
+                  `Dear Rahul,`,
+                  ``,
+                  `Your AI clinical report prepared by`,
+                  `Dr. Giri is ready.`,
+                  ``,
+                  `The full report is attached as a PDF.`,
+                  ``,
+                  `Warm regards,`,
+                  clinic,
+                ].join('\n')}</p>
               </div>
-            </div>
+            )}
+
           </div>
         </div>
       </div>
@@ -1827,12 +1844,12 @@ function AIReportEmailPreview({ clinicInfo }) {
 }
 
 // Dispatcher — right preview panel per section
-function SectionPreviewPane({ clinicInfo, section }) {
+function SectionPreviewPane({ clinicInfo, section, htmlEmailEnabled }) {
   if (section === 'invoice')      return <InvoiceDocPreview      clinicInfo={clinicInfo} />;
   if (section === 'prescription') return <PrescriptionDocPreview clinicInfo={clinicInfo} />;
   if (section === 'smart_report') return <SmartReportDocPreview  clinicInfo={clinicInfo} />;
-  if (section === 'ai_report')    return <AIReportEmailPreview   clinicInfo={clinicInfo} />;
-  if (section === 'send_email')   return <AIReportEmailPreview   clinicInfo={clinicInfo} />;
+  if (section === 'ai_report')    return <AIReportEmailPreview   clinicInfo={clinicInfo} richHtml />;
+  if (section === 'send_email')   return <AIReportEmailPreview   clinicInfo={clinicInfo} richHtml={htmlEmailEnabled} />;
   return null;
 }
 
@@ -1841,6 +1858,7 @@ function PatientDocumentsTab() {
   const [section, setSection] = React.useState('invoice');
   const [previewVisible, setPreviewVisible] = React.useState(false);
   const [clinicInfo, setClinicInfo] = React.useState({ name: '', tagline: '', phone: '', email: '' });
+  const [htmlEmailEnabled, setHtmlEmailEnabled] = React.useState(false);
 
   React.useEffect(() => {
     // Load clinic info for the preview panel from saved Invoice settings
@@ -1860,6 +1878,7 @@ function PatientDocumentsTab() {
         tagline: r.data.pdf?.clinicTagline || c.tagline,
         name:    r.data.pdf?.clinicName    || c.name,
       }));
+      setHtmlEmailEnabled(r.data.htmlEmail?.enabled ?? false);
     });
   }, []);
 
@@ -1884,8 +1903,8 @@ function PatientDocumentsTab() {
               Configure how each document is formatted and delivered from the treatment page.
             </p>
           </div>
-          {/* Mobile-only preview toggle — hidden on tabs that have inline preview */}
-          {section !== 'send_email' && section !== 'send_whatsapp' && (
+          {/* Mobile-only preview toggle — hidden on tabs with no preview */}
+          {section !== 'send_whatsapp' && (
             <button
               onClick={() => setPreviewVisible(v => !v)}
               className="lg:hidden flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#137fec] border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors flex-shrink-0"
@@ -1897,9 +1916,9 @@ function PatientDocumentsTab() {
         </div>
 
         {/* Mobile preview panel (toggleable) */}
-        {previewVisible && section !== 'send_email' && section !== 'send_whatsapp' && (
+        {previewVisible && section !== 'send_whatsapp' && (
           <div className="lg:hidden p-6 bg-slate-50 dark:bg-slate-700/30 border-b border-slate-100 dark:border-slate-700">
-            <SectionPreviewPane clinicInfo={clinicInfo} section={section} />
+            <SectionPreviewPane clinicInfo={clinicInfo} section={section} htmlEmailEnabled={htmlEmailEnabled} />
           </div>
         )}
 
@@ -1930,15 +1949,15 @@ function PatientDocumentsTab() {
               {section === 'prescription' && <PrescriptionSettingsTab embedded />}
               {section === 'smart_report' && <SmartReportDeliverySection />}
               {section === 'ai_report'     && <ReportDeliveryTab embedded />}
-              {section === 'send_email'    && <AIReportEmailSection />}
+              {section === 'send_email'    && <AIReportEmailSection htmlEmailEnabled={htmlEmailEnabled} onHtmlToggle={setHtmlEmailEnabled} />}
               {section === 'send_whatsapp' && <AIReportWhatsAppSection />}
             </div>
           </div>
 
-          {/* Preview column — desktop only; hidden on tabs with inline preview */}
-          {section !== 'send_email' && section !== 'send_whatsapp' && (
+          {/* Preview column — desktop only; hidden on send_whatsapp tab */}
+          {section !== 'send_whatsapp' && (
             <div className="hidden lg:flex lg:w-72 xl:w-80 flex-shrink-0 flex-col p-6 bg-slate-50/60 dark:bg-slate-700/20" style={{ minHeight: 480 }}>
-              <SectionPreviewPane clinicInfo={clinicInfo} section={section} />
+              <SectionPreviewPane clinicInfo={clinicInfo} section={section} htmlEmailEnabled={htmlEmailEnabled} />
             </div>
           )}
 
@@ -2224,12 +2243,12 @@ function AIReportWhatsAppSection() {
 }
 
 // ─── AI Report — Send Email configuration (separate tab) ─────────────────────
-function AIReportEmailSection() {
+function AIReportEmailSection({ htmlEmailEnabled, onHtmlToggle }) {
   const inputCls = 'w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 focus:ring-2 focus:ring-[#137fec] outline-none';
 
   const [form, setForm] = React.useState({
     email:     { subject: '', body: '' },
-    htmlEmail: { enabled: false },
+    htmlEmail: { enabled: htmlEmailEnabled ?? false },
   });
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving]   = React.useState(false);
@@ -2240,10 +2259,12 @@ function AIReportEmailSection() {
     API.get('/report/delivery-settings')
       .then(r => {
         const data = r.data || {};
+        const htmlEnabled = data.htmlEmail?.enabled ?? false;
         setForm(prev => ({
           email:     { ...prev.email,     ...(data.email     || {}) },
           htmlEmail: { ...prev.htmlEmail, ...(data.htmlEmail || {}) },
         }));
+        onHtmlToggle?.(htmlEnabled);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -2341,7 +2362,7 @@ function AIReportEmailSection() {
           <h3 className="text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide flex items-center gap-2">
             ✉️ Rich HTML Email
           </h3>
-          <ToggleSwitch enabled={form.htmlEmail.enabled} onChange={v => setField('htmlEmail.enabled', v)} />
+          <ToggleSwitch enabled={form.htmlEmail.enabled} onChange={v => { setField('htmlEmail.enabled', v); onHtmlToggle?.(v); }} />
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
           When on, report emails are sent as branded HTML (clinic header, patient details, report body inline) instead of the plain-text body above.

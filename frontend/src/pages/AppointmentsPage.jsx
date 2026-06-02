@@ -125,7 +125,7 @@ const AppointmentsPage = () => {
   const [editPatientModal, setEditPatientModal] = useState(null); // { patientId, first_name, last_name, email, mobile }
   const [editPatientSaving, setEditPatientSaving] = useState(false);
 
-  const ALL_STATUSES = ['Pending', 'Scheduled', 'Confirmed', 'Checked In', 'Completed', 'Cancelled'];
+  const ALL_STATUSES = ['Requested', 'Scheduled', 'Confirmed', 'Checked In', 'Completed', 'Cancelled'];
 
   // Click Outside Hook
   useEffect(() => {
@@ -140,7 +140,7 @@ const AppointmentsPage = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'Pending':     return 'amber';
+      case 'Requested':   return 'amber';
       case 'In Progress': return 'green';
       case 'Checked In':  return 'blue';
       case 'Scheduled':   return 'slate';
@@ -477,7 +477,7 @@ const AppointmentsPage = () => {
                         </div>
 
                         <div className="overflow-y-auto max-h-[60vh] pb-safe">
-                          {apt.status === 'Pending' && (
+                          {apt.status === 'Requested' && (
                             <div className="bg-amber-50 p-3 border-b border-amber-100 space-y-2">
                               <div className="flex gap-2">
                                 <button onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-3 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-bold rounded-xl">Confirm</button>
@@ -486,7 +486,7 @@ const AppointmentsPage = () => {
                               <button onClick={() => handleEdit(apt)} className="w-full px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-semibold rounded-xl">Reschedule</button>
                             </div>
                           )}
-                          {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
+                          {!['Requested', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                             <div className="p-3 border-b border-slate-100">
                               <button
                                 onClick={() => handleStartVisit(apt)}
@@ -595,7 +595,7 @@ const AppointmentsPage = () => {
                                         className="absolute right-0 top-full mt-1 w-56 max-h-96 bg-white border border-slate-200 rounded-lg shadow-xl z-[60] overflow-y-auto text-left"
                                         onMouseDown={e => e.stopPropagation()}
                                       >
-                                        {apt.status === 'Pending' && (
+                                        {apt.status === 'Requested' && (
                                           <div className="sticky top-0 bg-amber-50 p-1 border-b border-amber-100 z-10 space-y-1">
                                             <div className="flex gap-1">
                                               <button onClick={() => handleStatusChange(apt.id, 'Confirmed')} className="flex-1 px-2 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-md">Confirm</button>
@@ -604,7 +604,7 @@ const AppointmentsPage = () => {
                                             <button onClick={() => handleEdit(apt)} className="w-full px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-md">Reschedule</button>
                                           </div>
                                         )}
-                                        {!['Pending', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
+                                        {!['Requested', 'Completed', 'Cancelled', 'No Show'].includes(apt.status) && (
                                           <div className="sticky top-0 bg-white p-1 border-b border-slate-100 z-10">
                                             <button
                                               onClick={() => handleStartVisit(apt)}

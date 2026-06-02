@@ -225,7 +225,7 @@ export async function submitBooking(req, res) {
       end_time,
       title:  `Online Booking — ${patientData.name || 'Patient'}`,
       type:   'Consultation',
-      status: 'Pending',
+      status: 'Requested',
       source: 'online',
       notes:  patientData.chiefComplaint || '',
     });
