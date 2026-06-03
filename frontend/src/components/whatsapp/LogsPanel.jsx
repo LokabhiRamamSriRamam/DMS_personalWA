@@ -5,7 +5,7 @@ const TRIGGER_LABELS = {
   first_message:           'First Message',
   appointment_received:    'Appt. Received',
   appointment_booked:      'Appt. Booked',
-  appointment_confirmed:   'Appt. Confirmed',
+  appointment_scheduled:   'Appt. Scheduled',
   appointment_reminder:    'Appt. Reminder',
   appointment_completed:   'Appt. Completed',
   appointment_rescheduled: 'Appt. Rescheduled',

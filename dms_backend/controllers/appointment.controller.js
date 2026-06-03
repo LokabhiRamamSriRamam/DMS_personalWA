@@ -178,13 +178,13 @@ export async function updateStatus(req, res) {
     }
 
     // WaSender flows (fire-and-forget)
-    if (['Completed', 'Confirmed', 'Cancelled'].includes(status) && appt?.patient_id) {
+    if (['Completed', 'Scheduled', 'Cancelled'].includes(status) && appt?.patient_id) {
       const appointmentId = appt._id.toString();
       buildApptTemplateData(req.tenantModels, appt).then(templateData => {
         const phone = templateData.phone;
         if (!phone) return;
         if (status === 'Completed')  fireFlow(req.tenantModels, 'appointment_completed',  phone, templateData, { idempotencyKey: `apptCompleted:${appointmentId}` });
-        if (status === 'Confirmed')  fireFlow(req.tenantModels, 'appointment_confirmed',  phone, templateData, { idempotencyKey: `apptConfirmed:${appointmentId}` });
+        if (status === 'Scheduled' && currentAppt?.status === 'Requested')  fireFlow(req.tenantModels, 'appointment_scheduled',  phone, templateData, { idempotencyKey: `apptScheduled:${appointmentId}` });
       });
     }
 

@@ -23,7 +23,11 @@ export async function getDiagnoses(req, res) {
 export async function createDiagnosis(req, res) {
   const { Diagnosis } = req.tenantModels;
   try {
-    const newDiagnosis = new Diagnosis(req.body);
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Name is required.' });
+    const existing = await Diagnosis.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
+    if (existing) return res.status(409).json({ error: `A diagnosis named "${existing.name}" already exists.` });
+    const newDiagnosis = new Diagnosis({ ...req.body, name });
     await newDiagnosis.save();
     res.status(201).json(newDiagnosis);
   } catch (err) {
@@ -50,8 +54,25 @@ export async function bulkCreateDiagnoses(req, res) {
       return res.status(400).json({ error: 'No valid rows (name is required)' });
     }
 
-    const result = await Diagnosis.insertMany(docs, { ordered: false });
-    res.status(201).json({ inserted: result.length, skipped: items.length - result.length, errors: [] });
+    const seen = new Set();
+    const unique = docs.filter(d => {
+      const key = d.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    const existing = await Diagnosis.find({ name: { $in: unique.map(d => new RegExp(`^${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) } }).select('name');
+    const existingNames = new Set(existing.map(e => e.name.toLowerCase()));
+    const toInsert = unique.filter(d => !existingNames.has(d.name.toLowerCase()));
+    const skipped = items.length - toInsert.length;
+
+    if (toInsert.length === 0) {
+      return res.status(207).json({ inserted: 0, skipped, errors: ['All entries already exist or were duplicates.'] });
+    }
+
+    const result = await Diagnosis.insertMany(toInsert, { ordered: false });
+    res.status(201).json({ inserted: result.length, skipped, errors: [] });
   } catch (err) {
     const inserted = err?.result?.result?.nInserted ?? err?.insertedDocs?.length ?? 0;
     const errors = (err?.writeErrors || []).map(e => e.errmsg || e.message);
@@ -63,6 +84,12 @@ export async function bulkCreateDiagnoses(req, res) {
 export async function updateDiagnosis(req, res) {
   const { Diagnosis } = req.tenantModels;
   try {
+    if (req.body.name) {
+      const name = String(req.body.name).trim();
+      const exists = await Diagnosis.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }, _id: { $ne: req.params.id } });
+      if (exists) return res.status(409).json({ error: `A diagnosis named "${exists.name}" already exists.` });
+      req.body.name = name;
+    }
     const diagnosis = await Diagnosis.findByIdAndUpdate(
       req.params.id,
       { $set: req.body },

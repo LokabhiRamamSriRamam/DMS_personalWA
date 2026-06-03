@@ -5,7 +5,7 @@ const TRIGGER_OPTIONS = [
   { value: 'first_message',           label: 'First Message from Customer' },
   { value: 'appointment_received',    label: 'Appointment Received (Online Booking)' },
   { value: 'appointment_booked',      label: 'Appointment Booked (Dashboard)' },
-  { value: 'appointment_confirmed',   label: 'Appointment Confirmed' },
+  { value: 'appointment_scheduled',   label: 'Appointment Scheduled' },
   { value: 'appointment_reminder',    label: 'Appointment Reminder' },
   { value: 'appointment_completed',   label: 'Appointment Completed' },
   { value: 'appointment_rescheduled', label: 'Appointment Rescheduled' },

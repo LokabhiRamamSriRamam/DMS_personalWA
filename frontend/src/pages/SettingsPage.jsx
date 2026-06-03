@@ -767,19 +767,19 @@ const EVENT_LABELS = {
 const EMAIL_PRESETS = {
   appointmentBooked: [
     {
-      name: 'Appointment Confirmed (Formal)',
-      subject: 'Your appointment is confirmed — {{date}}',
+      name: 'Appointment Scheduled (Formal)',
+      subject: 'Your appointment is scheduled — {{date}}',
       body: 'Dear {{first_name}},\n\nThis is to confirm your appointment with {{doctor}} on {{date}} at {{time}}.\n\nPlease arrive 10 minutes before your scheduled time.\n\nWarm regards,\n{{clinic}}',
     },
     {
-      name: 'Appointment Confirmed (Friendly)',
+      name: 'Appointment Scheduled (Friendly)',
       subject: "Great, you're booked! See you on {{date}} 😊",
       body: "Hi {{first_name}},\n\nJust confirming your appointment with {{doctor}} on {{date}} at {{time}}. We're looking forward to seeing you!\n\nAny questions? Just reply to this email.\n\nBest,\n{{clinic}}",
     },
     {
-      name: 'Appointment Confirmed (Minimal)',
-      subject: 'Appointment Confirmed',
-      body: 'Dear {{name}},\n\nYour appointment with {{doctor}} on {{date}} at {{time}} has been confirmed.\n\nSee you soon,\n{{clinic}}',
+      name: 'Appointment Scheduled (Minimal)',
+      subject: 'Appointment Scheduled',
+      body: 'Dear {{name}},\n\nYour appointment with {{doctor}} on {{date}} at {{time}} has been scheduled.\n\nSee you soon,\n{{clinic}}',
     },
   ],
   appointmentCompleted: [

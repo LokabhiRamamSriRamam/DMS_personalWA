@@ -21,7 +21,7 @@ const TRIGGER_LABELS = {
   first_message:           { label: 'First Message',    color: 'bg-purple-100 text-purple-700' },
   appointment_received:    { label: 'Appt Received',    color: 'bg-indigo-100 text-indigo-700' },
   appointment_booked:      { label: 'Appt Booked',      color: 'bg-blue-100 text-blue-700' },
-  appointment_confirmed:   { label: 'Appt Confirmed',   color: 'bg-green-100 text-green-700' },
+  appointment_scheduled:   { label: 'Appt Scheduled',   color: 'bg-green-100 text-green-700' },
   appointment_reminder:    { label: 'Appt Reminder',    color: 'bg-yellow-100 text-yellow-700' },
   appointment_completed:   { label: 'Appt Completed',   color: 'bg-emerald-100 text-emerald-700' },
   appointment_rescheduled: { label: 'Appt Rescheduled', color: 'bg-orange-100 text-orange-700' },

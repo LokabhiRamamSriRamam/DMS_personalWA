@@ -20,7 +20,11 @@ export async function getClinicalFindings(req, res) {
 export async function createClinicalFinding(req, res) {
   const { ClinicalFinding } = req.tenantModels;
   try {
-    const newFinding = new ClinicalFinding(req.body);
+    const name = String(req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Name is required.' });
+    const existing = await ClinicalFinding.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' } });
+    if (existing) return res.status(409).json({ error: `A clinical finding named "${existing.name}" already exists.` });
+    const newFinding = new ClinicalFinding({ ...req.body, name });
     await newFinding.save();
     res.status(201).json(newFinding);
   } catch (err) {
@@ -46,8 +50,27 @@ export async function bulkCreateClinicalFindings(req, res) {
       return res.status(400).json({ error: 'No valid rows (name is required)' });
     }
 
-    const result = await ClinicalFinding.insertMany(docs, { ordered: false });
-    res.status(201).json({ inserted: result.length, skipped: items.length - result.length, errors: [] });
+    // Deduplicate within the batch (case-insensitive), keep first occurrence
+    const seen = new Set();
+    const unique = docs.filter(d => {
+      const key = d.name.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // Filter out names that already exist in the DB
+    const existing = await ClinicalFinding.find({ name: { $in: unique.map(d => new RegExp(`^${d.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i')) } }).select('name');
+    const existingNames = new Set(existing.map(e => e.name.toLowerCase()));
+    const toInsert = unique.filter(d => !existingNames.has(d.name.toLowerCase()));
+    const skipped = items.length - toInsert.length;
+
+    if (toInsert.length === 0) {
+      return res.status(207).json({ inserted: 0, skipped, errors: ['All entries already exist or were duplicates.'] });
+    }
+
+    const result = await ClinicalFinding.insertMany(toInsert, { ordered: false });
+    res.status(201).json({ inserted: result.length, skipped, errors: [] });
   } catch (err) {
     const inserted = err?.result?.result?.nInserted ?? err?.insertedDocs?.length ?? 0;
     const errors = (err?.writeErrors || []).map(e => e.errmsg || e.message);
@@ -59,6 +82,12 @@ export async function bulkCreateClinicalFindings(req, res) {
 export async function updateClinicalFinding(req, res) {
   const { ClinicalFinding } = req.tenantModels;
   try {
+    if (req.body.name) {
+      const name = String(req.body.name).trim();
+      const exists = await ClinicalFinding.findOne({ name: { $regex: `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, $options: 'i' }, _id: { $ne: req.params.id } });
+      if (exists) return res.status(409).json({ error: `A clinical finding named "${exists.name}" already exists.` });
+      req.body.name = name;
+    }
     const finding = await ClinicalFinding.findByIdAndUpdate(
       req.params.id,
       { $set: req.body },

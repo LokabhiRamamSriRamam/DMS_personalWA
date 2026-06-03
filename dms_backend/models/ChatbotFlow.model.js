@@ -9,7 +9,7 @@ const ChatbotFlowSchema = new mongoose.Schema({
     type: String,
     enum: [
       'first_message',
-      'appointment_received', 'appointment_confirmed',
+      'appointment_received', 'appointment_scheduled',
       'appointment_booked', 'appointment_reminder',
       'appointment_completed', 'appointment_rescheduled',
       'treatment_completed', 'post_treatment_care',

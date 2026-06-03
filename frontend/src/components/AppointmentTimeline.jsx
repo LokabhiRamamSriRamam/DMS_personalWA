@@ -8,7 +8,6 @@ const STATUS_STYLES = {
   'Cancelled':  'bg-red-50    text-red-600    border-red-200',
   'No Show':    'bg-slate-100 text-slate-500   border-slate-200',
   'Scheduled':  'bg-blue-50   text-blue-700   border-blue-200',
-  'Confirmed':  'bg-blue-50   text-blue-700   border-blue-200',
   'Checked In': 'bg-purple-50 text-purple-700 border-purple-200',
   'In Progress':'bg-yellow-50 text-yellow-700 border-yellow-200',
 };

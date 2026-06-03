@@ -39,7 +39,7 @@ const PLACEHOLDERS = {
   first_message:           ['name', 'firstName', 'phone'],
   appointment_received:    ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
   appointment_booked:      ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
-  appointment_confirmed:   ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
+  appointment_scheduled:   ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
   appointment_reminder:    ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
   appointment_completed:   ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
   appointment_rescheduled: ['name', 'firstName', 'phone', 'date', 'time', 'doctorName'],
