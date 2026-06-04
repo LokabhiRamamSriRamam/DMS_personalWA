@@ -29,6 +29,46 @@ function parseLocalDate(str) {
 
 const DAY_NAMES = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
 
+// Collapse an array of {start,end} time-ranges into a single open span whose
+// inter-range gaps become breaks — so the existing slot generator handles it.
+function shiftsToDaySchedule(rawShifts) {
+  const shifts = (rawShifts || [])
+    .filter(s => s && s.start && s.end)
+    .map(s => ({ start: timeToMinutes(s.start), end: timeToMinutes(s.end) }))
+    .filter(s => s.end > s.start)
+    .sort((a, b) => a.start - b.start);
+
+  if (shifts.length === 0) return { isOpen: false };
+
+  const breaks = [];
+  for (let i = 1; i < shifts.length; i++) {
+    if (shifts[i].start > shifts[i - 1].end) {
+      breaks.push({ start: minutesToTime(shifts[i - 1].end), end: minutesToTime(shifts[i].start) });
+    }
+  }
+
+  return {
+    isOpen: true,
+    start:  minutesToTime(shifts[0].start),
+    end:    minutesToTime(shifts[shifts.length - 1].end),
+    breaks,
+  };
+}
+
+// Build the effective per-day online-booking schedule for a doctor.
+// When `useCustomBookingSchedule` is true, use `bookingWorkingHours` (preferring
+// explicit shifts, falling back to legacy start/end+breaks). Otherwise reuse the
+// Doctors-tab `availability` shifts.
+function effectiveDaySchedule(doctor, dayName) {
+  if (doctor.useCustomBookingSchedule) {
+    const day = doctor.bookingWorkingHours?.[dayName] || {};
+    if (!day.isOpen) return { isOpen: false };
+    if (Array.isArray(day.shifts) && day.shifts.length > 0) return shiftsToDaySchedule(day.shifts);
+    return day;
+  }
+  return shiftsToDaySchedule(doctor.availability?.[dayName]);
+}
+
 function generateSlots({ daySchedule, slotDuration, date, existingAppointments, blockedSlots, holidays }) {
   if (!daySchedule?.isOpen) return [];
 
@@ -55,7 +95,12 @@ function generateSlots({ daySchedule, slotDuration, date, existingAppointments, 
     if (inBreak) continue;
 
     const timeStr  = minutesToTime(cur);
-    const slotStart = new Date(date); slotStart.setHours(Math.floor(cur / 60), cur % 60, 0, 0);
+    // Build the slot's UTC instant from its IST wall-clock time (server-tz independent),
+    // matching how appointments are stored, so overlap detection is correct everywhere.
+    const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+    const slotStart = new Date(
+      Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), Math.floor(cur / 60), cur % 60, 0, 0) - IST_OFFSET
+    );
     const slotEnd   = new Date(slotStart.getTime() + slotDuration * 60_000);
 
     // Skip blocked slots
@@ -84,13 +129,21 @@ export async function getBookingConfig(req, res) {
     const [settings, doctors] = await Promise.all([
       BookingSettings.findOne().lean(),
       Doctor.find({ isBookable: true, is_active: true })
-        .select('name specialization qualification experience_years bookingWorkingHours holidays')
+        .select('name specialization qualification experience_years bookingWorkingHours availability useCustomBookingSchedule holidays')
         .lean(),
     ]);
 
     if (settings && !settings.isBookingEnabled) {
       return res.json({ bookingEnabled: false });
     }
+
+    // Expose the effective booking schedule (custom or reused availability)
+    const doctorsOut = doctors.map(doc => {
+      const bookingWorkingHours = {};
+      for (let i = 0; i < 7; i++) bookingWorkingHours[DAY_NAMES[i]] = effectiveDaySchedule(doc, DAY_NAMES[i]);
+      const { availability, useCustomBookingSchedule, ...rest } = doc;
+      return { ...rest, bookingWorkingHours };
+    });
 
     res.json({
       bookingEnabled:  true,
@@ -99,7 +152,7 @@ export async function getBookingConfig(req, res) {
       clinicLogoUrl:   settings?.clinicLogoUrl || '',
       slotDuration:    settings?.slotDurationMinutes || 30,
       blockedDates:    settings?.blockedDates || [],
-      doctors,
+      doctors: doctorsOut,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -126,7 +179,7 @@ export async function getAvailableSlots(req, res) {
 
     const slotDuration = settings?.slotDurationMinutes || 30;
     const dayName = DAY_NAMES[date.getDay()];
-    const daySchedule = doctor.bookingWorkingHours?.[dayName] || {};
+    const daySchedule = effectiveDaySchedule(doctor, dayName);
 
     // Clinic-level blocked date check (compare as YYYY-MM-DD strings to avoid TZ shift)
     const clinicBlocked = (settings?.blockedDates || []).some(b => {
@@ -135,8 +188,13 @@ export async function getAvailableSlots(req, res) {
     });
     if (clinicBlocked) return res.json({ slots: [] });
 
-    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd   = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+    // The booking day is an IST calendar day. Build its UTC boundaries explicitly
+    // (server-tz independent) so the appointment window aligns with the IST slot
+    // instants computed in generateSlots — otherwise early/late IST appointments
+    // would fall outside the window and slots would wrongly appear available.
+    const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+    const dayStart = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0) - IST_OFFSET);
+    const dayEnd   = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999) - IST_OFFSET);
 
     const existingAppointments = await Appointment.find({
       doctor_id: doctorId,
@@ -177,11 +235,14 @@ export async function submitBooking(req, res) {
     const doctor = await Doctor.findById(doctorId).lean();
     if (!doctor?.isBookable) return res.status(400).json({ message: 'Doctor not available for online booking' });
 
-    // Parse slot into Date (use parseLocalDate to avoid UTC TZ shift)
+    // The selected time is an IST wall-clock time. Build the corresponding UTC
+    // instant explicitly (server-tz independent): IST = UTC + 5:30. This matches
+    // how slots are generated and how dashboard appointments are stored.
     const [h, m] = time.split(':').map(Number);
     const slotDuration = settings?.slotDurationMinutes || 30;
-    const start_time = parseLocalDate(dateStr);
-    start_time.setHours(h, m, 0, 0);
+    const [y, mo, d] = dateStr.split('-').map(Number);
+    const IST_OFFSET = 5.5 * 60 * 60 * 1000;
+    const start_time = new Date(Date.UTC(y, mo - 1, d, h, m, 0, 0) - IST_OFFSET);
     const end_time = new Date(start_time.getTime() + slotDuration * 60_000);
 
     // Double-check slot still free

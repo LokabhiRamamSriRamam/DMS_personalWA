@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 
 const BreakSchema  = new mongoose.Schema({ start: String, end: String }, { _id: false });
+const ShiftSchema  = new mongoose.Schema({ start: String, end: String }, { _id: false });
 const DaySchema    = new mongoose.Schema({
   isOpen: { type: Boolean, default: false },
   start:  { type: String,  default: '09:00' },
   end:    { type: String,  default: '18:00' },
   breaks: { type: [BreakSchema], default: [] },
+  shifts: { type: [ShiftSchema], default: [] }, // multiple time ranges per day
 }, { _id: false });
 
 const DoctorSchema = new mongoose.Schema({
@@ -30,6 +32,9 @@ const DoctorSchema = new mongoose.Schema({
 
   // ── Online booking fields ──────────────────────────────────────────────────
   isBookable: { type: Boolean, default: false },
+  // When false, online booking reuses `availability` (the Doctors-tab schedule).
+  // When true, online booking uses `bookingWorkingHours` below.
+  useCustomBookingSchedule: { type: Boolean, default: false },
   bookingWorkingHours: {
     monday:    { type: DaySchema, default: () => ({}) },
     tuesday:   { type: DaySchema, default: () => ({}) },

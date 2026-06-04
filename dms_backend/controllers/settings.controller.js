@@ -98,7 +98,7 @@ export async function getDoctorSchedule(req, res) {
 export async function saveDoctorSchedule(req, res) {
   try {
     const { Doctor } = req.tenantModels;
-    const allowed = ['isBookable', 'bookingWorkingHours', 'holidays', 'blockedSlots'];
+    const allowed = ['isBookable', 'useCustomBookingSchedule', 'bookingWorkingHours', 'holidays', 'blockedSlots'];
     const update = { $set: {} };
     for (const k of allowed) if (req.body[k] !== undefined) update.$set[k] = req.body[k];
     const doctor = await Doctor.findByIdAndUpdate(req.params.id, update, { new: true });

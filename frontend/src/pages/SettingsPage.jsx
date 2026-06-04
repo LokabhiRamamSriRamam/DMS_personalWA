@@ -1481,47 +1481,48 @@ function EmailTab() {
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 function DayRow({ day, dayData = {}, onChange }) {
-  const breaks = dayData.breaks || [];
-  const addBreak = () => onChange(day, 'breaks', [...breaks, { start: '13:00', end: '14:00' }]);
-  const removeBreak = (i) => onChange(day, 'breaks', breaks.filter((_, idx) => idx !== i));
-  const updateBreak = (i, field, val) => {
-    const updated = [...breaks];
+  const shifts = dayData.shifts || [];
+  const toggleOpen = (checked) => {
+    if (checked && shifts.length === 0) {
+      onChange(day, '_set', { isOpen: true, shifts: [{ start: '09:00', end: '17:00' }] });
+    } else {
+      onChange(day, 'isOpen', checked);
+    }
+  };
+  const addShift = () => onChange(day, '_set', { isOpen: true, shifts: [...shifts, { start: '09:00', end: '17:00' }] });
+  const removeShift = (i) => onChange(day, 'shifts', shifts.filter((_, idx) => idx !== i));
+  const updateShift = (i, field, val) => {
+    const updated = [...shifts];
     updated[i] = { ...updated[i], [field]: val };
-    onChange(day, 'breaks', updated);
+    onChange(day, 'shifts', updated);
   };
   return (
     <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-3 mb-2">
       <div className="flex items-center gap-3 flex-wrap">
         <label className="flex items-center gap-2 cursor-pointer min-w-[110px]">
-          <input type="checkbox" checked={!!dayData.isOpen} onChange={e => onChange(day, 'isOpen', e.target.checked)} className="w-4 h-4 accent-[#137fec]" />
+          <input type="checkbox" checked={!!dayData.isOpen} onChange={e => toggleOpen(e.target.checked)} className="w-4 h-4 accent-[#137fec]" />
           <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-200">{day}</span>
         </label>
         {dayData.isOpen ? (
-          <>
-            <input type="time" value={dayData.start || '09:00'} onChange={e => onChange(day, 'start', e.target.value)}
-              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-800 dark:text-white" />
-            <span className="text-slate-400 text-sm">to</span>
-            <input type="time" value={dayData.end || '17:00'} onChange={e => onChange(day, 'end', e.target.value)}
-              className="px-2 py-1 border border-slate-300 dark:border-slate-600 rounded-lg text-sm dark:bg-slate-800 dark:text-white" />
-            <button type="button" onClick={addBreak} className="text-xs text-[#137fec] hover:underline font-medium ml-auto">+ Add Break</button>
-          </>
+          <button type="button" onClick={addShift} className="text-xs text-[#137fec] hover:underline font-medium ml-auto">+ Add Shift</button>
         ) : (
           <span className="text-xs text-slate-400 italic">Closed</span>
         )}
       </div>
-      {dayData.isOpen && breaks.length > 0 && (
+      {dayData.isOpen && (
         <div className="mt-2 ml-6 space-y-1">
-          {breaks.map((brk, i) => (
+          {shifts.map((sh, i) => (
             <div key={i} className="flex items-center gap-2 text-xs text-slate-500">
-              <span>Break:</span>
-              <input type="time" value={brk.start} onChange={e => updateBreak(i, 'start', e.target.value)}
+              <span>Shift:</span>
+              <input type="time" value={sh.start || ''} onChange={e => updateShift(i, 'start', e.target.value)}
                 className="px-2 py-1 border border-slate-200 dark:border-slate-600 rounded text-xs dark:bg-slate-800 dark:text-white" />
               <span>–</span>
-              <input type="time" value={brk.end} onChange={e => updateBreak(i, 'end', e.target.value)}
+              <input type="time" value={sh.end || ''} onChange={e => updateShift(i, 'end', e.target.value)}
                 className="px-2 py-1 border border-slate-200 dark:border-slate-600 rounded text-xs dark:bg-slate-800 dark:text-white" />
-              <button onClick={() => removeBreak(i)} className="text-red-400 hover:text-red-600 ml-1"><X size={12} /></button>
+              <button onClick={() => removeShift(i)} className="text-red-400 hover:text-red-600 ml-1"><X size={12} /></button>
             </div>
           ))}
+          {shifts.length === 0 && <span className="text-xs text-slate-400 italic">No shifts — add one.</span>}
         </div>
       )}
     </div>
@@ -2613,7 +2614,7 @@ const SettingsPage = () => {
     try {
       const res = await API.get(`/settings/doctors/${doctor._id}/schedule`);
       const s = res.data || {};
-      const dd = (open, start = '09:00', end = '17:00') => ({ isOpen: open, start, end, breaks: [] });
+      const dd = (open, start = '09:00', end = '17:00') => ({ isOpen: open, shifts: open ? [{ start, end }] : [] });
       // Merge server values with defaults per-day so no day key is ever missing
       const defaultWH = {
         monday: dd(true), tuesday: dd(true), wednesday: dd(true),
@@ -2623,14 +2624,20 @@ const SettingsPage = () => {
       const serverWH = s.bookingWorkingHours || {};
       const mergedWH = {};
       for (const day of Object.keys(defaultWH)) {
-        mergedWH[day] = { ...defaultWH[day], ...(serverWH[day] || {}) };
-        mergedWH[day].breaks = serverWH[day]?.breaks || [];
+        const sv = serverWH[day];
+        if (!sv) { mergedWH[day] = defaultWH[day]; continue; }
+        // Normalize legacy {start,end,breaks} → {isOpen, shifts[]}
+        let shifts = Array.isArray(sv.shifts) && sv.shifts.length > 0
+          ? sv.shifts
+          : (sv.start && sv.end ? [{ start: sv.start, end: sv.end }] : []);
+        mergedWH[day] = { isOpen: !!sv.isOpen, shifts };
       }
       setScheduleForm({
-        isBookable:          s.isBookable ?? false,
-        bookingWorkingHours: mergedWH,
-        holidays:            s.holidays    || [],
-        blockedSlots:        s.blockedSlots || [],
+        isBookable:               s.isBookable ?? false,
+        useCustomBookingSchedule: s.useCustomBookingSchedule ?? false,
+        bookingWorkingHours:      mergedWH,
+        holidays:                 s.holidays    || [],
+        blockedSlots:             s.blockedSlots || [],
       });
       setDoctorSchedModal({ open: true, doctor });
     } catch (err) {
@@ -2643,10 +2650,11 @@ const SettingsPage = () => {
     try {
       // Only send the four schedule fields — no Mongoose metadata
       const payload = {
-        isBookable:          scheduleForm.isBookable,
-        bookingWorkingHours: scheduleForm.bookingWorkingHours,
-        holidays:            scheduleForm.holidays,
-        blockedSlots:        scheduleForm.blockedSlots,
+        isBookable:               scheduleForm.isBookable,
+        useCustomBookingSchedule: scheduleForm.useCustomBookingSchedule,
+        bookingWorkingHours:      scheduleForm.bookingWorkingHours,
+        holidays:                 scheduleForm.holidays,
+        blockedSlots:             scheduleForm.blockedSlots,
       };
       await API.put(`/settings/doctors/${doctorSchedModal.doctor._id}/schedule`, payload);
       setBookingDoctors(prev => prev.map(d =>
@@ -2666,7 +2674,9 @@ const SettingsPage = () => {
       ...prev,
       bookingWorkingHours: {
         ...prev.bookingWorkingHours,
-        [day]: { ...prev.bookingWorkingHours[day], [field]: value },
+        [day]: field === '_set'
+          ? { ...prev.bookingWorkingHours[day], ...value }
+          : { ...prev.bookingWorkingHours[day], [field]: value },
       },
     }));
   };
@@ -3529,8 +3539,26 @@ const SettingsPage = () => {
                 />
               </div>
 
-              {/* Working Hours */}
+              {/* Custom schedule toggle */}
               {scheduleForm.isBookable && (
+                <div className="flex items-center justify-between p-4 border border-slate-200 dark:border-slate-700 rounded-xl">
+                  <div>
+                    <p className="font-semibold text-slate-800 dark:text-white">Use a custom schedule for online booking</p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {scheduleForm.useCustomBookingSchedule
+                        ? 'Online booking uses the hours configured below.'
+                        : "Online booking reuses this doctor's Weekly Availability from the Doctors tab."}
+                    </p>
+                  </div>
+                  <ToggleSwitch
+                    enabled={scheduleForm.useCustomBookingSchedule}
+                    onChange={v => setScheduleForm(p => ({ ...p, useCustomBookingSchedule: v }))}
+                  />
+                </div>
+              )}
+
+              {/* Working Hours — only when using a custom schedule */}
+              {scheduleForm.isBookable && scheduleForm.useCustomBookingSchedule && (
                 <div>
                   <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">Working Hours</h4>
                   {DAYS.map(day => (
